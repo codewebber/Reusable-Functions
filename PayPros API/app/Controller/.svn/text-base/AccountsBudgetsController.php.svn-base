@@ -1,0 +1,1189 @@
+<?php
+/**
+ * Module:Budgets
+ 
+ * @Ganesh Kumar R
+
+ * @Copyright©2012-2013 carmatec.com
+ 
+ */
+
+App::uses('AppController', 'Controller');
+/**
+ * AccountsBudgets Controller
+ *
+ * @property AccountsBudget $AccountsBudget
+ * @property AclComponent $Acl
+ * @property SecurityComponent $Security
+ * @property RequestHandlerComponent $RequestHandler
+ */
+class AccountsBudgetsController extends AppController {
+	
+	public function beforeFilter(){
+		parent::beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Budgets';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+    }
+	
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	
+/**
+ * Components
+ *
+ * @var array
+ */
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	
+	
+	/*public function index($value = null) {
+		$this->loadModel('AccountsBudgetCategory');
+		$this->AccountsBudgetCategory->recursive = -1;
+		$budgets = $this->AccountsBudget->find('all',array('conditions'=>array('AccountsBudget.active'=>'Y')));
+		if(count($budgets) == 0){
+			$this->redirect(array('controller' => 'accounts_budgets', 'action' => 'add'));
+		}else{
+			$this->set(compact('value'));
+			//$this->redirect(array('action' => 'index'));
+		}
+		
+	}*/
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsBudget->id = $id;
+		if (!$this->AccountsBudget->exists()) {
+			throw new NotFoundException(__('Invalid accounts budget'));
+		}
+		$this->set('accountsBudget', $this->AccountsBudget->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		//configure::write('debug',2);
+		$save = null;
+		$account_budget_flag = false;
+		$account_category_flag = false;
+		if ($this->request->is('post')) {
+			$this->loadModel('AccountsBudgetCategory');
+			
+			$this->loadModel('AccountsBudgetMapping');
+			
+			$this->AccountsAccount->recursive = -1;
+			$this->AccountsBudgetMapping->recursive = -1;
+			$this->AccountsBudgetCategory->recursive = -1; // -- we need to make entry to this mapping table also, otherwise we cant delete categories for a specific budget.
+			$save->data['accounts_account_id'] = $this->request->data['AccountsBudget']['accounts_account_id'];   
+			$save->data['from_period'] = $this->request->data['AccountsBudget']['from_period1'];
+			$save->data['to_period'] = $this->request->data['AccountsBudget']['to_period1'];
+			$save->data['budget_name'] = $this->request->data['AccountsBudget']['budget_name'];
+			$save->data['total_amount'] = $this->request->data['AccountsBudget']['total_amount'];
+			$save->data['description'] = $this->request->data['AccountsBudget']['description'];
+			$save->data['period'] = $this->request->data['budget_period'];
+			$this->AccountsBudget->create();
+			if ($this->AccountsBudget->save($save->data)){
+				$count = 0;
+				$account_budget_flag = true;
+				$lastinsertedId = $this->AccountsBudget->getLastInsertId();
+				$allcategories =  $this->AccountsBudgetCategory->find('all',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y')));
+				if($allcategories){
+					foreach ($allcategories as $allcategories){
+						$map_save = null;
+						$this->AccountsBudgetMapping->create();
+						$map_save->data['accounts_budget_id'] = $lastinsertedId;
+						$map_save->data['accounts_budget_category_id'] = $allcategories['AccountsBudgetCategory']['id'];
+						$map_save->data['amount'] = 0;
+						$map_save->data['active'] = 'Y';
+						$map_save->data['updated_on'] = date('Y-m-d');
+						if ($this->AccountsBudgetMapping->save($map_save->data)){
+							$account_category_flag = true;
+						}
+					}
+				}
+			} 
+			if($account_budget_flag && $account_category_flag){
+				$this->Session->setFlash('<div class="flashMessageSuccess">Budget has been added successfully!</div>');
+				$this->redirect(array('action' => 'index'));
+			}else{
+				$this->Session->setFlash(__('<div class="flashMessageError">Budget could not be saved</div>'));
+			}	
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($top_id=null,$id = null) {
+	//	Configure::write('debug',2);
+		
+		$exist_budget = $this->AccountsBudget->findById($id);
+		if ($this->request->is('post') || $this->request->is('put')) {
+			//Validation starts
+			if ($this->data['accounts_budgets']['from_period1'] > $this->data['accounts_budgets']['to_period1']) {
+				$this->Session->setFlash(__('<div class="flashMessageError">Budget could not be saved, From period should be less than To period!</div>'));
+				$this->redirect(array('action' => 'index'));
+			}
+			debug($this->data);
+			$bbudgets = $this->AccountsBudget->find('all',array('conditions'=>array('AccountsBudget.id !='=>$id,'AccountsBudget.accounts_category_id'=>$this->data['accounts_budgets']['category_id'],'AccountsBudget.active'=>'Y'),'fields'=>array('AccountsBudget.id','AccountsBudget.from_period','AccountsBudget.to_period')));
+			foreach($bbudgets as $budgett){
+			
+				debug($budgett);
+				if(strtotime($budgett['AccountsBudget']['from_period']) <= strtotime($this->request->data['accounts_budgets']['from_period1'])){
+					if(strtotime($budgett['AccountsBudget']['to_period']) >= strtotime($this->request->data['accounts_budgets']['from_period1'])){
+						$error = 'Message';
+						debug('entered in 1');
+					}
+					
+				}
+				if(strtotime($budgett['AccountsBudget']['from_period']) >= strtotime($this->request->data['accounts_budgets']['from_period1'])){
+					if((strtotime($budgett['AccountsBudget']['from_period']) <= strtotime($this->request->data['accounts_budgets']['to_period1'])) && ((strtotime($budgett['AccountsBudget']['to_period']) >= strtotime($this->request->data['accounts_budgets']['to_period1'])))){
+						$error = 'Message';
+						debug('entered in 2');
+					}
+				}
+			}
+
+			if(!empty($error)){
+				$this->Session->setFlash('<div class="flashMessageError">Budget is already set for this period. please select different period!</div>');
+				$this->redirect(array('action' => 'index'));
+			}
+			
+			$budgets = $this->AccountsBudget->find('all',array('conditions'=>array('AccountsBudget.from_period'=>$exist_budget['AccountsBudget']['from_period'],'AccountsBudget.to_period'=>$exist_budget['AccountsBudget']['to_period'])));
+			foreach ($budgets as $buudd) {
+				$total_budget_amount = $total_budget_amount + $buudd['AccountsBudget']['total_amount'];
+			}
+			if ($this->data['total_amount'] < $total_budget_amount) {
+				$this->Session->setFlash('<div class="flashMessageError">Budget could not be saved. Budget amount is less than the total amount of child budget amounts!</div>');
+				$this->redirect(array('action' => 'budget_tree',$top_id));
+			}
+			//Validation ends
+			
+			
+			foreach ($budgets as $buddgeet) {
+				$save_budget = null;
+				$save_budget['AccountsBudget']['id'] = $buddgeet['AccountsBudget']['id'];
+				$save_budget['AccountsBudget']['period'] = $this->data['accounts_budgets']['period'];
+				$save_budget['AccountsBudget']['from_period'] = $this->data['accounts_budgets']['from_period1'];
+				$save_budget['AccountsBudget']['to_period'] = $this->data['accounts_budgets']['to_period1'];
+				$save_budget['AccountsBudget']['revised_on'] = date('Y-m-d');
+				$save_budget['AccountsBudget']['description'] = $this->data['accounts_budgets']['description'];
+				$save_budget['AccountsBudget']['set_by'] = $this->Session->read('Auth.User.username');
+				$this->AccountsBudget->save($save_budget);
+			}
+			
+			$this->AccountsBudget->recursive = -1;
+			$save->data = null;
+			$save->data['AccountsBudget']['id'] = $id;
+			$save->data['AccountsBudget']['budget_name'] = $this->data['budget_name'];
+			$save->data['AccountsBudget']['accounts_category_id'] = $this->data['accounts_budgets']['category_id'];
+			$save->data['AccountsBudget']['total_amount'] = $this->data['total_amount'];
+			$save->data['AccountsBudget']['period'] = $this->data['accounts_budgets']['period'];
+			$save->data['AccountsBudget']['from_period'] = $this->data['accounts_budgets']['from_period1'];
+			$save->data['AccountsBudget']['to_period'] = $this->data['accounts_budgets']['to_period1'];
+			$save->data['AccountsBudget']['revised_on'] = date('Y-m-d');
+			$save->data['AccountsBudget']['description'] = $this->data['accounts_budgets']['description'];
+			$save->data['AccountsBudget']['set_by'] = $this->Session->read('Auth.User.username');
+			
+			if ($this->AccountsBudget->save($save->data)) {
+				$this->Session->setFlash('<div class="flashMessageSuccess">Budget has been updated successfully!</div>');
+				$this->redirect(array('action' => 'index'));	
+			}
+			else{
+				$this->Session->setFlash(__('<div class="flashMessageError">Budget could not be saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			}
+		}
+		$this->AccountsBudget->recursive = 0; 
+		$budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$id)));
+		$this->loadModel('AccountsBudgetCategory');
+		$categories = $this->AccountsBudgetCategory->find('list',array('conditions'=>array('AccountsBudgetCategory.level'=>'0','AccountsBudgetCategory.active'=>'Y'),'fields'=>array('AccountsBudgetCategory.id','AccountsBudgetCategory.budget_category_name')));
+		$this->set(compact('budget','categories','top_id','id'));
+	}
+
+/**
+ *  to delete the budget
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($top_id=null,$id = null) {
+		//configure::write('debug',2);
+		if ($this->request->is('post')){
+			$budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$id,'AccountsBudget.active'=>'Y')));
+			$save = null;
+			$save->data['AccountsBudget']['id'] = $budget['AccountsBudget']['id'];
+			$save->data['AccountsBudget']['active'] = 'N';
+			if($this->AccountsBudget->save($save->data)){
+				$this->Session->setFlash('<div class="flashMessageSuccess">Budget has been deleted successfully!</div>');
+				$this->redirect(array('action'=>'index'));
+			}else{
+				$this->Session->setFlash('<div class="flashMessageSuccess">Budget was not deleted</div>');
+				$this->redirect(array('action'=>'index'));
+			}
+		}
+		$this->AccountsBudget->recursive = -1;
+		$budgets = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$id,'AccountsBudget.active'=>'Y')));
+		$this->set(compact('budgets'));
+	}
+	
+	
+/**
+	* To create a budget tree (Deafault) with catogeries, if there is no budget is available
+ */
+	public function budgetAddTreeView(){
+		//configure::write('debug',2);
+		$this->loadModel('AccountsBudgetCategory');
+		$category = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.level'=>0,'AccountsBudgetCategory.parent_id'=>0,'AccountsBudgetCategory.active'=>'Y'),'fields'=>array('AccountsBudgetCategory.id')));
+		$budgets = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.active'=>'Y','AccountsBudget.from_period <='=>date('Y-m-d'),'AccountsBudget.to_period >='=>date('Y-m-d'),'AccountsBudget.accounts_category_id'=>$category['AccountsBudgetCategory']['id']),'fields'=>array('AccountsBudget.id')));     
+		return $budgets['AccountsBudget']['id'];
+	}
+	
+	
+/**
+  * To return data to show in trees for catogeries
+*/
+	public function tree($id = null){
+		//configure::write('debug',2);
+		$level1 = $level2 = $level3 = $level4 = null;
+		$budgets = $this->AccountsBudget->find('all',array('conditions'=>array('AccountsBudget.id'=>$id)));
+		//$level1 =  $budgets;
+		$this->loadModel('AccountsBudgetCategory');
+		$this->AccountsBudgetCategory->recursive = -1;
+		//$catogeries = $this->AccountsBudgetCategory->find('all',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y')));
+		$i = $j = $k = 0;
+		$this->loadModel('AccountsBudgetMapping');
+		$this->AccountsBudgetMapping->recursive = 0;
+		$budgetsMapping = $this->AccountsBudgetMapping->find('all',array('conditions'=>array('AccountsBudgetMapping.accounts_budget_id'=>$id,'AccountsBudgetMapping.active'=>'Y')));
+		
+		foreach($budgetsMapping as $budgetsMapping){
+			switch($budgetsMapping['AccountsBudgetCategory']['level']){
+				case 0:
+					$level1[$i] = $budgetsMapping;
+					$i++;
+					break;
+				
+				case 1:
+					$level2[$j] = $budgetsMapping;
+					$j++;
+					break;
+					
+				case 2:
+					$level3[$k] = $budgetsMapping;
+					$k++;
+					break;
+			}
+		}
+		if(isset($this->params['requested'])) { 	
+			$final['level1'] = $level1;
+			$final['level2'] = $level2;
+			$final['level3'] = $level3;
+			return $final;
+		}
+	}
+	
+/**
+* To get budget data
+*/
+	
+	public function getBudget($id = null){
+		$this->AccountsBudget->recursive = -1;
+		$budgets = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$id)));
+		return $budgets;
+	}
+	
+/**
+* to add for the budget_catogeries
+*/
+	public function addCategories($cat_id = null,$top_id=null){
+	//	Configure::write('debug',2);
+		if($cat_id){
+			$save = null;
+			$flag1 = false;
+			$flag2 = false;
+			$this->loadModel('AccountsBudgetCategory');
+			$this->AccountsBudgetCategory->recursive = -1;
+			$this->loadModel('AccountsBudgetMapping');
+			$this->AccountsBudgetMapping->recursive = -1;
+			$current_catogery =  $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.id'=>$cat_id)));
+			
+			$this->loadModel('AccountsAccount');
+			$child_accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.parent_id'=>$current_catogery['AccountsBudgetCategory']['accounts_account_id']),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+			if(!empty($child_accounts)){
+				foreach($child_accounts as $idd => $account){
+					$accounts[$idd] = $account;
+					$child_accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.parent_id'=>$idd),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+					if(!empty($child_accounts)){
+						foreach($child_accounts as $child_id => $child_acc_name){
+							$accounts[$child_id] = '|--'.$child_acc_name;
+						}
+					}
+				}
+			}
+			$this->set(compact('accounts'));
+			if ($this->request->is('post')) {
+				
+				if(empty($this->request->data['accounts_budget_categories']['accounts_account_id'])){
+					$this->Session->setFlash(__('<div class="flashMessageError">Account should be selected!</div>'));
+					$this->redirect(array('controller'=>'accounts_budgets','budget_tree',$top_id));
+				}
+				$top_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$top_id),'fields'=>array('AccountsBudget.from_period','AccountsBudget.to_period','AccountsBudget.period','AccountsBudget.total_amount')));
+				$accounts_exist = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.accounts_account_id'=>$this->request->data['accounts_budget_categories']['accounts_account_id']),'fields'=>array('AccountsBudgetCategory.id')));
+				$name = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$this->request->data['accounts_budget_categories']['accounts_account_id']),'fields'=>array('AccountsAccount.account_name')));
+				
+				$amount_exceeds=null;
+				$other_entries = $this->AccountsBudget->find('all',array('conditions'=>array('AccountsBudget.id !='=>$top_id,'AccountsBudget.from_period'=>$top_budget['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y'),'fields'=>array('AccountsBudget.total_amount')));
+				foreach($other_entries as $other_entry){
+					$total_budgetamount = $total_budgetamount + $other_entry['AccountsBudget']['total_amount'];
+				}
+				$total_budgetamount = $total_budgetamount + $this->request->data['accounts_budget_categories']['amount'];
+				if($top_budget['AccountsBudget']['total_amount'] >= $total_budgetamount){
+					$amount = $this->request->data['accounts_budget_categories']['amount'];
+				}
+				else{
+					$amount = 0;
+					$amount_exceeds = 1;
+				}
+				
+				if(empty($accounts_exist)){
+					$this->AccountsBudgetCategory->create();
+					$save->data['AccountsBudgetCategory']['budget_category_name'] = $name['AccountsAccount']['account_name'];
+					$save->data['AccountsBudgetCategory']['level'] = $current_catogery['AccountsBudgetCategory']['level'] + 1;
+					$save->data['AccountsBudgetCategory']['parent_id'] = $current_catogery['AccountsBudgetCategory']['id'];
+					$save->data['AccountsBudgetCategory']['active'] = 'Y';
+					$save->data['AccountsBudgetCategory']['accounts_account_id'] = $this->request->data['accounts_budget_categories']['accounts_account_id'];
+					$save->data['AccountsBudgetCategory']['icon_path'] = $this->request->data['category_icon'];
+					if($this->AccountsBudgetCategory->save($save->data)) {
+						$save_budget=null;
+						$lastinsertedId = $this->AccountsBudgetCategory->getLastInsertId();
+						$save_budget['AccountsBudget']['budget_name'] = $name['AccountsAccount']['account_name'];
+						$save_budget['AccountsBudget']['from_period'] = $top_budget['AccountsBudget']['from_period'];
+						$save_budget['AccountsBudget']['to_period'] = $top_budget['AccountsBudget']['to_period'];
+						$save_budget['AccountsBudget']['description'] = $top_budget['AccountsBudget']['description'];
+						$save_budget['AccountsBudget']['revised_on'] = date('Y-m-d');
+						$save_budget['AccountsBudget']['active'] = 'Y';
+						$save_budget['AccountsBudget']['set_by'] = $this->Session->read('Auth.User.username');
+						$save_budget['AccountsBudget']['total_amount'] = $amount;
+						$save_budget['AccountsBudget']['period'] = $top_budget['AccountsBudget']['period'];
+						$save_budget['AccountsBudget']['accounts_category_id'] = $lastinsertedId;
+						$this->AccountsBudget->create();
+						if($this->AccountsBudget->save($save_budget)){
+							if($amount_exceeds == 1){
+								$this->Session->setFlash('<div class="flashMessageError">Amount shouldnot exceed more than the top account</div>');
+							}
+							else{
+								$this->Session->setFlash('<div class="flashMessageSuccess">Budget category has been added successfully!</div>');
+							}
+						}
+						else{
+							$this->Session->setFlash(__('<div class="flashMessageError">Category could not be saved</div>'));
+						}
+						$this->redirect(array('action' => 'budget_tree',$top_id));
+					}
+				}
+				else{
+					$account_category = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.accounts_account_id'=>$this->request->data['accounts_budget_categories']['accounts_account_id'])));
+					$budgets = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.accounts_category_id'=>$account_category['AccountsBudgetCategory']['id'],'AccountsBudget.active'=>'Y','AccountsBudget.from_period'=>$top_budget['AccountsBudget']['from_period'])));
+					if(empty($budgets)){
+						$this->AccountsBudget->create();
+						$save_budgets['AccountsBudget']['budget_name'] = $name['AccountsAccount']['account_name'];
+						$save_budgets['AccountsBudget']['description'] = $top_budget['AccountsBudget']['description'];
+						$save_budgets['AccountsBudget']['from_period'] = $top_budget['AccountsBudget']['from_period'];
+						$save_budgets['AccountsBudget']['to_period'] = $top_budget['AccountsBudget']['to_period'];
+						$save_budgets['AccountsBudget']['revised_on'] = date('Y-m-d');
+						$save_budgets['AccountsBudget']['active'] = 'Y';
+						$save_budgets['AccountsBudget']['set_by'] = $this->Session->read('Auth.User.username');
+						$save_budgets['AccountsBudget']['total_amount'] = $amount;
+						$save_budgets['AccountsBudget']['period'] = $top_budget['AccountsBudget']['period'];
+						$save_budgets['AccountsBudget']['accounts_category_id'] = $account_category['AccountsBudgetCategory']['id'];
+						if($this->AccountsBudget->save($save_budgets)){
+							if($amount_exceeds == 1){
+								$this->Session->setFlash('<div class="flashMessageError">Amount shouldnot exceed more than the top account</div>');
+							}
+							else{
+								$this->Session->setFlash('<div class="flashMessageSuccess">Budget category has been added successfully!</div>');
+							}
+						}
+						else{
+							$this->Session->setFlash(__('<div class="flashMessageError">Category could not be saved</div>'));
+						}
+						$this->redirect(array('action' => 'budget_tree',$top_id));
+					}
+					else{
+						$this->Session->setFlash(__('<div class="flashMessageError">Account selected is already present for this budget. Please select any other account and try again!</div>'));
+						$this->redirect(array('action' => 'budget_tree',$top_id));
+					}
+				}
+			}
+		}
+	}
+	
+	
+/**
+* edit for budget_catogeries
+*/
+	public function editCategories($id = null,$budget_id=null,$top_id=null){
+	//	Configure::write('debug',2);
+	
+		$this->loadModel('AccountsBudgetCategory');
+		$accountsBudgetCategory = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.id'=>$id)));
+		$this->loadModel('AccountsBudgetCategory');
+		$account_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$budget_id),'fields'=>array('AccountsBudget.total_amount')));
+		
+		if ($this->request->is('post') || $this->request->is('put')) {
+			
+			if(empty($this->request->data['accounts_budget_categories']['accounts_account_id'])){
+				$this->Session->setFlash(__('<div class="flashMessageError">Account should be selected!</div>'));
+				$this->redirect(array('controller'=>'accounts_budgets','action'=>'budget_tree',$top_id));
+			}
+			$budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$top_id),'fields'=>array('AccountsBudget.from_period','AccountsBudget.total_amount')));
+			if($accountsBudgetCategory['AccountsBudgetCategory']['accounts_account_id'] == $this->request->data['accounts_budget_categories']['accounts_account_id']){
+					
+				$update_category=null;
+				$update_category['AccountsBudgetCategory']['id'] = $accountsBudgetCategory['AccountsBudgetCategory']['id'];
+				$update_category['AccountsBudgetCategory']['icon_path'] = $this->data['category_icon'];
+				$this->AccountsBudgetCategory->save($update_category);
+					
+				$bbudgets = $this->AccountsBudget->find('all',array('conditions'=>array('NOT'=>array('AccountsBudget.id'=>array($budget_id,$top_id)),'AccountsBudget.from_period'=>$budget['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y'),'fields'=>array('AccountsBudget.total_amount')));
+				$total_budgetamount=0;$amount_exceeds=0;
+				foreach($bbudgets as $bbudget){
+					$total_budgetamount = $total_budgetamount + $bbudget['AccountsBudget']['total_amount'];
+				}
+				$total_budgetamount = $total_budgetamount + $this->request->data['accounts_budget_categories']['amount'];
+				if($total_budgetamount <= $budget['AccountsBudget']['total_amount']){
+					$amount = $this->request->data['accounts_budget_categories']['amount'];
+				}
+				else{
+					$amount = 0;
+					$amount_exceeds = 1;
+				}
+				$save_budget['AccountsBudget']['id'] = $budget_id;
+				$save_budget['AccountsBudget']['total_amount'] = $amount;
+				$save_budget['AccountsBudget']['set_by'] = $this->Session->read('Auth.User.username');
+				$save_budget['AccountsBudget']['revised_on'] = date('Y-m-d');
+				if($this->AccountsBudget->save($save_budget)){
+					if($amount_exceeds == 1 ){
+						$this->Session->setFlash('<div class="flashMessageError">Budget amount exceeds the top level budget amount!</div>');
+					}
+					else{
+						$this->Session->setFlash('<div class="flashMessageSuccess">Budget has been updated successfully!</div>');
+					}
+					$this->redirect(array('action' => 'budget_tree',$top_id));
+				}
+				else{
+					$this->Session->setFlash(__('<div class="flashMessageError">Budget could not be saved!</div>'));
+				} 
+			}
+			else{
+				$exist_account = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.accounts_account_id !='=>$accountsBudgetCategory['AccountsBudgetCategory']['accounts_account_id'],'AccountsBudgetCategory.accounts_account_id'=>$this->request->data['accounts_budget_categories']['accounts_account_id'])));       
+			
+				if(!empty($exist_account)){
+					
+					$budgettts = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.accounts_category_id'=>$exist_account['AccountsBudgetCategory']['id'],'AccountsBudget.from_period'=>$budget['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y')));
+					if(empty($budgettts)){
+						$bbudgets = $this->AccountsBudget->find('all',array('conditions'=>array('NOT'=>array('AccountsBudget.id'=>array($budget_id,$top_id)),'AccountsBudget.from_period'=>$budget['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y'),'fields'=>array('AccountsBudget.total_amount')));
+						$total_budgetamount=0;$amount_exceeds=0;
+						foreach($bbudgets as $bbudget){
+							$total_budgetamount = $total_budgetamount + $bbudget['AccountsBudget']['total_amount'];
+						}
+						$total_budgetamount = $total_budgetamount + $this->request->data['accounts_budget_categories']['amount'];
+						if($total_budgetamount <= $budget['AccountsBudget']['total_amount']){
+							$amount = $this->request->data['accounts_budget_categories']['amount'];
+						}
+						else{
+							$amount = 0;
+							$amount_exceeds = 1;
+						}
+						$update_category=null;
+						$update_category['AccountsBudgetCategory']['id'] = $accountsBudgetCategory['AccountsBudgetCategory']['id'];
+						$update_category['AccountsBudgetCategory']['icon_path'] = $this->data['category_icon'];
+						$this->AccountsBudgetCategory->save($update_category);
+						
+						
+						$update_budget['AccountsBudget']['id'] = $budget_id;
+						$update_budget['AccountsBudget']['accounts_category_id'] = $exist_account['AccountsBudgetCategory']['id'];
+						$update_budget['AccountsBudget']['total_amount'] = $amount;
+						$update_budget['AccountsBudget']['revised_on'] = date('Y-m-d');
+						$update_budget['AccountsBudget']['set_by'] = $this->Session->read('Auth.User.username');
+						$this->AccountsBudget->save($update_budget);
+					}
+					else{
+						$this->Session->setFlash('<div class="flashMessageError">The selected account is already present for this budget!</div>');
+					}
+					$this->redirect(array('action' => 'budget_tree',$top_id));
+				}
+				else{
+					$this->loadModel('AccountsAccount');
+					$parent_category = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.level'=>'0','AccountsBudgetCategory.parent_id'=>'0')));
+					$acc_name = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$this->request->data['accounts_budget_categories']['accounts_account_id']),'fields'=>array('AccountsAccount.account_name')));
+					$create_category['AccountsBudgetCategory']['budget_category_name'] = $acc_name['AccountsAccount']['account_name'];
+					$create_category['AccountsBudgetCategory']['level'] = $parent_category['AccountsBudgetCategory']['level'] + 1;
+					$create_category['AccountsBudgetCategory']['parent_id'] = $parent_category['AccountsBudgetCategory']['id'];
+					$create_category['AccountsBudgetCategory']['active'] = 'Y';
+					$create_category['AccountsBudgetCategory']['accounts_account_id'] = $this->request->data['accounts_budget_categories']['accounts_account_id'];
+					$create_category['AccountsBudgetCategory']['icon_path'] = $this->request->data['category_icon'];
+					
+					$this->AccountsBudgetCategory->create();
+					$this->AccountsBudgetCategory->save($create_category);
+					$last_category = $this->AccountsBudgetCategory->getLastInsertId();
+					$bbudgets = $this->AccountsBudget->find('all',array('conditions'=>array('NOT'=>array('AccountsBudget.id'=>array($budget_id,$top_id)),'AccountsBudget.from_period'=>$budget['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y'),'fields'=>array('AccountsBudget.total_amount')));
+					$total_budgetamount=0;$amount_exceeds=0;
+					foreach($bbudgets as $bbudget){
+						$total_budgetamount = $total_budgetamount + $bbudget['AccountsBudget']['total_amount'];
+					}
+					$total_budgetamount = $total_budgetamount + $this->request->data['accounts_budget_categories']['amount'];
+					if($total_budgetamount <= $budget['AccountsBudget']['total_amount']){
+						$amount = $this->request->data['accounts_budget_categories']['amount'];
+					}
+					else{
+						$amount = 0;
+						$amount_exceeds = 1;
+					}
+					$save_budget['AccountsBudget']['id'] = $budget_id;
+					$save_budget['AccountsBudget']['total_amount'] = $amount;
+					$save_budget['AccountsBudget']['revised_on'] = date('Y-m-d');
+					$save_budget['AccountsBudget']['set_by'] = $this->Session->read('Auth.User.username');
+					$save_budget['AccountsBudget']['accounts_category_id'] = $last_category;
+					$this->AccountsBudget->create();
+					$this->AccountsBudget->save($save_budget);
+					if($amount_exceeds == 1 ){
+						$this->Session->setFlash('<div class="flashMessageError">Budget amount exceeds the top level budget amount!</div>');
+					}
+					else{
+						$this->Session->setFlash('<div class="flashMessageSuccess">Budget has been updated successfully!</div>');
+					}
+					$this->redirect(array('action' => 'budget_tree',$top_id));
+				}
+			}
+		}
+		else{
+			$this->request->data = $this->AccountsBudgetCategory->read(null, $id);
+		}
+		$parentAccountsBudgetCategories = $this->AccountsBudgetCategory->ParentAccountsBudgetCategory->find('list');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountType');
+		$accountType = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name'=>'Expenses'),'fields'=>array('AccountType.id')));
+		$child_accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.account_type_id'=>$accountType['AccountType']['id'],'AccountsAccount.parent_id IS NOT NULL'),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+		if(!empty($child_accounts)){
+			foreach($child_accounts as $idd => $account){
+				$accounts[$idd] = $account;
+				$child_accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.parent_id'=>$idd),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+				if(!empty($child_accounts)){
+					foreach($child_accounts as $child_id => $child_acc_name){
+						$accounts[$child_id] = '|--'.$child_acc_name;
+					}
+				}
+			}
+		}
+		$this->set(compact('accounts'));
+		$this->set(compact('parentAccountsBudgetCategories','accountsBudgetCategory','account_budget'));
+	}
+
+		
+/**
+ * view for budget_catogeries
+ */
+	public function viewCategories($id = null){
+		$this->loadModel('AccountsBudgetCategory');
+		$this->loadModel('AccountsAccount');
+		$accountsBudgetCategory = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.id'=>$id)));
+		$parentAccountsBudgetCategories = $this->AccountsBudgetCategory->ParentAccountsBudgetCategory->find('list');
+		$account_name = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$accountsBudgetCategory['AccountsBudgetCategory']['accounts_account_id']),'fields'=>array('AccountsAccount.account_name')));
+		$this->set(compact('parentAccountsBudgetCategories', 'account_name','accountsBudgetCategory'));
+	}
+	
+	
+/**
+ * delete for budget_catogeries
+ */
+	
+	public function deleteCategories($category_id = null,$budget_id = null,$top_id=null){
+		$this->loadModel('AccountsBudgetCategory');
+		if($this->request->is('post')){
+			$save = null;
+			$save->data['AccountsBudget']['id'] = $budget_id;
+			$save->data['AccountsBudget']['active'] = 'N';
+			$save->data['AccountsBudget']['revised_on'] = date('Y-m-d');
+			if ($this->AccountsBudget->save($save->data)){
+				$this->Session->setFlash('<div class="flashMessageSuccess">Budget category has been made inactive from this budget!</div>');
+				$this->redirect(array('action'=>'budget_tree',$top_id));
+			}
+			else{
+				$this->Session->setFlash('<div class="flashMessageSuccess">Budget category could not be made inactive from this budget. Please, try again !</div>');
+				$this->redirect(array('action'=>'budget_tree',$top_id));
+			}
+		}
+		$this->AccountsBudgetCategory->recursive = -1;
+		$category = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.id'=>$category_id)));
+		$this->set(compact('category','budget_id','category_id'));
+	}
+
+/**
+ * add budgets using popup
+ */
+	
+	public function addBud(){
+	//	configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('AccountsBudgetCategory');
+		$accounts_budgets = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.level'=>0)));
+		$categories[$accounts_budgets['AccountsBudgetCategory']['id']] = $accounts_budgets['AccountsBudgetCategory']['budget_category_name'];
+		$this->set(compact('categories'));
+		if ($this->request->is('post')) {
+			
+			/**Validation begins**/
+			
+			if (strtotime($this->data['accounts_budgets']['from_period1']) > strtotime($this->data['accounts_budgets']['to_period1'])) {
+				$this->Session->setFlash('<div class="flashMessageError">Budget could not be saved! period from date shouldn\'t be greater than period to date!</div>');
+				$this->redirect(array('action' => 'index'));
+			}
+			$budgets = $this->AccountsBudget->find('all',array('conditions'=>array('AccountsBudget.accounts_category_id'=>$this->request->data['accounts_budgets']['accounts_category_id'],'AccountsBudget.active'=>'Y'),'fields'=>array('AccountsBudget.id','AccountsBudget.from_period','AccountsBudget.to_period')));
+			foreach($budgets as $budget){
+			
+				if(strtotime($budget['AccountsBudget']['from_period']) <= strtotime($this->request->data['accounts_budgets']['from_period1'])){
+					if(strtotime($budget['AccountsBudget']['to_period']) >= strtotime($this->request->data['accounts_budgets']['from_period1'])){
+						$error = 'Message';
+					}
+					
+				}
+				if(strtotime($budget['AccountsBudget']['from_period']) >= strtotime($this->request->data['accounts_budgets']['from_period1'])){
+					if((strtotime($budgett['AccountsBudget']['from_period']) <= strtotime($this->request->data['accounts_budgets']['to_period1'])) && ((strtotime($budgett['AccountsBudget']['to_period']) >= strtotime($this->request->data['accounts_budgets']['to_period1'])))){
+						$error = 'Message';
+					}
+				}
+			}
+			if(!empty($error)){
+				$this->Session->setFlash('<div class="flashMessageError">Budget is already set for this period. please select different period!</div>');
+				$this->redirect(array('action' => 'index'));
+			}
+			
+			$flag = true;
+			$this->loadModel('AccountsBudgetCategory');
+			$this->loadModel('AccountsBudgetMapping');
+			$this->loadModel('AccountsAccount');
+			$this->AccountsBudgetMapping->recursive = -1;
+			$this->AccountsBudgetCategory->recursive = -1; // -- we need to make entry to this mapping table also, otherwise we cant delete categories for a specific budget.   
+			$this->AccountsBudget->create();
+			$save->data['AccountsBudget']['accounts_category_id'] = $this->request->data['accounts_budgets']['accounts_category_id'];
+			$save->data['AccountsBudget']['budget_name'] = $this->request->data['budget_name'];
+			$save->data['AccountsBudget']['from_period'] = $this->request->data['accounts_budgets']['from_period1'];
+			$save->data['AccountsBudget']['to_period'] = $this->request->data['accounts_budgets']['to_period1'];
+			$save->data['AccountsBudget']['total_amount'] = $this->request->data['total_amount'];
+			$save->data['AccountsBudget']['period'] = $this->request->data['budget_period'];
+			$save->data['AccountsBudget']['description'] = $this->request->data['accounts_budgets']['description'];
+			$save->data['AccountsBudget']['set_by'] = $this->Session->read('Auth.User.username');
+			
+			if ($this->AccountsBudget->save($save->data)) {
+				/*$categories = $this->AccountsBudgetCategory->find('all',array('conditions'=>array('AccountsBudgetCategory.parent_id'=>$this->request->data['accounts_budgets']['accounts_category_id'])));
+				foreach($categories as $category){
+					$budget_name = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$category['AccountsBudgetCategory']['accounts_account_id']),'fields'=>array('AccountsAccount.account_name')));      
+					$save_budget = null;
+					$save_budget['AccountsBudget']['accounts_category_id'] = $category['AccountsBudgetCategory']['id'];
+					$save_budget['AccountsBudget']['budget_name'] = $budget_name['AccountsAccount']['account_name'];
+					$save_budget['AccountsBudget']['from_period'] = $this->request->data['accounts_budgets']['from_period1'];
+					$save_budget['AccountsBudget']['to_period'] = $this->request->data['accounts_budgets']['to_period1'];
+					$save_budget['AccountsBudget']['total_amount'] = '0';
+					$save_budget['AccountsBudget']['period'] = $this->request->data['budget_period'];
+					$save_budget['AccountsBudget']['description'] = $this->request->data['accounts_budgets']['description'];
+					$save_budget['AccountsBudget']['set_by'] = $this->Session->read('Auth.User.username');
+					$this->AccountsBudget->create();
+					$this->AccountsBudget->save($save_budget);
+				}*/
+				if($flag){
+					$this->Session->setFlash('<div class="flashMessageSuccess">Budget has been added successfully!</div>');
+					$this->redirect(array('action' => 'index'));
+				}
+				else{
+					$this->Session->setFlash(__('<div class="flashMessageError">Budget could not be saved</div>'));
+					$this->redirect(array('action' => 'index'));
+				}	
+			}
+		}
+	}
+
+
+/**
+	* to edit budget amount 
+*/
+	public function editBudgetAmount($id = null){
+		//configure::write('debug',2);
+		$save = null;
+		$inputBoxName = 'bud_amoumt'.$id;
+		if($this->request->data[$inputBoxName] > 0){
+			$amount = $this->request->data[$inputBoxName];
+			$this->AccountsBudget->recursive = -1;
+			$budgets = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$id)));
+			if($budgets){
+				$save->data['AccountsBudget']['id'] = $budgets['AccountsBudget']['id'];
+				$save->data['AccountsBudget']['total_amount'] = $amount;
+				if ($this->AccountsBudget->save($save->data)) {
+					$this->set(compact('id'));
+					$this->set(compact('amount'));
+				}
+			}
+		}
+	}
+	
+	
+/**
+ * to edit catogery amount 
+ */
+	
+	public function editCatogeryAmount($top_id=null,$catogory_id = null,$budget_id = null,$cssclass = null){
+	//	configure::write('debug',2);
+		debug($this->data);
+		$inputBoxName = 'cat_amoumt'.$catogory_id;
+		$cat_amount = $this->numberconversion($this->request->data[$inputBoxName]);
+		$_editable = 0;
+		$this->AccountsBudget->recursive = -1;
+		$top_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$top_id)));
+		if($top_id != $budget_id){
+			
+			$budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$budget_id),'fields'=>array('AccountsBudget.from_period','AccountsBudget.total_amount')));
+			$other_budgetentries = $this->AccountsBudget->find('all',array('conditions'=>array('NOT'=>array('AccountsBudget.id '=>array($budget_id,$top_id)),'AccountsBudget.from_period'=>$budget['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y')));
+			
+			foreach($other_budgetentries as $other_budgetentry){
+				$total_budgetamount = $total_budgetamount + $other_budgetentry['AccountsBudget']['total_amount'];
+			}
+			$total_budgetamount = $total_budgetamount + $cat_amount;
+			
+			if($top_budget['AccountsBudget']['total_amount'] >= $total_budgetamount){
+				$save_budget['AccountsBudget']['id'] = $budget_id;
+				$save_budget['AccountsBudget']['total_amount'] = $cat_amount;
+				$this->AccountsBudget->save($save_budget);
+				$_editable = 1;
+				$total_catogory_amount = $total_budgetamount;
+			}
+			else{
+				$total_catogory_amount = $total_budgetamount - $cat_amount;
+			}
+		}
+		else{
+			$budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$budget_id),'fields'=>array('AccountsBudget.from_period','AccountsBudget.total_amount')));
+			$total_amount = $this->AccountsBudget->find('all',array('conditions'=>array('AccountsBudget.from_period'=>$top_budget['AccountsBudget']['from_period'],'AccountsBudget.id !='=>$budget_id,'AccountsBudget.active'=>'Y'),'fields'=>array('AccountsBudget.total_amount')));
+			foreach($total_amount as $amount){
+				$tot = $tot + $amount['AccountsBudget']['total_amount'];
+			}
+			$total_catogory_amount =  $tot;
+			if($tot < $cat_amount){
+				$save_budget['AccountsBudget']['id'] = $budget_id;
+				$save_budget['AccountsBudget']['total_amount'] = $cat_amount;
+				$this->AccountsBudget->save($save_budget);
+				$_editable = 1;
+			}     
+		}
+		
+		$this->set(compact('top_id','catogory_id','cat_amount','budget_id','_editable','total_catogory_amount','cssclass','budget'));
+		
+		//$category = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory')));
+		/*$budgets = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$budget_id)));
+		if($budgets){
+			$this->loadModel('AccountsBudgetMapping');
+			$this->AccountsBudgetMapping->recursive = -1;
+			$budget_mappings_wo_curtcat = $this->AccountsBudgetMapping->find('all',array('fields'=>array('AccountsBudgetMapping.amount'),'conditions'=>array('AccountsBudgetMapping.accounts_budget_id'=>$budget_id,'AccountsBudgetMapping.accounts_budget_category_id !='=>$catogory_id)));
+			$budget_mappings = $this->AccountsBudgetMapping->find('first',array('conditions'=>array('AccountsBudgetMapping.accounts_budget_id'=>$budget_id,'AccountsBudgetMapping.accounts_budget_category_id'=>$catogory_id)));
+			$budget_mappings_for_total = $this->AccountsBudgetMapping->find('all',array('conditions'=>array('AccountsBudgetMapping.accounts_budget_id'=>$budget_id)));
+			$totalcat = 0;  // -- to store total category amount value to this budget execpt current catogery.
+			 // -- looping to get total category amount value to this budget execpt current catogery.
+			foreach ($budget_mappings_wo_curtcat as $budget_mappings_wo_curtcat){
+				$totalcat += $budget_mappings_wo_curtcat['AccountsBudgetMapping']['amount'];
+			}
+			$totalcat = $totalcat + $cat_amount;  
+			
+			// --- looping to get total category amount to this budget.
+			$total_catogory_amount = null;
+			foreach ($budget_mappings_for_total as $budget_mappings_for_total){
+				$total_catogory_amount += $budget_mappings_for_total['AccountsBudgetMapping']['amount'];
+			}
+			
+			
+			if($totalcat > $budgets['AccountsBudget']['total_amount']){  // --  to check the total category amount is grater than assigned budget amount
+				$_editable = 0;
+				$cat_amount = $budget_mappings['AccountsBudgetMapping']['amount'];
+				$this->set(compact('catogory_id','cat_amount','budget_id','_editable','total_catogory_amount','cssclass'));
+				
+			}else{
+				if($budget_mappings){
+					$save->data['AccountsBudgetMapping']['id'] = $budget_mappings['AccountsBudgetMapping']['id'];
+					$save->data['AccountsBudgetMapping']['accounts_budget_id'] = $budget_id;
+					$save->data['AccountsBudgetMapping']['accounts_budget_category_id'] = $catogory_id;
+					$save->data['AccountsBudgetMapping']['amount'] = $cat_amount;
+					$save->data['AccountsBudgetMapping']['active'] = 'Y';
+					$save->data['AccountsBudgetMapping']['updated_on'] =  date("Y-m-d");
+					if ($this->AccountsBudgetMapping->save($save->data)){
+						$_editable = 1;
+						$total_catogory_amount = 0;
+						$budget_mappings_for_total = $this->AccountsBudgetMapping->find('all',array('conditions'=>array('AccountsBudgetMapping.accounts_budget_id'=>$budget_id)));
+						foreach ($budget_mappings_for_total as $budget_mappings_for_total){
+							$total_catogory_amount += $budget_mappings_for_total['AccountsBudgetMapping']['amount'];
+						}
+						$this->set(compact('catogory_id','cat_amount','budget_id','_editable','total_catogory_amount','cssclass'));
+						
+					}
+				}else if(!$budget_mappings){
+					$this->AccountsBudgetMapping->create();
+					$save->data['AccountsBudgetMapping']['accounts_budget_id'] = $budget_id;
+					$save->data['AccountsBudgetMapping']['accounts_budget_category_id'] = $catogory_id;
+					$save->data['AccountsBudgetMapping']['amount'] = $cat_amount;
+					$save->data['AccountsBudgetMapping']['active'] = 'Y';
+					$save->data['AccountsBudgetMapping']['updated_on'] =  date("Y-m-d");
+					if ($this->AccountsBudgetMapping->save($save->data)) {
+						$_editable = 1;
+						$total_catogory_amount = 0;
+						$budget_mappings_for_total = $this->AccountsBudgetMapping->find('all',array('conditions'=>array('AccountsBudgetMapping.accounts_budget_id'=>$budget_id)));
+						foreach ($budget_mappings_for_total as $budget_mappings_for_total){
+							$total_catogory_amount += $budget_mappings_for_total['AccountsBudgetMapping']['amount'];
+						}
+						$this->set(compact('catogory_id','cat_amount','budget_id','_editable','total_catogory_amount','cssclass'));
+					}
+				}
+			}
+		}*/
+	}
+	
+	
+/**
+ * to move forward and backward in index page
+*/
+	
+	public function forward($id = null){
+		//configure::write('debug',2);
+		$this->AccountsBudget->recursive = -1;
+		$this->loadModel('AccountsBudgetCategory');
+		$current = $this->AccountsBudget->findById($id);
+		$category_id = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.level'=>'0','AccountsBudgetCategory.parent_id'=>'0'),'fields'=>array('AccountsBudgetCategory.id')));
+		$budgets = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.from_period >'=>$current['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y','AccountsBudget.accounts_category_id'=>$category_id['AccountsBudgetCategory']['id'])));
+		if(!empty($budgets['AccountsBudget']))
+			return $budgets['AccountsBudget']['id'];
+		else 
+			return null;
+	}
+	
+	
+/**
+ * to move forward and backward in index page
+*/
+	public function backward($id = null){
+		//configure::write('debug',2);
+		$return_id = null;
+		$this->AccountsBudget->recursive = -1;
+		$this->loadModel('AccountsBudgetCategory');
+		$current = $this->AccountsBudget->findById($id);
+		$category_id = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.level'=>'0','AccountsBudgetCategory.parent_id'=>'0'),'fields'=>array('AccountsBudgetCategory.id')));
+		$budgets = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.from_period <'=>$current['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y','AccountsBudget.accounts_category_id'=>$category_id['AccountsBudgetCategory']['id']),'order'=>array('AccountsBudget.id DESC')));
+		if(!empty($budgets['AccountsBudget']))
+			return $budgets['AccountsBudget']['id'];
+		else 
+			return null;
+	}
+	
+	
+/**
+ * to move forward and backward in index page
+ */
+	public function preForward($currentBudjetId = null){
+		$this->set(compact('currentBudjetId'));
+	
+	}
+	
+/**
+ * to get category amount
+*/	
+	
+	public function getCategoryAmount($budget_id = null,$category_id = null){
+		//configure::write('debug',2);
+		$this->loadModel('AccountsBudgetMapping');
+		$budget_mappings = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$budget_id,'AccountsBudget.accounts_category_id'=>$category_id,'AccountsBudget.active'=>'Y')));
+		if($budget_mappings){
+			 return $budget_mappings['AccountsBudget']['total_amount'];
+		}
+		else{
+			return null;
+		}
+		
+	}
+	
+	
+/**
+ * to add fisrt level category
+*/
+	public function firstlevelCategory(){
+	//	configure::write('debug',2);
+		
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsBudgetCategory');
+		$this->loadModel('AccountsAccount');
+		//$existing_accounts = $this->AccountsBudgetCategory->find('list',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y'),'fields'=>array('AccountsBudgetCategory.accounts_account_id','AccountsBudgetCategory.id')));
+		$account_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name'=>'Expenses'),'fields'=>array('AccountType.id')));
+		$accounts = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.parent_id IS NULL','AccountsAccount.account_type_id'=>$account_type['AccountType']['id']),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+		$final[$accounts['AccountsAccount']['id']] = $accounts['AccountsAccount']['account_name'];
+		$this->set(compact('final'));
+		
+		$this->loadModel('AccountsBudgetCategory');
+		$this->AccountsBudgetCategory->recursive = -1;
+		if ($this->request->is('post')) {
+				$accounts_exist = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.accounts_account_id'=>$this->request->data['accounts_budget_categories']['accounts_account_id']),'fields'=>array('AccountsBudgetCategory.id')));
+				if(!empty($accounts_exist)){
+					$this->Session->setFlash(__('<div class="flashMessageError">Account selected is already have a category. Please select any other account and try again!</div>'));
+					$this->redirect(array('action' => 'index'));
+				}
+				$acc_name = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$this->request->data['accounts_budget_categories']['accounts_account_id']),'fields'=>array('AccountsAccount.account_name')));
+				$save = null;
+				
+				$this->AccountsBudgetCategory->create();
+				$save->data['AccountsBudgetCategory']['budget_category_name'] = $acc_name['AccountsAccount']['account_name'];
+				$save->data['AccountsBudgetCategory']['level'] = 0;
+				$save->data['AccountsBudgetCategory']['parent_id'] = 0;
+				$save->data['AccountsBudgetCategory']['active'] = 'Y';
+				$save->data['AccountsBudgetCategory']['accounts_account_id'] = $this->request->data['accounts_budget_categories']['accounts_account_id'];
+				$save->data['AccountsBudgetCategory']['icon_path'] = $this->request->data['category_icon'];
+				if ($this->AccountsBudgetCategory->save($save->data)) {
+					$flag = true;
+					$lastinsertedId = $this->AccountsBudgetCategory->getLastInsertId();
+					/*$this->AccountsBudget->recursive = -1;
+					$budgets = $this->AccountsBudget->find('all');
+					if($budgets){
+						foreach ($budgets as $budgets){
+							$map_save = null;
+							$this->AccountsBudgetMapping->create();
+							$map_save->data['accounts_budget_id'] = $budgets['AccountsBudget']['id'];
+							$map_save->data['accounts_budget_category_id'] = $lastinsertedId;
+							$map_save->data['amount'] = 0;
+							$map_save->data['active'] = 'Y';
+							$map_save->data['updated_on'] = date('Y-m-d');
+							if ($this->AccountsBudgetMapping->save($map_save->data)){
+								
+							}else{
+								$flag = false;
+							}
+						}
+				    }*/
+				}
+				if($flag){
+					$this->Session->setFlash('<div class="flashMessageSuccess">Budget category has been added successfully!</div>');
+					$this->redirect(array('action' => 'index','click_createBudget'));
+				}
+				else{
+					$this->Session->setFlash(__('<div class="flashMessageError">Budget category could not be saved</div>'));
+					$this->redirect(array('action' => 'index'));
+				}
+		}
+		$parentAccountsBudgetCategories = $this->AccountsBudgetCategory->ParentAccountsBudgetCategory->find('list');
+		$this->set(compact('parentAccountsBudgetCategories', 'brands', 'accountTypes'));
+	}
+	
+	
+/**
+ * to edit the budget amount.
+*/  
+	public function editTotalBudgetAmount($budget_id = null){
+		$totalBudgetAmount = $this->data['totalBudgetInput'];
+		$this->AccountsBudget->recursive = -1;
+		$budgets = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$budget_id)));
+		if($budgets){
+			$save->data['AccountsBudget']['id'] = $budgets['AccountsBudget']['id'];
+			$save->data['AccountsBudget']['budget_name'] = $budgets['AccountsBudget']['budget_name'];
+			$save->data['AccountsBudget']['description'] = $budgets['AccountsBudget']['description'];
+			$save->data['AccountsBudget']['from_period'] = $budgets['AccountsBudget']['from_period'];
+			$save->data['AccountsBudget']['to_period'] = $budgets['AccountsBudget']['to_period'];
+			$save->data['AccountsBudget']['revised_on'] =  $budgets['AccountsBudget']['revised_on'];
+			$save->data['AccountsBudget']['active'] = $budgets['AccountsBudget']['active'];
+			$save->data['AccountsBudget']['approved_by'] = $budgets['AccountsBudget']['approved_by'];
+			$save->data['AccountsBudget']['total_amount'] = $this->data['totalBudgetInput'];
+			$save->data['AccountsBudget']['period'] = $budgets['AccountsBudget']['period'];
+			if ($this->AccountsBudget->save($save->data)){
+				$this->set(compact('budget_id','totalBudgetAmount'));
+			}
+		}
+	}
+	/**
+	 * Function to display the Categories and budgets
+	 **/
+	public function index($click=null){
+		//Configure::write('debug',2);
+		$this->loadModel('AccountsBudgetCategory');
+		$this->AccountsBudgetCategory->recursive = -1;
+		
+		$budget_categories = $this->AccountsBudgetCategory->find('all',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.level'=>'0','AccountsBudgetCategory.parent_id'=>'0')));
+		$i=0;
+		
+		$date = date('Y-m-d');
+		foreach($budget_categories as $category){
+			
+			$l1_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.active'=>'Y','AccountsBudget.accounts_category_id'=>$category['AccountsBudgetCategory']['id'],'AccountsBudget.from_period <='=>$date,'AccountsBudget.to_period >='=>$date)));
+			if(empty($l1_budget)){
+				$l1_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.active'=>'Y','AccountsBudget.from_period >='=>$date,'AccountsBudget.accounts_category_id'=>$category['AccountsBudgetCategory']['id']),'order'=>array('AccountsBudget.from_period ASC')));
+				if(empty($l1_budget)){
+					$l1_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.active'=>'Y','AccountsBudget.from_period <='=>$date,'AccountsBudget.accounts_category_id'=>$category['AccountsBudgetCategory']['id']),'order'=>array('AccountsBudget.from_period DESC')));
+				}
+			}
+			$top_id = $l1_budget['AccountsBudget']['id'];
+			$budget_id = $top_id;
+			$budget_final['top_level'][$category['AccountsBudgetCategory']['id']] = $l1_budget;
+			$display_fromdate = $l1_budget['AccountsBudget']['from_period'];
+			$display_todate = $l1_budget['AccountsBudget']['to_period'];
+			$budget_name = $l1_budget['AccountsBudget']['budget_name'];
+			$final['top_level'][$category['AccountsBudgetCategory']['id']] = $category;
+			
+			
+			$child_categories = $this->AccountsBudgetCategory->find('all',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.level'=>'1','AccountsBudgetCategory.parent_id'=>$category['AccountsBudgetCategory']['id'])));
+			if(!empty($child_categories)){
+				foreach($child_categories as $child_category){
+					
+					$l2_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.active'=>'Y','AccountsBudget.accounts_category_id'=>$child_category['AccountsBudgetCategory']['id'],'AccountsBudget.from_period <='=>$date,'AccountsBudget.to_period >='=>$date)));
+					if(empty($l2_budget)){
+							$l2_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.active'=>'Y','AccountsBudget.from_period '=>$l1_budget['AccountsBudget']['from_period'],'AccountsBudget.accounts_category_id'=>$child_category['AccountsBudgetCategory']['id']),'order'=>array('AccountsBudget.from_period ASC')));
+					}
+					if(!empty($l2_budget)){
+						$budget_final['top_level'][$category['AccountsBudgetCategory']['id']]['Child'][$child_category['AccountsBudgetCategory']['id']] = $l2_budget;
+						$final['top_level'][$category['AccountsBudgetCategory']['id']]['Child'][$child_category['AccountsBudgetCategory']['id']] = $child_category;
+					}
+					
+					$grand_child_categories = $this->AccountsBudgetCategory->find('all',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.level'=>'2','AccountsBudgetCategory.parent_id'=>$child_category['AccountsBudgetCategory']['id'])));
+					if(!empty($grand_child_categories)){
+						foreach($grand_child_categories as $grand_child_category){
+							
+							$l3_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.active'=>'Y','AccountsBudget.accounts_category_id'=>$grand_child_category['AccountsBudgetCategory']['id'],'AccountsBudget.from_period <='=>$date,'AccountsBudget.to_period >='=>$date)));
+							if(empty($l3_budget)){
+								$l3_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.active'=>'Y','AccountsBudget.from_period '=>$l1_budget['AccountsBudget']['from_period'],'AccountsBudget.accounts_category_id'=>$grand_child_category['AccountsBudgetCategory']['id']),'order'=>array('AccountsBudget.from_period ASC')));
+							}
+							if(!empty($l3_budget)){
+								$budget_final['top_level'][$category['AccountsBudgetCategory']['id']]['Child'][$child_category['AccountsBudgetCategory']['id']]['grand'][$grand_child_category['AccountsBudgetCategory']['id']] = $l3_budget;
+								$final['top_level'][$category['AccountsBudgetCategory']['id']]['Child'][$child_category['AccountsBudgetCategory']['id']]['grand'][$grand_child_category['AccountsBudgetCategory']['id']] = $grand_child_category;
+							}
+						}
+					}
+				}
+			}
+		}
+		if(empty($final['top_level'])){
+			$popup_auto = 1;
+		}
+		$this->set(compact('click','final','budget_final','display_fromdate','display_todate','budget_name','top_id','budget_id','popup_auto'));
+		debug($final);
+		/*if(count($budgets) == 0){
+			//$this->redirect(array('controller' => 'accounts_budgets', 'action' => 'firstlevelCategory'));
+		}
+		else{
+			$this->set(compact('value'));
+			//$this->redirect(array('action' => 'index'));
+		}*/
+		
+	}
+	
+	public function budget_tree($budget_id=null){
+		//Configure::write('debug',2);
+		$this->loadModel('AccountsBudgetCategory');
+		$this->AccountsBudgetCategory->recursive = -1;
+		
+		$budget_details = $this->AccountsBudget->findById($budget_id);
+		$budget_categories = $this->AccountsBudgetCategory->find('all',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.level'=>'0','AccountsBudgetCategory.parent_id'=>'0')));
+		$i=0;
+		$date = date('Y-m-d');
+		foreach($budget_categories as $category){
+			
+			$l1_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.accounts_category_id'=>$category['AccountsBudgetCategory']['id'],'AccountsBudget.from_period'=>$budget_details['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y')));
+			$top_id = $l1_budget['AccountsBudget']['id'];
+			$budget_final['top_level'][$category['AccountsBudgetCategory']['id']] = $l1_budget;
+			$display_fromdate = $l1_budget['AccountsBudget']['from_period'];
+			$display_todate = $l1_budget['AccountsBudget']['to_period'];
+			$budget_name = $l1_budget['AccountsBudget']['budget_name'];
+			$final['top_level'][$category['AccountsBudgetCategory']['id']] = $category;
+			
+			
+			$child_categories = $this->AccountsBudgetCategory->find('all',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.level'=>'1','AccountsBudgetCategory.parent_id'=>$category['AccountsBudgetCategory']['id'])));
+			if(!empty($child_categories)){
+				foreach($child_categories as $child_category){
+					
+					$l2_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.accounts_category_id'=>$child_category['AccountsBudgetCategory']['id'],'AccountsBudget.from_period'=>$budget_details['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y')));
+					if(!empty($l2_budget)){
+						$budget_final['top_level'][$category['AccountsBudgetCategory']['id']]['Child'][$child_category['AccountsBudgetCategory']['id']] = $l2_budget;
+						$final['top_level'][$category['AccountsBudgetCategory']['id']]['Child'][$child_category['AccountsBudgetCategory']['id']] = $child_category;
+					}
+					
+					$grand_child_categories = $this->AccountsBudgetCategory->find('all',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y','AccountsBudgetCategory.level'=>'2','AccountsBudgetCategory.parent_id'=>$child_category['AccountsBudgetCategory']['id'])));
+					if(!empty($grand_child_categories)){
+						foreach($grand_child_categories as $grand_child_category){
+							
+							$l3_budget = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.accounts_category_id'=>$grand_child_category['AccountsBudgetCategory']['id'],'AccountsBudget.from_period'=>$budget_details['AccountsBudget']['from_period'],'AccountsBudget.active'=>'Y')));
+							if(!empty($l3_budget)){
+								$budget_final['top_level'][$category['AccountsBudgetCategory']['id']]['Child'][$child_category['AccountsBudgetCategory']['id']]['grand'][$grand_child_category['AccountsBudgetCategory']['id']] = $l3_budget;
+								$final['top_level'][$category['AccountsBudgetCategory']['id']]['Child'][$child_category['AccountsBudgetCategory']['id']]['grand'][$grand_child_category['AccountsBudgetCategory']['id']] = $grand_child_category;
+							}
+							
+						}
+					}
+				}
+			}
+		}
+		$this->set(compact('final','budget_final','display_fromdate','display_todate','budget_name','top_id','budget_id'));
+	}
+	
+	public function numberconversion($data=null){
+		$numz=explode('.',$data);
+		$base=explode(',',$numz[0]);
+		$i=0;
+		while($base[$i]){
+			$i++;
+		}
+		$kbc=2*$i-1;
+		$num=0;
+		for($j=0;$j<=$i-1;$j++){
+			$mul=1;
+			if($kbc != 1){
+				for($pow=1;$pow<=$kbc;$pow++){
+					$mul=$mul*10;
+				}
+			}
+			else{
+				$mul=$mul*1;
+			}
+			$num=$num+$base[$j]*$mul;
+			$kbc=$kbc-2;
+		}
+		$dec=$numz[1]/100;
+		$num1=$num+$dec;
+		return $num1;
+	}
+	
+}

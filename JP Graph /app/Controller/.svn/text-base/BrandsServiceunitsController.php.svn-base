@@ -1,0 +1,106 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * BrandsServiceunits Controller
+ *
+ * @property BrandsServiceunit $BrandsServiceunit
+ */
+class BrandsServiceunitsController extends AppController {
+
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->BrandsServiceunit->recursive = 0;
+		$this->set('brandsServiceunits', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->BrandsServiceunit->id = $id;
+		if (!$this->BrandsServiceunit->exists()) {
+			throw new NotFoundException(__('Invalid brands serviceunit'));
+		}
+		$this->set('brandsServiceunit', $this->BrandsServiceunit->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) 
+		{
+			$this->BrandsServiceunit->create();
+			if ($this->BrandsServiceunit->save($this->request->data)) 
+			{
+				$this->Session->setFlash(__('The brands serviceunit has been saved'));
+				$this->redirect(array('action' => 'index'));
+			}
+			 else 
+			 {
+				$this->Session->setFlash(__('The brands serviceunit could not be saved. Please, try again.'));
+			}
+		}
+		$brandsServices = $this->BrandsServiceunit->BrandsService->find('list');
+		$billingUnits = $this->BrandsServiceunit->BillingUnit->find('list');
+		$this->set(compact('brandsServices', 'billingUnits'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->BrandsServiceunit->id = $id;
+		if (!$this->BrandsServiceunit->exists()) {
+			throw new NotFoundException(__('Invalid brands serviceunit'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->BrandsServiceunit->save($this->request->data)) {
+				$this->Session->setFlash(__('The brands serviceunit has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The brands serviceunit could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->BrandsServiceunit->read(null, $id);
+		}
+		$brandsServices = $this->BrandsServiceunit->BrandsService->find('list');
+		$billingUnits = $this->BrandsServiceunit->BillingUnit->find('list');
+		$this->set(compact('brandsServices', 'billingUnits'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->BrandsServiceunit->id = $id;
+		if (!$this->BrandsServiceunit->exists()) {
+			throw new NotFoundException(__('Invalid brands serviceunit'));
+		}
+		if ($this->BrandsServiceunit->delete()) {
+			$this->Session->setFlash(__('Brands serviceunit deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Brands serviceunit was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

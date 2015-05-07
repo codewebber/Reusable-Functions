@@ -1,0 +1,365 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<title>
+			VISION CARMA
+		</title>
+		<?php echo $this->Html->css('style_CP.css');?>
+		<?php echo $this->Html->css('selectbox.css');?>
+		<?php echo $this->Html->css('jquery.ui.datepicker.css');?>
+		<?php echo $this->Html->css('jquery-ui-1.8.21.custom.css');?>
+		
+		<?php echo $this->Html->script('jquery.js'); ?>
+		<?php echo $this->Html->script('Vcscript.js'); ?>
+		<?php echo $this->Html->script('jquerySelectbox.js'); ?>
+		<?php echo $this->Html->script('jquery.custom_radio_checkbox.js'); ?>
+		<?php echo $this->Html->script('jquery-ui-1.8.21.custom.js'); ?>
+		<?php echo $this->Html->script('jquery.datepicker.js'); ?>
+		<?php //echo $this->Html->script('minijappx.js'); ?>
+		
+
+	</head>
+	<body>
+		<div class="vcMainWrapper" >
+			<div class="Vcinner_wrapperShadow" >
+				<div class="Vcinner_wrapper" >
+					
+						<div class="header" >
+							<div class="megamenu">
+								<div class="top_strip_color" > </div>
+							</div><!--megamenuEndfs-->
+							<div class="menuLogoLoginCont">
+								<div class="logoContainerCP">
+									<a>
+										<?php echo $this->Html->image('InstaCarma.png',array('alt'=>'Vision Carma Logo'));?>
+									</a>
+								</div>
+								
+								<div class="topDropDownRight">
+								
+								
+								<div class="loggedInContainer">
+									<div class="loggedWrap">
+									
+										<div class="loggedInContainerInner">	
+											<div class="loggedinNoraml" style="display:none;">
+												<span class="logoutLink">
+													<?php echo $this->Html->link('Logout',array('controller'=>'users','action'=>'logout') , array("class"=>'drop_logout'));?>
+												</span>
+												<span class="editProfileLink"><?php echo $this->Html->link('My Profile',array('controller'=>'Clientportals','action'=>'my_profile') , array("class"=>'drop_logout'));?></span>
+											</div>
+											
+											<div class="loggedinHover">
+												<div class="loggedInContainerLeft">&nbsp;</div>
+													<div class="loggedInContainerMainCP">
+														<a href="javascript:void(0)"><?php echo $this->Session->read('Auth.User.client_name');?></a>
+															<?php echo $this->Html->image('loggedInArrow.png',array('alt'=>'loggedin'));?>
+													</div>
+												<div class="loggedInContainerRight">&nbsp;</div>
+											</div>
+										</div>	
+									</div>
+								</div><!--end of loggedInContainer-->
+								
+								<div class="loggedInContainer teamSelectDropDownWrap">
+									<div class="loggedWrap">
+									
+										<div class="loggedInContainerInner">	
+											<div class="loggedinNoraml" style="display:none;">
+											<div class="teamSelectDropDown">
+												<?php echo $this->element('teamdropdown'); ?>
+												<select style="display:none !important;">
+													<option value="1">1</option>
+												</select>
+												
+												
+												
+											</div>
+											</div>
+											
+											<div class="loggedinHover">
+												<div class="loggedInContainerLeft">&nbsp;</div>
+													<div class="loggedInContainerMainCP">
+														<a href="javascript:void(0)"><?php echo $this->Session->read('Auth.User.team_name');?></a>
+															<?php echo $this->Html->image('loggedInArrow.png',array('alt'=>'loggedin'));?>
+													</div>
+												<div class="loggedInContainerRight">&nbsp;</div>
+											</div>
+											
+										</div>	<!--end of loggedInContainerInner-->
+										
+									</div>  <!--end of loggedWrap-->
+								</div> <!--end of loggedWrap-->
+						   </div>
+								
+								
+								<ul class="menu_client_portal" >
+									<?php
+										
+										$dashboard_active=null;$team_info=null;
+										$account_invoices=null;$ourservices=null;
+										$qc_report = null ;$view_shiftschedules = null;
+										
+										if($this->params['action'] == 'dashboard'){
+											$dashboard_active = 'class="nav_selected"';
+										}
+										if($this->params['action'] == 'team_info'){
+											$team_info = 'class="nav_selected"';
+										}
+										if($this->params['action'] == 'billing_information'){
+											$account_invoices = 'class="nav_selected"';
+										}
+										if($this->params['action'] == 'our_services'){
+											$ourservices = 'class="nav_selected"';
+										}
+										if($this->params['action'] == 'qc_report'){
+											$qc_report = 'class="nav_selected"';
+										}
+										if($this->params['action'] == 'tech_report'){
+											$qc_report = 'class="nav_selected"';
+										}
+										if($this->params['action'] == 'ticket_details'){
+											$qc_report = 'class="nav_selected"';
+										}
+										if($this->params['action'] == 'view_shiftschedules'){
+											$view_shiftschedules = 'class="nav_selected"';
+										}
+										if($this->params['action'] == 'client_feedbackform'){
+											$feedback = 'class="nav_selected"';
+										}
+									?>
+									<li <?php echo $dashboard_active;?>>
+										<?php
+											if($dashboard_active){
+												echo '<a class="home"></a>';
+												echo '<a class="link_nav">Dashboard</a>';
+											}else{
+												echo $this->Html->link('',array('controller'=>'clientportals','action'=>'dashboard'),array('update'=>'#content','class'=>'home'));
+												echo $this->Html->link('Dashboard',array('controller'=>'clientportals','action'=>'dashboard'),array('update'=>'#content','class'=>'link_nav'));
+																
+											}
+										 ?>
+									</li>
+									<li <?php echo $team_info;?>>
+										<?php
+											if($team_info){
+													echo '<a class="teamInfo"></a>';
+													echo '<a class="link_nav">Team Info</a>';
+											}else{
+												echo $this->Html->link('',array('controller'=>'clientportals','action'=>'team_info'),array('update'=>'#content','class'=>'teamInfo'));
+											 	echo $this->Html->link('Team Info',array('controller'=>'clientportals','action'=>'team_info'),array('update'=>'#content','class'=>'link_nav'));
+											} 
+											?>
+									</li>
+									<li <?php echo $view_shiftschedules;?>>
+										<?php
+											if($view_shiftschedules){
+												echo '<a class="Viewshiftschedule"></a>';
+												echo '<a class="link_nav">Shift Info</a>';
+											}else{
+												echo $this->Html->link('',array('controller'=>'clientportals','action'=>'view_shiftschedules'),array('update'=>'#content','class'=>'Viewshiftschedule'));
+											 	echo $this->Html->link('Shift Info',array('controller'=>'clientportals','action'=>'view_shiftschedules'),array('update'=>'#content','class'=>'link_nav'));
+											}
+										?>
+									</li>
+								
+									<?php	if($this->Session->read('Auth.User.login_name')!=='carma.john'):?>
+									<li <?php echo $account_invoices;?>>
+										<?php 
+											if($account_invoices){
+												echo '<a class="billingInfo"></a>';
+												echo '<a class="link_nav">Billing Info</a>';
+											}else{
+												echo $this->Html->link('',array('controller'=>'clientportals','action'=>'billing_information'),array('update'=>'#content','class'=>'billingInfo'));
+										 		echo $this->Html->link('Billing Info',array('controller'=>'clientportals','action'=>'billing_information'),array('update'=>'#content','class'=>'link_nav'));
+											}
+										?>
+									</li>
+								<?php endif;?>	
+								
+									<li <?php echo $qc_report;?>>
+										<?php
+											if($qc_report){
+												echo '<a class="Qualitycheck"></a>';
+												echo '<a class="link_nav">Quality Checks</a>';
+											}else{
+												echo $this->Html->link('',array('controller'=>'clientportals','action'=>'qc_report'),array('update'=>'#content','class'=>'Qualitycheck'));
+											 	echo $this->Html->link('Quality Checks',array('controller'=>'clientportals','action'=>'qc_report'),array('update'=>'#content','class'=>'link_nav'));
+											}
+											 
+										?>
+									</li>
+									<li <?php echo $feedback;?>>
+										<?php
+											if($feedback){
+												echo '<a class="feedback"></a>';
+												echo '<a class="link_nav">Feedback Form</a>';
+											}else{
+												echo $this->Html->link('',array('controller'=>'clientportals','action'=>'client_feedbackform'),array('update'=>'#content','class'=>'feedback'));
+											 	echo $this->Html->link('Feedback Form',array('controller'=>'clientportals','action'=>'client_feedbackform'),array('update'=>'#content','class'=>'link_nav'));
+											}
+										?>
+									</li>
+									<li <?php echo $ourservices;?>>
+										<?php
+											if($ourservices){
+												echo '<a class="OurService"></a>';
+												echo '<a class="link_nav">Our Services</a>';
+											}else{
+												echo $this->Html->link('',array('controller'=>'clientportals','action'=>'our_services'),array('update'=>'#content','class'=>'OurService'));
+											 	echo $this->Html->link('Our Services',array('controller'=>'clientportals','action'=>'our_services'),array('update'=>'#content','class'=>'link_nav'));
+											}
+										?>
+									</li>
+									
+								</ul>
+								<?php echo $this->Html->image('loadin_fancy.gif', array('id' => 'busy-indicator4', 'style'=>'display:none;margin:auto;padding-left: 150px;padding-top: 44px;')); ?>
+								
+							</div>
+								
+								
+								<?php
+								/**Css is not there, so i commented, but it is working! I checked it.**/ 
+								
+							    //echo $this->element('teamdropdown');
+							   
+							     
+								?>
+								
+								
+								
+								
+						</div><!--header-->
+						<div id="content">
+		    				<?php echo $this->Session->flash(); ?>
+							<?php echo $this->fetch('content'); ?>
+						</div>
+					
+					<div class="footer" >
+						<div class="footer_links">
+							<ul>
+								<li>
+									<?php
+										if($dashboard_active){
+											echo '<a class="activeFooterLink">Dashboard</a>';
+										}else{
+											echo $this->Html->link('Dashboard',array('controller'=>'clientportals','action'=>'dashboard'),array('update'=>'#content'));
+										}
+									?>
+								</li>
+								<li>|</li>
+								<li>
+									<?php
+										if($team_info){
+											echo '<a class="activeFooterLink">Team Info</a>';
+										}else{
+											echo $this->Html->link('Team Info',array('controller'=>'clientportals','action'=>'team_info'),array('update'=>'#content'));
+										} 
+									?>
+								</li>
+								<li>|</li>
+								<li>
+									<?php
+										if($view_shiftschedules){
+											echo '<a class="activeFooterLink">Shift Info</a>';
+										}else{
+											echo $this->Html->link('Shift Info',array('controller'=>'clientportals','action'=>'view_shiftschedules'),array('update'=>'#content'));
+										} 
+										
+									?>
+								</li>
+								<li>|</li>
+								
+								<?php	if($this->Session->read('Auth.User.login_name')!=='carma.john'):?>
+								<li>
+									<?php 
+										if($account_invoices){
+											echo '<a class="activeFooterLink">Billing Info</a>';
+										}else{
+											echo $this->Html->link('Billing Info',array('controller'=>'clientportals','action'=>'billing_information'),array('update'=>'#content'));
+										}
+										
+									?>
+								</li>
+								
+								<li>|</li><?php endif;?>
+								<li>
+									<?php 
+										if($qc_report){
+											echo '<a class="activeFooterLink">Quality Checks</a>';
+										}else{
+											echo $this->Html->link('Quality Checks',array('controller'=>'clientportals','action'=>'qc_report'),array('update'=>'#content'));
+										}
+									?>
+								</li>
+								<li>|</li>
+								<li>
+									<?php
+										if($feedback){
+											echo '<a class="activeFooterLink">Feedback Form</a>';
+										}else{
+											echo $this->Html->link('Feedback Form',array('controller'=>'clientportals','action'=>'client_feedbackform'),array('update'=>'#content'));
+										} 
+										
+									?>
+								</li>
+								<li>|</li>
+								<li>
+									<?php
+										if($ourservices){
+											echo '<a class="activeFooterLink">Our Services</a>';
+										}else{
+											echo $this->Html->link('Our Services',array('controller'=>'clientportals','action'=>'our_services'),array('update'=>'#content'));
+										} 
+									?>
+								</li>
+							
+							
+							</ul>
+							
+						</div>
+						<span class="Copyrights">
+							&copy;2012-13, VisionCarma. All rights reserved. 
+						</span>
+					
+				</div>	<!--Vcinner_wrapper-->
+				<div class="clear"></div>
+			</div>	<!--Vcinner_wrapperShadow-->
+			<div class="clear"></div>
+		<div>	<!--vcMainWrapper-->
+		
+		<script type="text/javascript">
+	$(function () {
+		$(".custom_select").selectbox();
+	});
+	 $(document).click(function(event) {
+		if ( !$(event.target).hasClass('sbHolder') && !$(event.target).parents().hasClass('sbHolder')) {
+			   $(".custom_select").selectbox('close'); 
+		    }
+	});
+	$(document).ready(function(){
+			$(".radio_custom").dgStyle();
+			$(".checkbox_custom").dgStyle();
+ 
+			$( ".datepicker" ).datepicker({
+				showOn: "button",
+				buttonImage: "common/images/icon_datepicker.jpg",
+				buttonImageOnly: true
+			});
+			
+	});
+	
+	$(document).ready(function() {
+		$(".menu_client_portal > li a").click(function() {
+			
+			$("#busy-indicator4").show();
+		 });
+	});
+	
+	
+</script>
+		
+	</body>
+</html>
+<?php /*echo $this->Js->writeBuffer();*/?>

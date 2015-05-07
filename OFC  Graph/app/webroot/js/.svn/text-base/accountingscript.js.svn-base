@@ -1,0 +1,16 @@
+
+
+            	$(document).ready(function(){
+            	
+              		$('#date1').datepicker({ 
+              			dateFormat: 'yy-mm-dd',
+              			showOn: "button",
+						buttonImage: "/accounts/img/icon_cal.png",
+						buttonImageOnly: true });
+              		$('#date2').datepicker({ 
+              			dateFormat: 'yy-mm-dd',
+              			showOn: "button",
+						buttonImage: "/accounts/img/icon_cal.png",
+						buttonImageOnly: true });
+               
+   				});

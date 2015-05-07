@@ -1,0 +1,80 @@
+<?php
+
+function parse_resume() {
+  $wsdl_url = 'http://localhost/SovrenConvertAndParse/ConvertAndParse.asmx?WSDL';
+  
+
+  // Create a new instance of a SOAP 1.2 client
+  $sovren_client = new SoapClient($wsdl_url);
+  
+  // Read a test file as a byte stream
+  $bytes = file_get_contents('gopinath_resume.doc');
+  
+  // Now call the Parse method.
+  $result = $sovren_client->Process(array(
+    'DocumentAsByteArray'             => $bytes,                   // File bytes
+    //'AdditionalConvertedOutputType' => 'HTML_FORMATTED',         // Optional additional output format
+    //'ResumeOwner'                   => 'MyCompany',              // Optional string. Embeds in XML output as idOwner
+                                                                   //    attribute of ResumeId element.
+    //'ResumeIds'                     => array('123'),             // Optional string array. Embeds in XML output as
+                                                                   //    IdValue elements.
+    'TimeOutInMs'                     => 30000,                    // Soft timeout. Check for sov:TimedOut element in
+                                                                   //    XML output.
+    'HardTimeOutMultiplier'           => 1.33,                     // Hard timeout. Multiple of TimeOutInMs. Check for
+                                                                   //    sov:TimedOut element in XML output.
+    'ParserConfigurationParams'       => '110000000000000001011010100100', // See "Parser Config String Builder.xls"
+    //'TaxonomyFiles'                 => array('taxonomies.sdf'),  // Optional custom skills taxonomy.
+    //'SkillsFiles'                   => array('skills.sdf'),      // Optional custom skills taxonomy.
+    'AlsoUseSovrenTaxonomy'           => TRUE,                     // Use built-in Sovren skills taxonomy.
+    'EmbedConvertedTextInHrXml'       => TRUE,                     // Set true if you will later submit the XML to
+                                                                   //    Sovren Semantic Matching Engine.
+    //'RevisionDate'                  => '2001-04-07'              // Optional "parse as of" date in YYYY-MM-DD format
+    ));
+  
+  $conversionStatus = $result->ProcessResult->string[0];
+  $plainText = $result->ProcessResult->string[1];
+  $additionalConversionStatus = $result->ProcessResult->string[2];
+  $additionalConversion = $result->ProcessResult->string[3];
+  $xml = $result->ProcessResult->string[4];
+  $coverLetter = $result->ProcessResult->string[5];
+
+  // Display the XML
+  $output = '<h2>Sovren Resume Parser XML result</h2><p>' . htmlspecialchars($xml) . '</p>';
+  
+  return $output;
+}
+
+// Run the test function
+echo parse_resume();
+
+
+
+/*
+$client = new SoapClient("http://services.resumeparsing.com/ResumeService.asmx?wsdl");
+$contents = file_get_contents('gopinath_resume.doc');
+$data = 'POST /ResumeService.asmx HTTP/1.1
+Host: services.resumeparsing.com
+Content-Type: text/xml; charset=utf-8
+
+SOAPAction: "http://services.resumeparsing.com/ParseResume"
+<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+<soap12:Body>
+ <ParseResume xmlns="http://services.resumeparsing.com/">
+ <request>
+<AccountId>36463356</AccountId>                     <ServiceKey>70ZgH1VZztLWIqNMByDnkjMImOkHS060kPjIObwP</ServiceKey>
+<FileBytes>'.$contents.'</FileBytes>
+</request>
+
+</ParseResume>
+</soap12:Body>
+</soap:Envelope>';
+$result = $client->ParseResume($data);
+print_r($result);*/
+
+
+
+
+
+
+?>

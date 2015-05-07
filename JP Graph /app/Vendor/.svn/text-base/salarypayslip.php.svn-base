@@ -1,0 +1,73 @@
+<?php 
+App::import('Vendor','tcpdf/tcpdf'); 
+
+class SALARYPAYSLIP extends TCPDF 
+{ 
+
+    var $xheadertext  = 'PDF created using CakePHP and TCPDF'; 
+    var $xheadercolor = array(13,73,97); 
+    var $xfootertext  = 'Copyright Â© %d XXXXXXXXXXX. All rights reserved.'; 
+    var $xfooterfont  = PDF_FONT_NAME_MAIN ; 
+    var $xfooterfontsize = 8 ; 
+
+
+    /** 
+    * Overwrites the default header 
+    * set the text in the view using 
+    *    $fpdf->xheadertext = 'YOUR ORGANIZATION'; 
+    * set the fill color in the view using 
+    *    $fpdf->xheadercolor = array(0,0,100); (r, g, b) 
+    * set the font in the view using 
+    *    $fpdf->setHeaderFont(array('YourFont','',fontsize)); 
+    */ 
+    function Header() 
+    { 
+
+        list($r, $b, $g) = $this->xheadercolor; 
+        $this->setY(8); // shouldn't be needed due to page margin, but helas, otherwise it's at the page top 
+        $image_file = K_PATH_IMAGES.'carmatec.jpg';
+       // $this->Image($image_file, 10, 10, 15, "", 'JPG', '', 'T', false, 300, 'L', false, '1', 0, false, false, false);
+        $this->Image($image_file, 15, 12, 55, '', 'JPG', '', 'T', false, 0, 'LTR', false, false, 0, false, false, false);
+        $this->SetFont('helvetica', 'B', 10);
+        // Title
+       	$this->Cell(0, 2, '', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+		$this->Ln(); 
+			$this->Cell(0, 2, '', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+		$this->Ln(); 
+			$this->Cell(0, 2, '', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+		$this->Ln(); 
+			$this->Cell(0, 2, '', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+		$this->Ln(); 
+		$this->Cell(0, 2, 'CARMATEC IT SOLUTIONS PVT LTD.                              ', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+		$this->Ln(); 
+		$this->SetFont('helvetica', '', 9);
+		$this->Cell(0, 10, '#27, AMBALIPURA BELLANDUR POST, BANGALORE - 560103', 0, false, 'R', 0, '', 0, false, 'C', 'C');
+		$this->Ln();
+        $this->SetMargins(PDF_MARGIN_LEFT, PDF_MARGIN_TOP, PDF_MARGIN_RIGHT);
+        
+        
+        $this->SetFillColor(27,77,100,'',false,''); 
+        $this->Cell(0,8, '','T',1,'C'); 
+       // $this->SetFillColor($r, $b, $g); 
+        //$this->Cell(0,0, '', 0, false, 'R', 1, '', 0, false, 'M', 'M'); 
+        //$this->Cell(0,2, '', 0,false,'C', 0); 
+        //$this->SetTextColor(0 , 0, 0); 
+        
+        //$this->Text(15,26,$this->xheadertext ); 
+    } 
+
+    /** 
+    * Overwrites the default footer 
+    * set the text in the view using 
+    * $fpdf->xfootertext = 'Copyright Â© %d YOUR ORGANIZATION. All rights reserved.'; 
+    */ 
+    function Footer() 
+    { 
+        $footertext = sprintf('www.carmatec.com'); 
+        $this->SetY(-20); 
+        $this->SetTextColor(0, 0, 0); 
+        $this->SetFont($this->xfooterfont,'',$this->xfooterfontsize); 
+        $this->Cell(0,8, $footertext,'T',1,'C'); 
+    } 
+} 
+?>

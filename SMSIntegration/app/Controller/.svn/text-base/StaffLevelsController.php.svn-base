@@ -1,0 +1,149 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * StaffLevels Controller
+ *
+ * @property StaffLevel $StaffLevel
+ */
+class StaffLevelsController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	var $helpers = array('Ajax', 'Javascript');
+	
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('RequestHandler');
+	
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index($controller=null,$view=null) {		
+	  //   Configure::write('debug',2);
+		//debug($this->data);
+		$this->StaffLevel->recursive = 0;
+		$this->set(compact('controller','view'));
+		$this->data['Search']['stafflevel'] = null;
+		if(($this->data['Search']['stafflevel']) && ($this->data['Search']['stafflevel'] != "- Search -"))
+		{	
+			if(!$staffLevels = Cache::read('staffLevels')){			
+			$staffLevels = $this->StaffLevel->find('all');
+			$this->paginate = array('conditions'=>array('AND'=>array('StaffLevel.staff_level LIKE'=>'%'.$this->data['Search']['stafflevel'].'%')));
+			$this->set('staffLevels', $this->paginate());
+			Cache::write('staffLevels', $staffLevels, 86400);
+			}
+		}
+		else
+		{
+		   if(!$staffLevels = Cache::read('staffLevels'))
+			{	
+				//$this->paginate =array('order' => array('StaffLevel.id' => 'ASC'));
+				$this->set('staffLevels', $this->paginate());				
+				Cache::write('staffLevels', $staffLevels, 86400);				
+			}
+		}			
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		
+		$this->StaffLevel->recursive = 0;
+		$this->StaffLevel->id = $id;
+		if (!$this->StaffLevel->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid staff level</div>'));
+		}
+		$this->set('staffLevel', $this->StaffLevel->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add($controller=null,$view=null) {
+		if ($this->request->is('post')) {
+			$this->StaffLevel->create();
+			$this->request->data['StaffLevel']['created_on']=date('Y-m-d',strtotime($this->data['StaffLevel']['created']));			
+			if ($this->StaffLevel->save($this->request->data)) {				
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The staff level has been saved</div>'));
+				if(($controller)&&($view))
+					{
+						$this->redirect(array('controller'=>$controller,'action' => $view));
+					}
+						$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The staff level could not be saved. Please, try again.</div>'));
+			}
+		}
+		$this->set(compact('controller','view'));
+	}
+		   
+				   
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->StaffLevel->id = $id;
+		$staffLevelArr = $this->StaffLevel->find('first',array('conditions'=>array('StaffLevel.id'=>$id)));		
+		$created       = date('d M Y',strtotime($staffLevelArr['StaffLevel']['created_on']));
+		$this->set(compact('created','id'));
+		
+		if (!$this->StaffLevel->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid staff level</div>'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			$this->request->data['StaffLevel']['created_on']=date('Y-m-d',strtotime($this->data['StaffLevel']['created']));
+			debug($this->data);
+			if ($this->StaffLevel->save($this->request->data)) {
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The staff level has been saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The staff level could not be saved. Please, try again.</div>'));
+			}
+		} else {
+			$this->request->data = $this->StaffLevel->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		/*if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}*/
+		$this->StaffLevel->id = $id;
+		if (!$this->StaffLevel->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid staff level</div>'));
+		}
+		if ($this->StaffLevel->delete()) {
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Staff level deleted</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+	    else {
+		$this->Session->setFlash(__('<div class="flashMessageError">Staff level was not deleted</div>'));
+		$this->redirect(array('action' => 'index'));
+		}
+	}
+
+}

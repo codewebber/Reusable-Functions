@@ -1,0 +1,534 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * FeedbackRatings Controller
+ *
+ * @property FeedbackRating $FeedbackRating
+ */
+class FeedbackRatingsController extends AppController {
+	
+	var $helpers = array('Html', 'Form', 'Js');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->FeedbackRating->recursive = 0;
+		$this->set('feedbackRatings', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->FeedbackRating->id = $id;
+		if (!$this->FeedbackRating->exists()) {
+			throw new NotFoundException(__('Invalid feedback rating'));
+		}
+		$this->set('feedbackRating', $this->FeedbackRating->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->FeedbackRating->create();
+			if ($this->FeedbackRating->save($this->request->data)) {
+				$this->Session->setFlash(__('The feedback rating has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The feedback rating could not be saved. Please, try again.'));
+			}
+		}
+		$candidates = $this->FeedbackRating->Candidate->find('list');
+		$users = $this->FeedbackRating->User->find('list');
+		$feedbackQuestions = $this->FeedbackRating->FeedbackQuestion->find('list');
+		$this->set(compact('candidates', 'users', 'feedbackQuestions'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->FeedbackRating->id = $id;
+		if (!$this->FeedbackRating->exists()) {
+			throw new NotFoundException(__('Invalid feedback rating'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->FeedbackRating->save($this->request->data)) {
+				$this->Session->setFlash(__('The feedback rating has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The feedback rating could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->FeedbackRating->read(null, $id);
+		}
+		$candidates = $this->FeedbackRating->Candidate->find('list');
+		$users = $this->FeedbackRating->User->find('list');
+		$feedbackQuestions = $this->FeedbackRating->FeedbackQuestion->find('list');
+		$this->set(compact('candidates', 'users', 'feedbackQuestions'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->FeedbackRating->id = $id;
+		if (!$this->FeedbackRating->exists()) {
+			throw new NotFoundException(__('Invalid feedback rating'));
+		}
+		if ($this->FeedbackRating->delete()) {
+			$this->Session->setFlash(__('Feedback rating deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Feedback rating was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	// Method to give feedback to candidates
+	public function give_feedback_rating($candidate_id=null,$from=null,$interview_id=null){
+	  
+	 $this->loadModel('User');	
+	 $this->loadModel('Candidate');
+	 $this->loadModel('FeedbackStatus');		
+	 $this->loadModel('FeedbackQuestion');	
+	 $this->loadModel('InterviewSchedule');
+	 $user_id= $this->Session->read('Auth.User.id');
+	 $user_name=$this->User->find('first',array('conditions'=>array('User.id'=>$user_id),'fields'=>array('User.first_name','User.last_name')));
+	 $User_Name=$user_name['User']['first_name'].' '.$user_name['User']['last_name'];
+	 
+	 $candidate = $this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id),'fields'=>array('Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.relevant_exp','Candidate.current_ctc','Candidate.expected_ctc','Candidate.notice_period','Candidate.reason_for_change')));
+	 $candidate_name = $candidate['Candidate']['first_name'].' '.$candidate['Candidate']['last_name'];
+	 
+	/* if(!empty($this->data)){
+	 		
+	 		$i=1;
+			foreach($this->data['comment'] as $key=>$value){
+					$this->FeedbackRating->create();
+					$questionrating->data = null;
+					$questionrating->data['FeedbackRating']['feedback_question_id'] = $key;
+				    $questionrating->data['FeedbackRating']['comments'] = $value;
+					$questionrating->data['FeedbackRating']['candidate_id'] = $candidate_id; 
+				    $questionrating->data['FeedbackRating']['user_id'] = $user_id;
+					$questionrating->data['FeedbackRating']['interview_schedule_id'] = $interview_id;
+					$sc=1;
+					$score=null;
+					foreach($this->data['score'] as $key1=>$value1){
+						if($sc==$i){
+							$score = $value1;
+						}	
+						$sc++;
+					}
+					$questionrating->data['FeedbackRating']['rating'] = $score; 
+					$this->FeedbackRating->save($questionrating->data);
+					$i++;
+			}
+            
+					$feedbackstatus=null; $candidate_exp=null;
+					$feedbackstatus['FeedbackStatus']['user_id'] = $user_id;
+					$feedbackstatus['FeedbackStatus']['candidate_id'] = $candidate_id;
+					$feedbackstatus['FeedbackStatus']['comments'] = $this->data['FeedbackRating']['comments'];
+					$feedbackstatus['FeedbackStatus']['status'] = $this->data['FeedbackRating']['status'];
+					$feedbackstatus['FeedbackStatus']['interview_schedule_id'] = $interview_id;
+					
+					$comment=$this->data['FeedbackRating']['comments'];
+					$status=$this->data['FeedbackRating']['status'];
+					$currentdate=date('Y-m-d H:i:s');
+					$candidate_exp['Candidate']['id'] = $candidate_id;         
+					$candidate_exp['Candidate']['experience'] = $this->data['FeedbackRating']['Total_Experience'];
+					$candidate_exp['Candidate']['relevant_exp'] = $this->data['FeedbackRating']['Experience'];
+					$candidate_exp['Candidate']['current_ctc'] = $this->data['FeedbackRating']['current_ctc'];
+					$candidate_exp['Candidate']['expected_ctc'] = $this->data['FeedbackRating']['expected_ctc'];
+					$candidate_exp['Candidate']['notice_period'] = $this->data['FeedbackRating']['notice_period'];
+					$candidate_exp['Candidate']['reason_for_change'] = $this->data['FeedbackRating']['reason_for_releving'];
+					$this->Candidate->save($candidate_exp);
+					
+					debug($feedbackstatus);
+					if($this->FeedbackStatus->save($feedbackstatus)){
+					  	   $for_interview_edit=null;
+						   $for_interview_edit['InterviewSchedule']['id']=$interview_id;
+						   $for_interview_edit['InterviewSchedule']['completed']='Y';
+						   $for_interview_edit['InterviewSchedule']['status']=$this->data['FeedbackRating']['status'];
+						   if($this->InterviewSchedule->save($for_interview_edit)){
+						   	exit;
+						   	   if($from=='interviewer_landing'){
+								   $this->Session->setFlash('<h4>Success Message : </h4><p>Rating has been given for candidate.</span>','default',array('class' => 'flashmessagebox flashsuccess')); 
+						           $this->redirect(array('controller'=>'job_descriptions','action' => 'interviewer_landing'));
+							   }else{
+								   	$this->Session->setFlash('<h4>Success Message : </h4><p>Rating has been given for candidate.</span>','default',array('class' => 'flashmessagebox flashsuccess')); 
+						            $this->redirect(array('controller'=>'candidates','action' => 'index'));
+							   }
+						   }
+						   
+						    
+				  
+					}
+		
+	}*/
+	 $Questions=$this->FeedbackQuestion->find('all',array('conditions'=>array('FeedbackQuestion.active'=>'Y'),'fields'=>array('FeedbackQuestion.id','FeedbackQuestion.Question'),'order'=>array('FeedbackQuestion.id ASC')));
+	 $this->set(compact('Questions','User_Name','candidate_name','candidate_id','from','interview_id','candidate'));
+	}
+	
+	// Method to save feedback to candidates
+	public function save_feedback_rating_function($candidate_id=null,$from=null,$interview_id=null){
+	 $this->autoRender=false;
+	 $this->loadModel('User');	
+	 $this->loadModel('Candidate');
+	 $this->loadModel('FeedbackStatus');		
+	 $this->loadModel('FeedbackQuestion');	
+	 $this->loadModel('InterviewSchedule');
+	 $this->loadModel('JobdescriptionResponsibility');
+	 $user_id= $this->Session->read('Auth.User.id');
+	 $user_name=$this->User->find('first',array('conditions'=>array('User.id'=>$user_id),'fields'=>array('User.first_name','User.last_name')));
+	 $User_Name=$user_name['User']['first_name'].' '.$user_name['User']['last_name'];
+	 
+	 $candidate = $this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id),'fields'=>array('Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.relevant_exp','Candidate.current_ctc','Candidate.expected_ctc','Candidate.notice_period','Candidate.reason_for_change')));
+	 $candidate_name=$candidate['Candidate']['first_name'].' '.$candidate['Candidate']['last_name'];
+	 
+	 
+	  
+	 
+	 
+	 if(!empty($this->data)){
+	 	
+			$i=1;
+			foreach($this->data['comment'] as $key=>$value){
+					$this->FeedbackRating->create();
+					$questionrating->data = null;
+					$questionrating->data['FeedbackRating']['feedback_question_id'] = $key;
+				    $questionrating->data['FeedbackRating']['comments'] = $value;
+					$questionrating->data['FeedbackRating']['candidate_id'] = $candidate_id; 
+				    $questionrating->data['FeedbackRating']['user_id'] = $user_id;
+					$questionrating->data['FeedbackRating']['interview_schedule_id'] = $interview_id;
+					$sc=1;
+					$score=null;
+					foreach($this->data['score'] as $key1=>$value1){
+						if($sc==$i){
+							$score = $value1;
+						}	
+						$sc++;
+					}
+					$questionrating->data['FeedbackRating']['rating'] = $score; 
+					$this->FeedbackRating->save($questionrating->data);
+					$i++;
+			}
+            
+		            $feedbackstatus=null; $candidate_exp=null;
+					$feedbackstatus['FeedbackStatus']['user_id'] = $user_id;
+					$feedbackstatus['FeedbackStatus']['candidate_id'] = $candidate_id;
+					$feedbackstatus['FeedbackStatus']['comments'] = $this->data['FeedbackRating']['comments'];
+					$feedbackstatus['FeedbackStatus']['status'] = $this->data['FeedbackRating']['status'];
+					$feedbackstatus['FeedbackStatus']['interview_schedule_id'] = $interview_id;
+					$candidate_exp['Candidate']['id'] = $candidate_id;         
+					$candidate_exp['Candidate']['experience'] = $this->data['FeedbackRating']['Total_Experience'];
+					$candidate_exp['Candidate']['relevant_exp'] = $this->data['FeedbackRating']['Experience'];
+					$candidate_exp['Candidate']['current_ctc'] = $this->data['FeedbackRating']['current_ctc'];
+					$candidate_exp['Candidate']['expected_ctc'] = $this->data['FeedbackRating']['expected_ctc'];
+					$candidate_exp['Candidate']['notice_period'] = $this->data['FeedbackRating']['notice_period'];
+					$candidate_exp['Candidate']['reason_for_change'] = $this->data['FeedbackRating']['reason_for_releving'];
+					$this->Candidate->save($candidate_exp);
+					if($this->FeedbackStatus->save($feedbackstatus)){
+				  	   $for_interview_edit=null;
+					   $for_interview_edit['InterviewSchedule']['id']=$interview_id;
+					   $for_interview_edit['InterviewSchedule']['completed']='Y';
+					   $for_interview_edit['InterviewSchedule']['status']=$this->data['FeedbackRating']['status'];
+					   if($this->InterviewSchedule->save($for_interview_edit)){
+					   	    $this->User->unbindModel(array('hasMany'=>array('FeedbackRating','FeedbackStatus')));
+							$user_name=$this->User->find('all',array('conditions'=>array('Role.role_name'=>'HR'),'fields'=>array('User.first_name','User.last_name','User.email','Role.role_name')));
+							$this->InterviewSchedule->unbindModel(array('belongsTo'=>array('CandidateJobdescriptionmapping','JobStatus')));
+							$jd_assigners=$this->InterviewSchedule->find('first',array('conditions'=>array('InterviewSchedule.id'=>$interview_id)));
+							$reviewer_name=$jd_assigners['User']['first_name'].' '.$jd_assigners['User']['last_name'];
+							if($user_name){
+								foreach ($user_name as $key => $value) {
+										$hrs_name=$email_adrs=null;
+										$email_adrs=$value['User']['email'];
+									    $hrs_name=$value['User']['first_name'].' '.$value['User']['last_name'];
+										if (filter_var($email_adrs, FILTER_VALIDATE_EMAIL)) {
+											App::uses('CakeEmail', 'Network/Email');
+											$Email = new CakeEmail();
+											$Email->template('feedback_given')
+												 ->emailFormat('html')
+												 ->to($email_adrs)
+												 ->from('admin@carmatec.com')
+												 ->subject('Feedback given notification')
+												 ->viewVars(array('reviewer_name'=>$reviewer_name,'hrs_name'=>$hrs_name,'candidate_name'=>$candidate_name))
+												 ->send();  
+										}
+										
+							   }	
+						   }
+						   if($jd_assigners){
+						   		$hrs_name=$reviewer_name;
+							    $email_adrs=$jd_assigners['User']['email'];
+						   		if (filter_var($email_adrs, FILTER_VALIDATE_EMAIL)) {
+						   			App::uses('CakeEmail', 'Network/Email');
+									$Email = new CakeEmail();
+									$Email->template('feedback_given')
+										 ->emailFormat('html')
+										 ->to($email_adrs)
+										 ->from('admin@carmatec.com')
+										 ->subject('Feedback given notification')
+										 ->viewVars(array('reviewer_name'=>$reviewer_name,'hrs_name'=>$hrs_name,'candidate_name'=>$candidate_name))
+										 ->send();
+						   		}
+						   		
+						   }
+					   	   if($from=='interviewer_landing'){
+							   $this->Session->setFlash('<h4>Success Message : </h4><p>Rating has been given for candidate.</span>','default',array('class' => 'flashmessagebox flashsuccess')); 
+					           $this->redirect(array('controller'=>'job_descriptions','action' => 'interviewer_landing'));
+						   }else{
+							   	$this->Session->setFlash('<h4>Success Message : </h4><p>Rating has been given for candidate.</span>','default',array('class' => 'flashmessagebox flashsuccess')); 
+					            $this->redirect(array('controller'=>'candidates','action' => 'index'));
+						   }
+					   }
+					}
+		
+	}
+	 $Questions=$this->FeedbackQuestion->find('all',array('conditions'=>array('FeedbackQuestion.active'=>'Y'),'fields'=>array('FeedbackQuestion.id','FeedbackQuestion.Question'),'order'=>array('FeedbackQuestion.id ASC')));
+	 $this->set(compact('Questions','User_Name','candidate_name','candidate_id','from','interview_id'));
+	}
+
+	// Method to give feedback to candidates
+	public function edit_feedback_rating($candidate_id=null,$from=null,$interview_id=null){
+	 //configure::write('debug',2);
+	 $this->loadModel('User');	
+	 $this->loadModel('Candidate');
+	 $this->loadModel('FeedbackStatus');		
+	 $this->loadModel('FeedbackQuestion');	
+	 $this->loadModel('InterviewSchedule');
+	 $this->loadModel('FeedbackRating');
+	 $this->FeedbackStatus->Behaviors->attach('Containable');	
+	 $user_id= $this->Session->read('Auth.User.id');
+	 $user_name=$this->User->find('first',array('conditions'=>array('User.id'=>$user_id),'fields'=>array('User.first_name','User.last_name')));
+	 $User_Name=$user_name['User']['first_name'].' '.$user_name['User']['last_name'];
+	 
+	 $candidate = $this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id),'fields'=>array('Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.relevant_exp','Candidate.current_ctc','Candidate.expected_ctc','Candidate.notice_period','Candidate.reason_for_change')));
+	 $candidate_name=$candidate['Candidate']['first_name'].' '.$candidate['Candidate']['last_name'];
+	 
+	 
+	 $candidate_rating_details=$this->FeedbackRating->find('all',array('conditions'=>array('FeedbackRating.candidate_id'=>$candidate_id,'FeedbackRating.interview_schedule_id'=>$interview_id),'fields'=>array('FeedbackRating.id','FeedbackRating.candidate_id','FeedbackRating.user_id','FeedbackRating.feedback_question_id','FeedbackRating.comments','FeedbackRating.rating','FeedbackRating.interview_schedule_id'),'order'=>array('FeedbackRating.interview_schedule_id DESC')));
+	 
+	 $default_values=null;
+	 foreach ($candidate_rating_details as $key => $value) {
+		$default_values[$value['FeedbackRating']['feedback_question_id']]['id']=$value['FeedbackRating']['id'];	
+		$default_values[$value['FeedbackRating']['feedback_question_id']]['commet']=$value['FeedbackRating']['comments'];
+		if($value['FeedbackRating']['rating']=='satisfactory'){
+			$default_values[$value['FeedbackRating']['feedback_question_id']]['rating']=1;
+		}elseif($value['FeedbackRating']['rating']=='average'){
+			$default_values[$value['FeedbackRating']['feedback_question_id']]['rating']=2;
+		}elseif($value['FeedbackRating']['rating']=='above average'){
+			$default_values[$value['FeedbackRating']['feedback_question_id']]['rating']=3;
+		}elseif($value['FeedbackRating']['rating']=='good'){
+			$default_values[$value['FeedbackRating']['feedback_question_id']]['rating']=4;
+		}elseif($value['FeedbackRating']['rating']=='exceptional'){
+			$default_values[$value['FeedbackRating']['feedback_question_id']]['rating']=5;
+		}
+	 }
+	 
+	 $candidate_status=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate_id,'FeedbackStatus.interview_schedule_id'=>$interview_id),'fields'=>array('FeedbackStatus.id','FeedbackStatus.status','FeedbackStatus.comments'),'order'=>array('FeedbackStatus.id DESC')));
+	 
+	 $given_feedback_users=$this->FeedbackStatus->find('all',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate_id,'FeedbackStatus.interview_schedule_id'=>$interview_id),'fields'=>array('DISTINCT FeedbackStatus.user_id'),'order'=>array('FeedbackStatus.id DESC'),'contain'=>array('User.first_name','User.last_name','User.email')));
+	 
+	 if(!empty($this->data)){
+	 		$i=1;
+			foreach($this->data['comment'] as $key=>$value){
+					$questionrating->data = null;
+					$questionrating->data['FeedbackRating']['id'] = $this->data['ids'][$key];
+					$questionrating->data['FeedbackRating']['feedback_question_id'] = $key;
+				    $questionrating->data['FeedbackRating']['comments'] = $value;
+					$questionrating->data['FeedbackRating']['candidate_id'] = $candidate_id;
+				    $questionrating->data['FeedbackRating']['user_id'] = $user_id;
+					$questionrating->data['FeedbackRating']['interview_schedule_id'] = $interview_id;
+					$sc=1;
+					$score=null;
+					foreach($this->data['score'] as $key1=>$value1){
+						if($sc==$i){
+							$score = $value1;
+						}	
+						$sc++;
+					}
+					$questionrating->data['FeedbackRating']['rating'] = $score; 
+					$this->FeedbackRating->save($questionrating->data);
+					$i++;
+			}
+            
+            $feedbackstatus=null; $candidate_exp=null;
+			$feedbackstatus['FeedbackStatus']['id'] = $this->data['FeedbackRating']['status_id'];
+			$feedbackstatus['FeedbackStatus']['user_id'] = $user_id;
+			$feedbackstatus['FeedbackStatus']['candidate_id'] = $candidate_id;
+			$feedbackstatus['FeedbackStatus']['comments'] = $this->data['FeedbackRating']['comments'];
+			$feedbackstatus['FeedbackStatus']['status'] = $this->data['FeedbackRating']['status'];
+			$feedbackstatus['FeedbackStatus']['interview_schedule_id'] = $interview_id;
+			$candidate_exp['Candidate']['id'] = $candidate_id;         
+			$candidate_exp['Candidate']['experience'] = $this->data['FeedbackRating']['Total_Experience'];
+			$candidate_exp['Candidate']['relevant_exp'] = $this->data['FeedbackRating']['Experience'];
+			$candidate_exp['Candidate']['current_ctc'] = $this->data['FeedbackRating']['current_ctc'];
+			$candidate_exp['Candidate']['expected_ctc'] = $this->data['FeedbackRating']['expected_ctc'];
+			$candidate_exp['Candidate']['notice_period'] = $this->data['FeedbackRating']['notice_period'];
+			$candidate_exp['Candidate']['reason_for_change'] = $this->data['FeedbackRating']['reason_for_releving'];
+			$this->Candidate->save($candidate_exp);
+			if($this->FeedbackStatus->save($feedbackstatus)){
+		  	   $for_interview_edit=null;
+			   $for_interview_edit['InterviewSchedule']['id']=$interview_id;
+			   $for_interview_edit['InterviewSchedule']['completed']='Y';
+			   $for_interview_edit['InterviewSchedule']['status']=$this->data['FeedbackRating']['status'];
+			   if($this->InterviewSchedule->save($for_interview_edit)){
+			   	   	
+				  $this->Session->setFlash('<h4>Success Message : </h4><p>Rating has been given for candidate.</span>','default',array('class' => 'flashmessagebox flashsuccess'));
+				  foreach($given_feedback_users as $key1=>$value1){
+					  $hr_emailid=null;
+					  $hr_emailid	=$value1['User']['email'];
+					  App::uses('CakeEmail', 'Network/Email');
+					  $Email = new CakeEmail();
+					  $Email->template('for_edit_feedback')
+							  ->emailFormat('html')
+							  ->to('hameed@carmatec.com')
+							  ->from('admin@carmatec.com')
+							  ->subject('Feedback Edited')
+							  ->viewVars(array('reciever_name'=>$value1['User']['first_name'].' '.$given_feedback_users['User']['last_name'],'feed_back_given_by'=>$User_Name,'candidatename'=>$candidate_name))
+							  ->send();
+				  }
+				  
+			   	   
+			      $this->redirect(array('controller'=>'job_descriptions','action' => 'interviewer_landing_completed'));
+				  
+			   }
+			}
+		
+	}
+	 $Questions=$this->FeedbackQuestion->find('all',array('conditions'=>array('FeedbackQuestion.active'=>'Y'),'fields'=>array('FeedbackQuestion.id','FeedbackQuestion.Question'),'order'=>array('FeedbackQuestion.id ASC')));
+	 $this->set(compact('Questions','User_Name','candidate_name','candidate_id','from','interview_id','default_values','candidate','candidate_status'));
+	}
+
+ // Method to view candidates ratings
+  public function view_feedback_rating($candidate_id=null,$from=null,$jd_id=null,$can_id = null,$frm=null){
+  	     //Configure::write('debug', 2);
+		 $this->loadModel('User');	
+		 $this->loadModel('Candidate');	
+		 $this->loadModel('FeedbackStatus');
+		 $this->loadModel('FeedbackQuestion');	
+		 $this->loadModel('InterviewSchedule');
+		 $this->loadModel('FeedbackQuestion');		
+		 $this->set(compact('from','jd_id'));
+		 $this->FeedbackStatus->Behaviors->attach('Containable');
+		 
+		 $candidate = $this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id),'fields'=>array('Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.relevant_exp','Candidate.current_ctc','Candidate.expected_ctc','Candidate.notice_period','Candidate.reason_for_change')));
+		 $candidate_name=$candidate['Candidate']['first_name'].' '.$candidate['Candidate']['last_name'];
+		 
+		 /*
+		 $candidate_rating_details=$this->FeedbackRating->find('all',array('conditions'=>array('FeedbackRating.candidate_id'=>$candidate_id),'fields'=>array('DISTINCT FeedbackRating.user_id'),'order'=>array('FeedbackRating.id DESC','FeedbackRating.feedback_question_id ASC')));
+				  $no_feedbacks=count($candidate_rating_details);
+				  foreach($candidate_rating_details as $k=>$v){
+						$details[]=$this->FeedbackRating->find('all',array('conditions'=>array('FeedbackRating.candidate_id'=>$candidate_id,'FeedbackRating.user_id'=>$v['FeedbackRating']['user_id']),'order'=>array('FeedbackRating.id DESC'),'limit'=>4));
+				  }
+				  //debug($details);
+				  //debug($details);*/
+		 
+		 
+		 $this->FeedbackRating->Behaviors->attach('Containable');
+		 $candidate_rating_details=$this->FeedbackRating->find('list',array('conditions'=>array('FeedbackRating.candidate_id'=>$candidate_id),'fields'=>array('FeedbackRating.interview_schedule_id','FeedbackRating.interview_schedule_id'),'order'=>array('FeedbackRating.interview_schedule_id DESC')));	 
+		 //debug($candidate_rating_details);
+		 $questions=$this->FeedbackQuestion->find('list',array('conditions'=>array('FeedbackQuestion.active'=>'Y'),'fields'=>array('FeedbackQuestion.id','FeedbackQuestion.question')));
+		 $final=null;
+		 
+		 foreach($candidate_rating_details as $k=>$v){
+		 	$interview_level=$feed_backs=$feed_back_status=null;	
+		 	$interview_level = $this->InterviewSchedule->find('first',array('conditions'=>array('InterviewSchedule.id'=>$k),'fields'=>array('InterviewSchedule.id','JobStatus.status')));
+		 	//debug($interview_level);
+			
+			$final[$k]['level']=$interview_level['JobStatus']['status'];
+			$feed_back_status=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate_id,'FeedbackStatus.interview_schedule_id'=>$k),'fields'=>array('FeedbackStatus.user_id','FeedbackStatus.date','FeedbackStatus.comments','FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+		 	$final[$k]['interviewer']=$feed_back_status['User']['first_name'].' '.$feed_back_status['User']['last_name'];
+			$final[$k]['interview_date']=$feed_back_status['FeedbackStatus']['date'];
+			$final[$k]['over_all_comments']=$feed_back_status['FeedbackStatus']['comments'];
+			$final[$k]['over_all_status']=$feed_back_status['FeedbackStatus']['status'];
+			$feed_backs = $this->FeedbackRating->find('all',array('conditions'=>array('FeedbackRating.candidate_id'=>$candidate_id,'FeedbackRating.interview_schedule_id'=>$k),'order'=>array('FeedbackRating.id DESC','FeedbackRating.feedback_question_id ASC'),'limit'=>4));
+		 	$final[$k]['ratings']=$feed_backs;
+			
+		 
+		 }
+		 $candidate_status=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate_id),'fields'=>array('FeedbackStatus.status'),'order'=>array('FeedbackStatus.id DESC')));
+		 $status=$candidate_status['FeedbackStatus']['status'];
+		
+		 $given_feedback_user=$this->FeedbackStatus->find('all',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate_id),'fields'=>array('DISTINCT FeedbackStatus.user_id'),'order'=>array('FeedbackStatus.id DESC'),'contain'=>array('User.first_name','User.last_name')));
+		 
+		/*
+		 $feedback_date=$this->FeedbackStatus->find('all',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate_id),'fields'=>array('FeedbackStatus.user_id','FeedbackStatus.date','FeedbackStatus.comments'),'order'=>array('FeedbackStatus.id DESC')));
+				 debug($feedback_date);*/
+		
+		 
+		 $this->set(compact('final','questions','candidate_name','status','given_feedback_user','candidate','can_id','frm'));
+	     
+   }
+	public function for_test($candidate_id=null,$from=null,$jd_id=null){
+  	     //Configure::write('debug', 2);
+		 $this->loadModel('User');	
+		 $this->loadModel('Candidate');	
+		 $this->loadModel('FeedbackStatus');
+		 $this->loadModel('FeedbackQuestion');
+		 $this->loadModel('InterviewSchedule');	
+		 $this->loadModel('FeedbackQuestion');	
+		 $this->FeedbackRating->recursive=-1;
+		 $this->FeedbackStatus->Behaviors->attach('Containable');
+		 //$this->autoRender=FALSE;
+		 $candidate_id=46;
+		 $this->Candidate->recursive=-1;
+		 $candidate = $this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id),'fields'=>array('Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.relevant_exp','Candidate.current_ctc','Candidate.expected_ctc','Candidate.notice_period','Candidate.reason_for_change')));	
+		 $candidate_name=$candidate['Candidate']['first_name'].' '.$candidate['Candidate']['last_name'];
+		 
+		 $this->FeedbackRating->Behaviors->attach('Containable');
+		 $candidate_rating_details=$this->FeedbackRating->find('list',array('conditions'=>array('FeedbackRating.candidate_id'=>$candidate_id),'fields'=>array('FeedbackRating.interview_schedule_id','FeedbackRating.interview_schedule_id'),'order'=>array('FeedbackRating.interview_schedule_id DESC')));	 
+		 //debug($candidate_rating_details);
+		 $questions=$this->FeedbackQuestion->find('list',array('conditions'=>array('FeedbackQuestion.active'=>'Y'),'fields'=>array('FeedbackQuestion.id','FeedbackQuestion.question')));
+		 $final=null;
+		 
+		 foreach($candidate_rating_details as $k=>$v){
+		 	$interview_level=$feed_backs=$feed_back_status=null;	
+		 	$interview_level = $this->InterviewSchedule->find('first',array('conditions'=>array('InterviewSchedule.id'=>$k),'fields'=>array('InterviewSchedule.id','JobStatus.status')));
+		 	//debug($interview_level);
+			
+			$final[$k]['level']=$interview_level['JobStatus']['status'];
+			$feed_back_status=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate_id,'FeedbackStatus.interview_schedule_id'=>$k),'fields'=>array('FeedbackStatus.user_id','FeedbackStatus.date','FeedbackStatus.comments','FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+		 	$final[$k]['interviewer']=$feed_back_status['User']['first_name'].' '.$feed_back_status['User']['last_name'];
+			$final[$k]['interview_date']=$feed_back_status['FeedbackStatus']['date'];
+			$final[$k]['over_all_comments']=$feed_back_status['FeedbackStatus']['comments'];
+			$final[$k]['over_all_status']=$feed_back_status['FeedbackStatus']['status'];
+			$feed_backs = $this->FeedbackRating->find('all',array('conditions'=>array('FeedbackRating.candidate_id'=>$candidate_id,'FeedbackRating.interview_schedule_id'=>$k),'order'=>array('FeedbackRating.id DESC','FeedbackRating.feedback_question_id ASC'),'limit'=>4));
+		 	$final[$k]['ratings']=$feed_backs;
+			
+		 
+		 }
+		 
+		 $candidate_status=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate_id),'fields'=>array('FeedbackStatus.status'),'order'=>array('FeedbackStatus.id DESC')));
+		 $status=$candidate_status['FeedbackStatus']['status'];
+		
+		 $given_feedback_user=$this->FeedbackStatus->find('all',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate_id),'fields'=>array('DISTINCT FeedbackStatus.user_id'),'order'=>array('FeedbackStatus.id DESC'),'contain'=>array('User.first_name','User.last_name')));
+		 //debug($final);
+		 $this->set(compact('final','questions','status','candidate_name','given_feedback_user'));
+		 
+		 
+	     
+   }	
+}

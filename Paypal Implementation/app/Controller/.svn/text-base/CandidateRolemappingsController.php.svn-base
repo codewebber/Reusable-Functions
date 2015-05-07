@@ -1,0 +1,106 @@
+<?php
+App::uses('AppController', 'Controller');
+
+/**
+ * CandidateRolemappings Controller
+ *
+ * @property CandidateRolemapping $CandidateRolemapping
+ */
+class CandidateRolemappingsController extends AppController {
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->CandidateRolemapping->recursive = 0;
+		$this->set('candidateRolemappings', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->CandidateRolemapping->id = $id;
+		if (!$this->CandidateRolemapping->exists()) {
+			throw new NotFoundException(__('Invalid candidate rolemapping'));
+		}
+		$this->set('candidateRolemapping', $this->CandidateRolemapping->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->CandidateRolemapping->create();
+			if ($this->CandidateRolemapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate rolemapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate rolemapping could not be saved. Please, try again.'));
+			}
+		}
+		$roles = $this->CandidateRolemapping->Role->find('list');
+		$candidates = $this->CandidateRolemapping->Candidate->find('list');
+		$this->set(compact('roles', 'candidates'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->CandidateRolemapping->id = $id;
+		if (!$this->CandidateRolemapping->exists()) {
+			throw new NotFoundException(__('Invalid candidate rolemapping'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->CandidateRolemapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate rolemapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate rolemapping could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->CandidateRolemapping->read(null, $id);
+		}
+		$roles = $this->CandidateRolemapping->Role->find('list');
+		$candidates = $this->CandidateRolemapping->Candidate->find('list');
+		$this->set(compact('roles', 'candidates'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->CandidateRolemapping->id = $id;
+		if (!$this->CandidateRolemapping->exists()) {
+			throw new NotFoundException(__('Invalid candidate rolemapping'));
+		}
+		if ($this->CandidateRolemapping->delete()) {
+			$this->Session->setFlash(__('Candidate rolemapping deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Candidate rolemapping was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

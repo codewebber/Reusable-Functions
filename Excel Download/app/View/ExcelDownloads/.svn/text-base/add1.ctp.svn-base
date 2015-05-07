@@ -1,0 +1,221 @@
+<div class="flashmessagebox">
+<?php echo $this->Session->flash(); ?>
+</div>
+<?php echo $this->Form->create('User',array('type' => 'file'));?>
+
+      <div class="imported-resume-main" >
+        <div style="width: 100%; clear:both;height:36px">
+	        <div class="breadcrumbs">
+	          <ul class="breadcrumbsUlsit" >
+	            <li> <a href="#"> <img src="<?php echo $this->webroot;?>img/home_Ico.png" title="Home" /> </a> <span class="sep_bread" ></span> </li>
+	          
+	            <li> <a class="currentPage" href="#">Sign Up</a> </li>
+	          </ul>
+	        </div>
+        </div>
+        
+        <div class="flashmessagebox">
+	        <h4></h4>
+	        <p></p>
+	    </div>
+        <div class="resumeList" >
+          <div class="resume-logs" >
+            <div class="resume-logs-top" >
+              <h3>Sign Up</h3>
+            </div>
+            <div class="addcandidate_full">
+              <div class="addcandidate_inner">
+              
+                  <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label> First name </label>
+                    </div>
+                    <div class="inputdiv">
+                      
+                      <?php echo $this->Form->input('first_name',array('type'=>'text','class'=>'required','id'=>'firstname','label'=>false,'div'=>false));?>
+                    </div>
+                  </div>
+                  <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label> Last name </label>
+                    </div>
+                    <div class="inputdiv">
+                      <?php echo $this->Form->input('last_name',array('type'=>'text','class'=>'required','id'=>'lastname','label'=>false,'div'=>false));?>
+                    </div>
+                  </div>
+                 
+                  <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label> Email Id</label>
+                    </div>
+                    <div class="inputdiv">
+                      <?php echo $this->Form->input('email',array('type'=>'text','class'=>'required','id'=>'emailid','label'=>false,'div'=>false));?>
+                    </div>
+                  </div>
+                  <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label>Username</label>
+                    </div>
+                    <div class="inputdiv">
+                      <?php echo $this->Form->input('username',array('type'=>'text','class'=>'required','id'=>'username','label'=>false,'div'=>false));?>
+                    </div>
+                  </div>
+                  <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label>Password</label>
+                    </div>
+                    <div class="inputdiv">
+                      <?php echo $this->Form->input('password',array('div'=>false,'id'=>'password','class'=>'required','label'=>false));?>
+                  </div>
+                  
+                 
+                  
+                
+                 
+                 
+                  
+                 
+                  <div class="candidate_add_input">
+                    <div class="lablediv">&nbsp;</div>
+                    <div class="inputdiv">
+                      <div class="floatleft">
+                        <div class="floatleft">
+                          <?php echo $this->Form->submit('Submit',array('url'=>array('action'=>'add'),'class'=>'greenButton','div' => false)); ?>
+                         
+                        </div>
+                        <div class="floatlright">
+                          <input type="button" value="Reset" onclick="ClearFields();" class="greyButton">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="clear" > </div>
+      </div>
+
+ <?php echo $this->Form->end();?> 
+
+<script language="javascript" type="text/javascript">
+$(document).ready(function(){
+	/* added by balraj.....*/
+	 $('.addfloat').click(function(){	
+	    $('.full_cover').css("display","block");
+		$('.full_cover').fadeTo("slow", 0.8);
+		$('.popup').css("display","block");		
+		$('.popup').fadeIn();
+    });
+	$(document).keydown(function(e) {  
+        if (e.keyCode == 27) {				 
+                     $('body').css("background","#EDEDE7");
+		             $('.full_cover').fadeTo("slow", 0);
+		             $('.full_cover').css("display","none");
+		             $('.popup').fadeOut();				
+               }
+     });
+	 $('.close').click(function(){
+		             $('body').css("background","#EDEDE7");
+		             $('.full_cover').fadeTo("slow", 0);
+		             $('.full_cover').css("display","none");
+		             $('.popup').fadeOut();	
+		 });
+	/* added by balraj.....*/
+	
+	$(".radio").dgStyle();
+
+	$(".browse_url").live("click" , function(){
+		$(".file_browse").trigger("click");
+		});
+	$(".file_browse").change(function(){
+		     $(".browse_url").html($(this).val());
+				 $(".choose_file").hide();
+		});
+		
+		
+	$("Candidate").validate({
+			debug : true,
+			rules:{
+				firstname:
+					{
+					required: true			
+					},
+				lastname:
+				{
+					required: true	
+				},
+				
+				emailid:
+				{
+					required: true	
+				},
+				username:
+				{
+					required: true	
+				},
+				password:
+				{
+					required: true	
+				}
+				
+				
+				},
+				
+				
+				
+				
+			messages: {
+					firstname: {
+						required: 'Please Enter your First name'
+					},
+					 lastname: {
+						required: 'Please Enter your Last name'
+					},
+					 emailid: {
+						required: 'Please Enter your Email'
+					},
+					 username: {
+						required: 'Please Enter your Contact Number'
+					},
+					 password: {
+						required: 'Please Enter Reason for change'
+					}
+					
+					
+				   }
+			
+	});
+	
+		
+				
+});
+$(function () {
+		$(".custom_select").selectbox();
+	});
+	 $(document).click(function(event) {
+		if ( !$(event.target).hasClass('sbHolder') && !$(event.target).parents().hasClass('sbHolder')) {
+			   $(".custom_select").selectbox('close'); 
+		    }
+	});
+	
+function ClearFields() {
+	 document.getElementById("firstname").value = "";
+     document.getElementById("lastname").value = "";
+     document.getElementById("emailid").value = "";
+     document.getElementById("contact_number").value = "";
+     document.getElementById("experience").value = "";
+     document.getElementById("relevant_exp").value = "";
+     document.getElementById("current_role").value = "";
+     document.getElementById("cctc").value = "";
+     document.getElementById("ectc").value = "";
+     document.getElementById("notice_period").value = "";
+}	
+function validate() {
+	 if(document.getElementById("firstname").value == " ")
+	 alert("1233");
+     
+}	
+</script> 
+<?php echo $this->Js->writeBuffer();?>

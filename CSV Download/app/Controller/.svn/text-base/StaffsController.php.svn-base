@@ -1,0 +1,957 @@
+<?php
+App::uses('AppController', 'Controller');
+CakePlugin::load('Uploader');
+App::import('Vendor', 'Uploader.Uploader');
+
+/**
+ * Staffs Controller
+ *
+ * @property Staff $Staff
+ * @property RequestHandlerComponent $RequestHandler
+ */
+class StaffsController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	var $helpers = array('Html', 'Form','Ajax', 'Js','Javascript');
+	
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('Email', 'RequestHandler','Session');
+	public $paginate = array('order' => array( 'Staff.first_name' => 'asc'));
+	public $actsAs = array('Uploader.Attachment');
+	
+	public function beforeFilter(){
+		parent::beforeFilter();
+		
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Staff';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    if($url == 'editprofile' || $url == 'edit'){
+	    	$proceed = 1;
+	    }
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+	    
+    }
+	
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index($search_field = NULL,$search_data = NULL,$statusFilter = NULL) {
+       //Configure::write('debug',2);
+       $page=$this->params['named']['page'];
+       $this->set(compact('page'));
+       $this->loadModel('Aro');
+       if(!empty($statusFilter)) {
+            $this->request->data['Search']['Filter_status'] = $statusFilter; 
+        }
+        $this->Staff->recursive = 0;
+        if(empty($this->data)) {
+			//Condition given for global search - Enters into if-condition if the search is from global search.
+			if (!empty($search_field )) {
+				if ($search_field == 'emp_code') {
+					$this->paginate=array('conditions'=>array('Staff.emp_code'=>$search_data,'Staff.active'=>'Y'));
+					$staffs = $this->paginate();
+				} else {
+					$this->paginate=array('conditions'=>array('Staff.first_name LIKE'=>$search_data.'%','Staff.active'=>'Y'));
+					$staffs = $this->paginate();
+				}
+			} else {
+				$staffs=$this->Staff->find('all',array('conditions'=>array('Staff.active'=>'Y')));
+				$this->paginate = array('conditions'=>array('Staff.active'=>'Y'));
+			}
+			$this->set('staffs', $this->paginate());
+			foreach($staffs as $staff) {
+			     $username[$staff['Staff']['id']]=$this->Staff->User->find('first',array('conditions'=>array('User.staff_id'=>$staff['Staff']['id'])/*,'fields'=>array('User.staff_id','User.username')*/));
+			}
+			$usergroupFilter=$this->Session->read('Auth.User.usergroup_id');
+			if($usergroupFilter) { $setFilter=1; }	
+			$usergroup=null;
+			$parentUserGroups1 = $this->Aro->find('list',array('conditions'=>array('Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+			foreach($parentUserGroups1 as $k=>$v) {
+				$usergroup[$k]=$v;
+				$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+				foreach($l2 as $k1=>$v2) {
+				  $usergroup[$k1]='|---'.$v2;
+				}
+			}
+			$this->set(compact('group','username','setFilter','usergroup'));
+		}
+		else {
+		    if($this->data['Search']['staff']) {
+				$this->paginate=array('conditions'=>array('Staff.first_name like'=>$this->data['Search']['staff'].'%','Staff.active'=>'Y'));
+			}
+			if($this->data['Search']['Filter_usergroup']) {
+				if($this->data['Search']['Filter_usergroup']=='na') {
+					$this->paginate=array('conditions'=>array('Staff.aro_id'=>null,'Staff.active'=>'Y'));
+				} else {
+					$this->paginate=array('conditions'=>array('Staff.aro_id'=>$this->data['Search']['Filter_usergroup'],'Staff.active'=>'Y'));
+				}
+			}
+            if(!empty($this->data['Search']['Filter_status'])) {
+                $statusFilter = $this->data['Search']['Filter_status'];
+                if($this->data['Search']['Filter_status'] == 'all') {
+                    $this->paginate=array('conditions'=>NULL);
+                } else {
+                    $this->paginate=array('conditions'=>array('Staff.active'=>$this->data['Search']['Filter_status']));
+                }
+            }
+			$this->set('staffs', $this->paginate());
+			$staff1=$this->paginate();
+            foreach($staff1 as $staff) {
+			     $username[$staff['Staff']['id']]=$this->Staff->User->find('first',array('conditions'=>array('User.staff_id'=>$staff['Staff']['id'])/*,'fields'=>array('User.staff_id','User.username')*/));
+			}
+		    $usergroup=null;
+			$parentUserGroups1 = $this->Aro->find('list',array('conditions'=>array('Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+			foreach($parentUserGroups1 as $k=>$v) {
+				$usergroup[$k]=$v;
+				$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+				foreach($l2 as $k1=>$v2) {
+				    $usergroup[$k1]='|---'.$v2;
+				}
+			}
+			$this->set(compact('group','username','usergroup','statusFilter'));
+		}
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->loadModel('Aro');
+		$this->loadModel('User');
+		$this->loadModel('AccountsSalarydetails');
+		$this->Staff->id = $id;
+		if (!$this->Staff->exists()) {
+			throw new NotFoundException(__('Invalid staff'));
+		}
+		$staff=$this->Staff->read(null, $id);
+		$this->set('staff',$staff);
+		$usergroup=$this->Aro->find('list',array('conditions'=>array('Aro.id'=>$staff['Staff']['aro_id']),'fields'=>array('Aro.id','Aro.alias')));
+		$this->set(compact('usergroup'));
+		$user=$this->User->find('list',array('conditions'=>array('User.staff_id'=>$staff['Staff']['id']),'fields'=>array('User.staff_id','User.username')));
+		$this->set(compact('user'));
+		$salarydetails=$this->AccountsSalarydetails->find('first',array('conditions'=>array('AccountsSalarydetails.staff_id'=>$id)));
+		$salarydetailsid=$salarydetails['AccountsSalarydetails']['id'];
+		$this->set(compact('salarydetailsid'));
+		$avatars = $this->Staff->Avatar->find('first',array('conditions'=>array('Avatar.id'=>$staff['Staff']['avatar_id'])));
+		$staffBiodatas = $this->Staff->StaffBiodata->find('first',array('conditions'=>array('StaffBiodata.id'=>$staff['Staff']['staff_biodata_id'])));
+		$this->set(compact('staffBiodatas','avatars'));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		$this->Uploader = new Uploader(); 
+		$this->Uploader = new Uploader(array('tempDir' => TMP));
+		$this->Uploader->setup(array('tempDir' => TMP));
+		$usergroup=null;
+		$this->loadModel('Aro');
+		$parentUserGroups1 = $this->Aro->find('list',array('conditions'=>array('Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+		$usergroup_access=$this->Session->read('Auth.User.usergroup_id');
+		$aros_access=$this->Aro->find('first',array('conditions'=>array('Aro.id'=>$usergroup_access)));
+		$this->loadModel('Designation');
+		$designations = $this->Designation->find('list',array('Designation.id','Designation.name'));
+		$this->set(compact('designations'));
+		if(($aros_access['Aro']['alias'] == 'Super Admin') || ($aros_access['Aro']['alias'] == 'Admin') || ($aros_access['Aro']['alias'] == 'Admin Team') )
+			{
+				$admin=1;
+				$this->set(compact('admin'));
+			}
+		else
+			{
+				$usergroupdisp=$parentUserGroups1['Aro']['alias'];
+			}
+		if($admin)
+			{
+				foreach($parentUserGroups1 as $k=>$v)
+					{
+						$usergroup[$k]=$v;
+						$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+						foreach($l2 as $k1=>$v2)
+							{
+								$usergroup[$k1]='|---'.$v2;
+							}
+					}
+			}
+		else
+			{
+				foreach($parentUserGroups1 as $k=>$v)
+					{
+						if(($v!="Admin") && ($v!="Super Admin") && ($v!="Admin Team"))
+							{
+								$usergroup[$k]=$v;
+								$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+								
+								foreach($l2 as $k1=>$v2)
+									{
+										$usergroup[$k1]='|---'.$v2;
+									}
+							}
+					}
+				
+				$noaccessusergroup=1;
+				$this->set(compact('noaccessusergroup'));
+			}
+		$this->loadModel('Company');
+		$company=$this->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+		$this->set(compact('usergroup','company'));
+		if (!empty($this->data))
+		 {
+		 	if(($this->data['Staff']['start_date1']) && ($this->data['Staff']['email1']) && ($this->data['Staff']['phone']) && ($this->data['Staff']['emp_code']) && ($this->data['Staff']['first_name']))
+		 		{
+		 			$empcode_check=$this->Staff->find('all',array('conditions'=>array('Staff.emp_code'=>$this->data['Staff']['emp_code'])));
+					if(empty($empcode_check) || !$empcode_check)
+						{
+							if((ctype_alpha(str_replace(' ', '',$this->data['Staff']['first_name']))) &&((!($this->data['Staff']['last_name']))|| (ctype_alpha(str_replace(' ', '',$this->data['Staff']['first_name'])) && ctype_alpha(str_replace(' ', '',$this->data['Staff']['last_name'])))))
+								{
+									$this->Staff->create();
+									$savearray->data=null;
+									$savearray->data['Staff']['first_name']=$this->data['Staff']['first_name'];
+									if($this->data['Staff']['last_name'])
+										{
+											$savearray->data['Staff']['last_name']=$this->data['Staff']['last_name'];
+										}
+									$savearray->data['Staff']['email1']=$this->data['Staff']['email1'];
+									$savearray->data['Staff']['phone']=$this->data['Staff']['phone'];
+									$savearray->data['Staff']['emp_code']=$this->data['Staff']['emp_code'];
+									if($this->data['Staff']['aim'])
+										{
+											$savearray->data['Staff']['aim']=$this->data['Staff']['aim'];
+										}
+									if($this->data['Staff']['status'])
+										{
+											$savearray->data['Staff']['active']=$this->data['Staff']['status'];
+										}
+									if($this->data['Staff']['signature'])
+										{
+											$savearray->data['Staff']['signature']=$this->data['Staff']['signature'];
+										}
+									if($this->data['Staff']['email2'])
+										{
+											$savearray->data['Staff']['email2']=$this->data['Staff']['email2'];
+										}
+									if($this->data['Staff']['alt_phone'])
+										{
+											$savearray->data['Staff']['alt_phone']=$this->data['Staff']['alt_phone'];
+										}
+									if($this->data['Staff']['skype'])
+										{
+											$savearray->data['Staff']['skype']=$this->data['Staff']['skype'];
+										}
+									
+									//Ganesh Code
+									
+									if($this->data['Staff']['designation'] == 'Add New Designation') {
+										//Configure::write('debug',2);
+										debug($this->data);
+										$this->loadModel('Designation');
+										$saveDesignation['Designation']['name'] = $this->data['Staff']['designation_name'];
+										$saveDesignation['Designation']['description'] = $this->data['Staff']['designation_description'];
+										$this->Designation->save($saveDesignation);
+										$savearray->data['Staff']['designation_id'] = $this->Designation->getLastInsertId();
+									} else {
+										$savearray->data['Staff']['designation_id'] = $this->data['Staff']['designation'];
+									}
+									
+									$savearray->data['Staff']['father_name'] = $this->data['Staff']['father_name'];
+									$savearray->data['Staff']['address'] = $this->data['Staff']['address'];
+									$savearray->data['Staff']['current_address'] = $this->data['Staff']['current_address'];
+									$savearray->data['Staff']['date_of_birth'] = date('Y-m-d',strtotime($this->data['Staff']['dob']));
+									
+									
+									
+									
+									//	
+										
+										
+										
+										
+									$savearray->data['Staff']['start_date']=date('Y-m-d',strtotime($this->data['Staff']['start_date1']));
+									$savearray->data['Staff']['aro_id']=$this->data['Staff']['user_group_id'];
+									if ($this->Staff->save($savearray->data))
+							 			{
+											$last1=$this->Staff->getLastInsertID();
+											if($this->data['Staff']['fileName1'])
+												{
+													$this->Uploader->uploadDir = 'files/uploads/avatars';
+													$data = $this->Uploader->uploadAll(array('fileName1'));
+													if ($data)
+											 			{
+															$this->loadModel('Avatar');
+   															$save->data = null;
+															$this->Avatar->create();
+															$save->data['Avatar']['path']=$data['fileName1']['path'];
+															$save->data['Avatar']['filename']=$data['fileName1']['name'];
+															$this->Avatar->save($save->data);
+    														$last2=$this->Avatar->getLastInsertID();
+    														$this->Staff->create();
+															$save->data['Staff']['id']=$last1;
+															$save->data['Staff']['avatar_id']=$last2;
+															$this->Staff->save($save->data);
+    									   	 			}
+												}
+											if($this->data['Staff']['fileName2'])
+												{
+													$this->Uploader->uploadDir = 'files/uploads/biodatas';
+													if ($data = $this->Uploader->uploadAll(array('fileName2')))
+									 					{
+															$this->loadModel('StaffBiodata');
+   															$save->data = null;
+															$this->StaffBiodata->create();
+															$save->data['StaffBiodata']['path']=$data['fileName2']['path'];
+															$save->data['StaffBiodata']['filename']=$data['fileName2']['name'];
+															$this->StaffBiodata->save($save->data);
+    														$last3=$this->StaffBiodata->getLastInsertID();
+    														$this->Staff->create();
+															$save->data['Staff']['id']=$last1;
+															$save->data['Staff']['staff_biodata_id']=$last3;
+															if($this->Staff->save($save->data))
+																{
+																	$this->Session->setFlash('<div class="flashMessageSuccess">The staff has been saved</div>');
+																	//$this->Session->setFlash(__('<font color = "#74B511">The staff has been saved</font>'));
+																	$this->redirect(array('controller'=>'users','action' => 'add'.'/'.$last1));
+																}
+															else
+																{
+																	$this->Session->setFlash('<div class="flashMessageError">The staff has not been saved</div>');
+																	//$this->Session->setFlash(__('<font color = "red">The staff has not been saved</font>'));
+																	$this->redirect(array('action' => 'add'));
+																}
+    													}
+						  						}
+						  						$this->Session->setFlash('<div class="flashMessageSuccess">The staff has been saved</div>');
+												$this->redirect(array('controller'=>'users','action' => 'add'.'/'.$last1));
+										}
+								}
+							else
+								{
+									$this->Session->setFlash('<div class="flashMessageError">Name can not be a number.Enter a valid  Name.</div>',true);
+		 							return;
+								}
+					}
+					else
+						{
+							$this->Session->setFlash('<div class="flashMessageError">Employee code already registered.Try using some other Employee code</div>',true);
+		 					return;
+						}
+		 		}
+		 		else
+		 				{
+							$this->Session->setFlash('<div class="flashMessageError">Required Field Missing</div>',true);
+		 					return;
+		 				}
+			}
+		
+	}
+
+
+public function addNewDesignation() {
+	if($this->data['Staff']['designation'] == 'Add New Designation') {
+		$add = true;
+	}
+	$this->set(compact('add'));
+}
+
+
+
+
+
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null,$editprofile=null) {
+		
+		
+		$this->loadModel('AccountsSalarydetails');
+		$this->loadModel('User');
+		$this->loadModel('Aro');
+		if($editprofile=='profile')
+			{
+				$this->set(compact('editprofile'));
+			}
+		$this->Staff->id = $id;
+		$user = $this->User->find('first',array('conditions'=>array('User.staff_id'=>$id)));
+		$aro = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$user['User']['id'])));
+		$this->set(compact('aro'));
+		
+		$this->Uploader = new Uploader(); 
+		$this->Uploader = new Uploader(array('tempDir' => TMP));
+		$this->Uploader->setup(array('tempDir' => TMP));
+		
+		if (!$this->Staff->exists()) {
+			throw new NotFoundException(__('Invalid staff'));
+		}
+		if ($this->request->is('post') || $this->request->is('put'))
+		 {
+			if (!empty($this->data['Staff']['first_name']) &&  !empty($this->data['Staff']['emp_code'])   )
+			 {
+			 	if((ctype_alpha(str_replace(' ', '',$this->data['Staff']['first_name']))) && ((empty($this->data['Staff']['last_name'])) || (ctype_alpha(str_replace(' ', '',$this->data['Staff']['last_name'])))))
+			 		{
+			 			
+			 			if($this->data['Staff']['status'] == 'N') {
+			 				$this->loadModel('AccountsSalarydetail');
+			 				$salarydetailID = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$this->data['Staff']['id'],'AccountsSalarydetail.current'=>'Y')));
+			 				$updateSalaryDetail['AccountsSalarydetail']['id'] = $salarydetailID['AccountsSalarydetail']['id'];
+			 				$updateSalaryDetail['AccountsSalarydetail']['current'] = 'N';
+			 				$this->AccountsSalarydetail->save($updateSalaryDetail);
+			 			}
+			 						$savearray->data=null;
+									$savearray->data['Staff']['id']=$this->data['Staff']['id'];
+									$savearray->data['Staff']['first_name']=$this->data['Staff']['first_name'];
+									$savearray->data['Staff']['last_name']=$this->data['Staff']['last_name'];
+									$savearray->data['Staff']['emp_code']=$this->data['Staff']['emp_code'];
+									$savearray->data['Staff']['email1']=$this->data['Staff']['email1'];
+									$savearray->data['Staff']['phone']=$this->data['Staff']['phone'];
+									$savearray->data['Staff']['start_date']=date('Y-m-d',strtotime($this->data['Staff']['start_date1']));
+									$savearray->data['Staff']['aro_id']=$this->data['Staff']['user_group_id'];
+									$savearray->data['Staff']['signature']=$this->data['Staff']['signature'];
+									$savearray->data['Staff']['active']=$this->data['Staff']['status'];
+									$savearray->data['Staff']['alt_phone']=$this->data['Staff']['alt_phone'];
+									if($this->data['Staff']['aim'])
+										{
+											$savearray->data['Staff']['aim']=$this->data['Staff']['aim'];
+										}
+									if($this->data['Staff']['email2'])
+										{
+											$savearray->data['Staff']['email2']=$this->data['Staff']['email2'];
+										}
+									if($this->data['Staff']['skype'])
+										{
+											$savearray->data['Staff']['skype']=$this->data['Staff']['skype'];
+										}
+									
+									//Ganesh Code
+									if($this->data['Staff']['designation'] == 'Add New Designation') {
+										//Configure::write('debug',2);
+										debug($this->data);
+										$this->loadModel('Designation');
+										$saveDesignation['Designation']['name'] = $this->data['Staff']['designation_name'];
+										$saveDesignation['Designation']['description'] = $this->data['Staff']['designation_description'];
+										$this->Designation->save($saveDesignation);
+										$savearray->data['Staff']['designation_id'] = $this->Designation->getLastInsertId();
+									} else {
+										$savearray->data['Staff']['designation_id'] = $this->data['Staff']['designation'];
+									}
+									$savearray->data['Staff']['father_name'] = $this->data['Staff']['father_name'];
+									$savearray->data['Staff']['address'] = $this->data['Staff']['address'];
+									$savearray->data['Staff']['current_address'] = $this->data['Staff']['current_address'];
+									$savearray->data['Staff']['date_of_birth'] = date('Y-m-d',strtotime($this->data['Staff']['dob']));
+									//	
+									
+									
+				
+									if ($this->Staff->save($savearray->data))
+											{
+												$last1=$this->Staff->getLastInsertID();
+												if($this->data['Staff']['fileName1'])
+													{
+														$this->Uploader->uploadDir = 'files/uploads/avatars';
+														$data = $this->Uploader->uploadAll(array('fileName1'));
+					
+														if($data)
+																{
+																	$this->loadModel('Avatar');
+   																	$save->data = null;
+   																	if($this->data['Staff']['prev_avatar_id'])
+   																		{
+																			$save->data['Avatar']['id']=$this->data['Staff']['prev_avatar_id'];
+																			$save->data['Avatar']['path']=$data['fileName1']['path'];
+																			$save->data['Avatar']['filename']=$data['fileName1']['name'];
+																			$this->Avatar->save($save->data);
+    																		$save->data=null;
+    																		$save->data['Staff']['id']=$this->data['Staff']['id'];
+																			$save->data['Staff']['avatar_id']=$this->data['Staff']['prev_avatar_id'];
+																			$this->Staff->save($this->data);
+																		}
+																	else
+																		{
+   																			$save->data = null;
+																			$this->Avatar->create();
+																			$save->data['Avatar']['path']=$data['fileName1']['path'];
+																			$save->data['Avatar']['filename']=$data['fileName1']['name'];
+																			$this->Avatar->save($save->data);
+    																		$last2=$this->Avatar->getLastInsertID();
+    																		$save->data=null;
+																			$save->data['Staff']['id']=$this->data['Staff']['id'];
+																			$save->data['Staff']['avatar_id']=$last2;
+																			$this->Staff->save($save->data);
+																		}
+																 }
+														}
+													if($this->data['Staff']['fileName2'])
+															{
+																$this->Uploader->uploadDir = 'files/uploads/biodatas';
+																if ($data = $this->Uploader->uploadAll(array('fileName2')))
+																	 {
+																		$this->loadModel('StaffBiodata');
+   																		$save->data = null;
+   																		if($this->data['Staff']['prev_bio_id'])
+   																			{
+																				$save->data['StaffBiodata']['id']=$this->data['Staff']['prev_bio_id'];
+																				$save->data['StaffBiodata']['path']=$data['fileName2']['path'];
+																				$save->data['StaffBiodata']['filename']=$data['fileName2']['name'];
+   																				$this->StaffBiodata->save($save->data);
+    																			$save->data=null;
+																				$save->data['Staff']['id']=$this->data['Staff']['id'];
+																				$save->data['Staff']['staff_biodata_id']=$this->data['Staff']['prev_bio_id'];
+																				$this->Staff->save($save->data);
+   																			}
+   																		else
+   																			{
+   																				$this->StaffBiodata->create();
+																				$save->data['StaffBiodata']['path']=$data['fileName2']['path'];
+																				$save->data['StaffBiodata']['filename']=$data['fileName2']['name'];
+																				$this->StaffBiodata->save($save->data);
+    																			$last3=$this->StaffBiodata->getLastInsertID();
+    																			$save->data=null;
+																				$save->data['Staff']['id']=$this->data['Staff']['id'];
+																				$save->data['Staff']['staff_biodata_id']=$last3;
+																				$this->Staff->save($save->data);
+   																			}
+									  								   }
+														      }
+														$userid=$this->User->find('first',array('conditions'=>array('User.staff_id'=>$this->data['Staff']['id'])));
+														if($userid)
+															{
+																$save->data = null;
+																$save->data['User']['id']=$userid['User']['id'];
+																$save->data['User']['staff_id']=$this->data['Staff']['id'];
+																$save->data['User']['username']=$userid['User']['username'];
+																$save->data['User']['password']=$userid['User']['password'];
+																$save->data['User']['usergroup_id']=$this->data['Staff']['user_group_id'];
+																$save->data['User']['email']=$this->data['Staff']['email1'];
+																$this->User->save($save->data,array('callbacks' => false, 'before', 'after'));
+																$aros=$this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$userid['User']['id'])));
+																$aro =& $this->Acl->Aro;
+																$data=null;
+																$data['id'] = $aros['Aro']['id'];
+																$data['alias'] = $userid['User']['username'];
+																$data['foreign_key'] =$userid['User']['id'];
+																$data['parent_id'] = $this->data['Staff']['user_group_id'];
+																$data['model'] = "User";
+																$aro->save($data);
+															 }	
+			
+			  									}
+			  								
+											
+											if(($this->data['Staff']['editprofile']) && ($this->data['Staff']['readaccess']))
+												{
+													$this->Session->setFlash('<div class="flashMessageSuccess">Information has been saved</div>');
+													$this->redirect(array('action' => 'index'));
+												}
+											elseif(($this->data['Staff']['editprofile']))
+												{
+													$this->Session->setFlash('<div class="flashMessageSuccess">Information has been saved</div>');
+													$this->redirect(array('action' => 'edit',$this->data['Staff']['id'],'profile'));
+												}
+											else
+												{
+													$this->Session->setFlash('<div class="flashMessageSuccess">Information has been saved</div>');
+													$this->redirect(array('action' => 'index'));
+												}
+											
+			 				
+			 			
+			 		
+			 	}
+			 else
+			 	{
+			 		$error=1;
+					$this->set(compact('error'));
+					$this->Session->setFlash('<div class="flashMessageError">Name cannot be a number.</div>');
+			 		$this->redirect(array('action' => 'edit'.'/'.$id));
+			 	}
+				
+			}
+		else 
+			{
+				$error=1;
+				$this->set(compact('error'));
+			 	$this->Session->setFlash('<div class="flashMessageError">The staff could not be saved. Please, try again.</div>');
+			 	$this->redirect(array('action' => 'edit'.'/'.$id));
+			}
+		}
+		else
+		 	{
+				$this->request->data = $this->Staff->read(null, $id);
+			}
+		$userinfo=$this->User->find('first',array('conditions'=>array('User.staff_id'=>$id)));
+		$salarydetails=$this->AccountsSalarydetails->find('first',array('conditions'=>array('AccountsSalarydetails.staff_id'=>$id)));
+		$salarydetailsid=$salarydetails['AccountsSalarydetails']['id'];
+		$this->set(compact('salarydetailsid'));
+		$this->loadModel('Designation');
+		$designations = $this->Designation->find('list',array('Designation.id','Designation.name'));
+		
+		$startdate=$this->request->data['Staff']['start_date'];
+		$reviewdate=$this->request->data['Staff']['review_date'];
+		$dob = $this->request->data['Staff']['date_of_birth'];
+		$designation_default = $this->request->data['Staff']['designation_id'];
+		$emp_status=$this->request->data['Staff']['active'];
+		$avatars = $this->Staff->Avatar->find('first',array('conditions'=>array('Avatar.id'=>$this->request->data['Staff']['avatar_id'])));
+		$staffBiodatas = $this->Staff->StaffBiodata->find('first',array('conditions'=>array('StaffBiodata.id'=>$this->request->data['Staff']['staff_biodata_id'])));
+		
+		
+		$usergroupvalue=$this->Aro->find('list',array('conditions'=>array('Aro.id'=>$this->request->data['Staff']['aro_id']),'fields'=>array('Aro.id','Aro.alias')));
+		$usergroupvalue_admin=$this->Aro->find('first',array('conditions'=>array('Aro.id'=>$this->request->data['Staff']['aro_id']),'fields'=>array('Aro.id','Aro.alias')));
+		$this->set(compact('usergroupvalue_admin'));
+		
+		
+		
+		$parentUserGroups1 = $this->Aro->find('list',array('conditions'=>array('Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+		$usergroup_access=$this->Session->read('Auth.User.usergroup_id');
+		$aros_access=$this->Aro->find('first',array('conditions'=>array('Aro.id'=>$usergroup_access)));
+		if(($aros_access['Aro']['alias'] == 'Super Admin') || ($aros_access['Aro']['alias'] == 'Admin') || ($aros_access['Aro']['alias'] == 'Admin Team') )
+			{
+				$admin=1;
+				$this->set(compact('admin'));
+			}
+		else
+			{
+				$usergroupdisp=$parentUserGroups1['Aro']['alias'];
+			}
+		if($admin)
+			{
+				foreach($parentUserGroups1 as $k=>$v)
+					{
+						$usergroup[$k]=$v;
+						$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+						foreach($l2 as $k1=>$v2)
+							{
+								$usergroup[$k1]='|---'.$v2;
+							}
+					}
+			}
+		else
+			{
+				
+				
+				foreach($parentUserGroups1 as $k=>$v)
+					{
+						
+						if(($v!="Admin") && ($v!="Super Admin") && ($v!="Admin Team"))
+							{
+								
+								$usergroup[$k]=$v;
+								$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+								
+								foreach($l2 as $k1=>$v2)
+									{
+										$usergroup[$k1]='|---'.$v2;
+									}
+							}
+							
+						
+					}
+				
+				$noaccessusergroup=1;
+				
+				$this->set(compact('noaccessusergroup'));
+			}
+		
+		
+		
+		$this->set(compact('usergroup','startdate','reviewdate','userinfo','id','emp_status','dob','designations'));
+		$this->set(compact('avatars', 'staffBiodatas','usergroupvalue','usergroupdisp','admin','designation_default'));
+	}
+	
+	
+	public function editprofile($id=null,$editprofile=null)
+		{
+			
+			$this->loadModel('AccountsSalarydetails');
+			$this->loadModel('User');
+			$this->loadModel('Aro');
+			if($editprofile=='profile')
+				{
+					$this->set(compact('editprofile'));
+				}
+			$this->Staff->id = $id;
+			$user = $this->User->find('first',array('conditions'=>array('User.staff_id'=>$id)));
+			$aro = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$user['User']['id'])));
+			$this->set(compact('aro'));
+		
+			$this->Uploader = new Uploader(); 
+			$this->Uploader = new Uploader(array('tempDir' => TMP));
+			$this->Uploader->setup(array('tempDir' => TMP));
+		
+			if (!$this->Staff->exists()) {
+				throw new NotFoundException(__('Invalid staff'));
+			}
+			if ($this->request->is('post') || $this->request->is('put'))
+				 {
+			 				
+			 						$savearray->data=null;
+									$savearray->data['Staff']['id']=$this->data['Staff']['id'];
+									$savearray->data['Staff']['email1']=$this->data['Staff']['email1'];
+									$savearray->data['Staff']['phone']=$this->data['Staff']['phone'];
+									
+									
+									$savearray->data['Staff']['signature']=$this->data['Staff']['signature'];
+									$savearray->data['Staff']['alt_phone']=$this->data['Staff']['alt_phone'];
+									if($this->data['Staff']['aim'])
+										{
+											$savearray->data['Staff']['aim']=$this->data['Staff']['aim'];
+										}
+									if($this->data['Staff']['email2'])
+										{
+											$savearray->data['Staff']['email2']=$this->data['Staff']['email2'];
+										}
+									if($this->data['Staff']['skype'])
+										{
+											$savearray->data['Staff']['skype']=$this->data['Staff']['skype'];
+										}
+									if ($this->Staff->save($savearray->data))
+											{
+												$last1=$this->Staff->getLastInsertID();
+												if($this->data['Staff']['fileName1'])
+													{
+														$this->Uploader->uploadDir = 'files/uploads/avatars';
+														$data = $this->Uploader->uploadAll(array('fileName1'));
+					
+														if($data)
+																{
+																	$this->loadModel('Avatar');
+   																	$save->data = null;
+   																	if($this->data['Staff']['prev_avatar_id'])
+   																		{
+																			$save->data['Avatar']['id']=$this->data['Staff']['prev_avatar_id'];
+																			$save->data['Avatar']['path']=$data['fileName1']['path'];
+																			$save->data['Avatar']['filename']=$data['fileName1']['name'];
+																			$this->Avatar->save($save->data);
+    																		$save->data=null;
+    																		$save->data['Staff']['id']=$this->data['Staff']['id'];
+																			$save->data['Staff']['avatar_id']=$this->data['Staff']['prev_avatar_id'];
+																			$this->Staff->save($this->data);
+																		}
+																	else
+																		{
+   																			$save->data = null;
+																			$this->Avatar->create();
+																			$save->data['Avatar']['path']=$data['fileName1']['path'];
+																			$save->data['Avatar']['filename']=$data['fileName1']['name'];
+																			$this->Avatar->save($save->data);
+    																		$last2=$this->Avatar->getLastInsertID();
+    																		$save->data=null;
+																			$save->data['Staff']['id']=$this->data['Staff']['id'];
+																			$save->data['Staff']['avatar_id']=$last2;
+																			$this->Staff->save($save->data);
+																		}
+																 }
+														}
+													/*if($this->data['Staff']['fileName2'])
+															{
+																$this->Uploader->uploadDir = 'files/uploads/biodatas';
+																if ($data = $this->Uploader->uploadAll(array('fileName2')))
+																	 {
+																		$this->loadModel('StaffBiodata');
+   																		$save->data = null;
+   																		if($this->data['Staff']['prev_bio_id'])
+   																			{
+																				$save->data['StaffBiodata']['id']=$this->data['Staff']['prev_bio_id'];
+																				$save->data['StaffBiodata']['path']=$data['fileName2']['path'];
+																				$save->data['StaffBiodata']['filename']=$data['fileName2']['name'];
+   																				$this->StaffBiodata->save($save->data);
+    																			$save->data=null;
+																				$save->data['Staff']['id']=$this->data['Staff']['id'];
+																				$save->data['Staff']['staff_biodata_id']=$this->data['Staff']['prev_bio_id'];
+																				$this->Staff->save($save->data);
+   																			}
+   																		else
+   																			{
+   																				$this->StaffBiodata->create();
+																				$save->data['StaffBiodata']['path']=$data['fileName2']['path'];
+																				$save->data['StaffBiodata']['filename']=$data['fileName2']['name'];
+																				$this->StaffBiodata->save($save->data);
+    																			$last3=$this->StaffBiodata->getLastInsertID();
+    																			$save->data=null;
+																				$save->data['Staff']['id']=$this->data['Staff']['id'];
+																				$save->data['Staff']['staff_biodata_id']=$last3;
+																				$this->Staff->save($save->data);
+   																			}
+									  								   }
+														      }*/
+														//$userid=$this->User->find('first',array('conditions'=>array('User.staff_id'=>$this->data['Staff']['id'])));
+														/*if($userid)
+															{
+																$save->data = null;
+																$save->data['User']['id']=$userid['User']['id'];
+																$save->data['User']['staff_id']=$this->data['Staff']['id'];
+																$save->data['User']['username']=$userid['User']['username'];
+																$save->data['User']['password']=$userid['User']['password'];
+																$save->data['User']['usergroup_id']=$this->data['Staff']['user_group_id'];
+																$save->data['User']['email']=$this->data['Staff']['email1'];
+																$this->User->save($save->data,array('callbacks' => false, 'before', 'after'));
+																$aros=$this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$userid['User']['id'])));
+																$aro =& $this->Acl->Aro;
+																$data=null;
+																$data['id'] = $aros['Aro']['id'];
+																$data['alias'] = $userid['User']['username'];
+																$data['foreign_key'] =$userid['User']['id'];
+																$data['parent_id'] = $this->data['Staff']['user_group_id'];
+																$data['model'] = "User";
+																$aro->save($data);
+															 }	*/
+			
+			  									}
+			  								
+											/*$this->Session->setFlash(__('The staff has been saved'));*/
+											if(($this->data['Staff']['editprofile']) && ($this->data['Staff']['readaccess']))
+												{
+													$this->Session->setFlash('<div class="flashMessageSuccess">Information has been saved</div>');
+													$this->redirect(array('controller'=>'staffs','action' => 'editprofile',$this->data['Staff']['id'],'editprofile'));
+												}
+											elseif(($this->data['Staff']['editprofile']))
+												{
+													$this->Session->setFlash('<div class="flashMessageSuccess">Information has been saved</div>');
+													$this->redirect(array('action' => 'editprofile',$this->data['Staff']['id'],'profile'));
+												}
+											else
+												{
+													$this->Session->setFlash('<div class="flashMessageSuccess">Information has been saved</div>');
+													$this->redirect(array('action' => 'editprofile',$this->data['Staff']['id'],'profile'));
+												}
+											
+			 				
+			 			
+			 		
+			 
+			 
+				
+			
+		
+		}
+		else
+		 	{
+				$this->request->data = $this->Staff->read(null, $id);
+			}
+		$salarydetails=$this->AccountsSalarydetails->find('first',array('conditions'=>array('AccountsSalarydetails.staff_id'=>$id)));
+		$salarydetailsid=$salarydetails['AccountsSalarydetails']['id'];
+		$this->set(compact('salarydetailsid'));
+		
+		$startdate=$this->request->data['Staff']['start_date'];
+		$reviewdate=$this->request->data['Staff']['review_date'];
+		$emp_status=$this->request->data['Staff']['active'];
+		$emp_code=$this->request->data['Staff']['emp_code'];
+		$first_name=$this->request->data['Staff']['first_name'];
+		$last_name=$this->request->data['Staff']['last_name'];
+		
+		
+		
+		
+		
+		$avatars = $this->Staff->Avatar->find('first',array('conditions'=>array('Avatar.id'=>$this->request->data['Staff']['avatar_id'])));
+		$staffBiodatas = $this->Staff->StaffBiodata->find('first',array('conditions'=>array('StaffBiodata.id'=>$this->request->data['Staff']['staff_biodata_id'])));
+	
+		$usergroupvalue=$this->Aro->find('first',array('conditions'=>array('Aro.id'=>$this->request->data['Staff']['aro_id']),'fields'=>array('Aro.id','Aro.alias')));
+		
+		$parentUserGroups1 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+		foreach($parentUserGroups1 as $k=>$v)
+			{
+				$usergroup[$k]=$v;
+				$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+				foreach($l2 as $k1=>$v2)
+					{
+						$usergroup[$k1]='---'.$v2;
+					}
+			}
+		$userinfo=$this->User->find('first',array('conditions'=>array('User.staff_id'=>$this->request->data['Staff']['id'])));
+		
+		
+		$usergroup_access=$this->Session->read('Auth.User.usergroup_id');
+		$aros_access=$this->Aro->find('first',array('conditions'=>array('Aro.id'=>$usergroup_access)));
+		if(($aros_access['Aro']['alias'] == 'Super Admin') || ($aros_access['Aro']['alias'] == 'Admin') || ($aros_access['Aro']['alias'] == 'Admin Team'))
+			{
+				$admin=1;
+				$usergroupdisp=$usergroupvalue['Aro']['alias'];
+				$this->set(compact('admin'));
+			}
+		else
+			{
+				$usergroupdisp=$usergroupvalue['Aro']['alias'];
+			}
+		$this->set(compact('usergroup','startdate','reviewdate','userinfo','id','emp_status','emp_code','first_name','last_name'));
+		$this->set(compact('avatars', 'staffBiodatas','usergroupvalue','usergroupdisp','admin'));
+		}
+	
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+	
+		$this->loadModel('User');
+		$this->Staff->id = $id;
+		if (!$this->Staff->exists()) {
+			
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid Staffs</div>'));
+		}
+		$user=$this->User->find('first',array('conditions'=>array('User.staff_id'=>$id),'fields'=>array('User.id')));
+		$this->loadModel('AccountsSalarydetail');
+		$salarydetails = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$id),'fields'=>array('id')));
+		$salaryInactive = NULL;
+		$salaryInactive['AccountsSalarydetail']['id'] = $salarydetails['AccountsSalarydetail']['id'];
+		$salaryInactive['AccountsSalarydetail']['current'] = 'N';
+		$this->AccountsSalarydetail->save($salaryInactive);
+		if ($this->Staff->delete()) {
+			if($this->User->delete($user['User']['id']))
+				{
+					$this->loadModel('Aro');
+					$arodel=$this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$user['User']['id'])));
+					$this->Aro->delete($arodel['Aro']['id']);
+				}
+			
+			
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Staff Removed</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		else
+		{
+			
+			$this->Session->setFlash(__('<div class="flashMessageError">Staff was not deleted</div>'));
+			$this->redirect(array('action' => 'index'));
+		}
+		
+	}
+}

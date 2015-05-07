@@ -1,0 +1,1147 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * Settings Controller
+ *
+ * @property Setting $Setting
+ */
+class SettingsController extends AppController {
+	
+	
+	public function beforeFilter(){
+		
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		parent::beforeFilter();
+		$url = $this->params['action'];	
+		
+	    if($url == 'index' || $url == 'addtax' || $url == 'addtax_group' || $url == 'checkbox_check' || $url == 'addtax_group2' || $url == 'deleteGroup'|| $url == 'delete' || $url = 'name_check' || $url = 'percent_check'|| $url = 'groupname_check'|| $url = ' priority_check'|| $url = 'percent_checkedit') {$module_name = 'Settings';}
+        if ($url == 'salary_settings' || $url == 'edit_salary_settings' || $url == 'delete1') {$module_name = 'Salary settings';}
+        if ($url == 'general_settings' || $url == 'add_salary_accounts'){
+				$module_name = 'General Settings';
+        }
+				
+		$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+		$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+		$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+		if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    	$proceed=1;
+	    }
+	    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    	$proceed=1;
+	    }
+	    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    	$proceed=1;
+	    }
+	    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+	    	$proceed=1;
+	    }	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+	}
+
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index($flash= null,$flag_check = null,$conditionFlag = null) 
+	{
+		$this->loadModel('AccountsTax');
+		$this->loadModel('AccountsTaxgroup');
+		$this->loadModel('AccountsTaxgroupmapping');
+		
+		//For taxes
+		$individual_taxes=$this->AccountsTax->find('list',array('fields'=>array('AccountsTax.percent','AccountsTax.name','AccountsTax.id') ,'conditions'=>array('AccountsTax.active'=>'Y') ,'order'=>array('AccountsTax.name ASC'))  );
+	
+	
+		// For group taxes
+		$groupmapping_taxes = $this->AccountsTaxgroupmapping->find('all',array('order'=>array('AccountsTaxgroupmapping.priority ASC')));
+		foreach($groupmapping_taxes as $gm1 => $gm2)
+		{
+			$groups = $this->AccountsTaxgroup->find('first',array('conditions'=>array('AccountsTaxgroup.id'=>$gm2['AccountsTaxgroupmapping']['accounts_taxgroup_id'])));
+			$individual_taxes2=$this->AccountsTax->find('first',array('conditions'=>array('AND'=>array('AccountsTax.id'=>$gm2['AccountsTaxgroupmapping']['accounts_tax_id']/*,'AccountsTax.active'=>'Y'*/))));
+			$final_grpTaxes2[$gm2['AccountsTaxgroupmapping']['accounts_taxgroup_id']]['groupname'] = $groups['AccountsTaxgroup']['groupname'];
+			$final_grpTaxes2[$gm2['AccountsTaxgroupmapping']['accounts_taxgroup_id']][$gm2['AccountsTaxgroupmapping']['accounts_tax_id']] = $individual_taxes2['AccountsTax']['name'].'('. $individual_taxes2['AccountsTax']['percent'] .'%)'.'-'.$gm2['AccountsTaxgroupmapping']['priority'];
+			$final_grpTaxes2[$gm2['AccountsTaxgroupmapping']['accounts_taxgroup_id']]['compounded'] = $groups['AccountsTaxgroup']['compounded'];
+			
+		
+		}
+		
+		foreach($final_grpTaxes2 as $one => $two)
+		{
+			ksort($two);
+			$final_grpTaxes[$one] = $two;
+		}
+		$this->set(compact('individual_taxes','flash','final_grpTaxes','flag_check','conditionFlag'));
+		/*$this->Setting->recursive = 0;
+		$this->set('settings', $this->paginate());*/
+	}
+	public function addtax($flag = null) 
+	{
+		$this->loadModel('AccountsTax');
+		if($this->data)
+		{
+			if(($this->data['AccountsTax']['name'] && $this->data['AccountsTax']['percent']) /*&& ($this->data['AccountsTax']['valid_from1'] == date)*/)
+			{
+				if ($this->request->is('post')) 
+				{
+					$save->data = null;
+					$this->AccountsTax->create();
+					$save->data['AccountsTax']['name'] = $this->data['AccountsTax']['name'];
+					$save->data['AccountsTax']['description'] = $this->data['AccountsTax']['description'];
+					$save->data['AccountsTax']['valid_from'] = date('Y-m-d', strtotime($this->data['AccountsTax']['valid_from1']));
+					$save->data['AccountsTax']['percent'] = $this->data['AccountsTax']['percent'];
+					$save->data['AccountsTax']['active'] = 'Y';
+					if($this->AccountsTax->save($save->data))
+					{
+						$this->Session->setFlash(__('<div class = "flashMessageSuccess">The Tax has been saved</div>'));
+						$this->redirect(array('action' => 'index',1));
+					}
+				}
+			}
+			
+			else
+			{
+				if(!$this->data['AccountsTax']['name'])
+				{
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the name of the tax</div>'));
+					$this->redirect(array('action' => 'index',0,0,1));
+					
+				}
+				if(!$this->data['AccountsTax']['percent'])
+				{
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the value for percent</div>'));
+					$this->redirect(array('action' => 'index',0,0,1));
+					
+				}
+				
+				
+				
+				
+			}
+			
+		}
+		
+		
+		
+		$this->set(compact('flag'));
+	}
+	
+	public function view_tax($id = null)
+	{
+		$this->loadModel('AccountsTax');
+		$this->AccountsTax->id = $id;
+		$details = $this->AccountsTax->read(null, $id);
+		$date = AppModel :: dateFormat($details['AccountsTax']['valid_from']);
+		if (!$this->AccountsTax->exists()) {
+			throw new NotFoundException(__('Invalid tax'));
+		}
+		$this->set('tax', $this->AccountsTax->read(null, $id));
+		$this->set(compact('date','id'));
+	}
+	
+	public function edit_tax($id = null)
+	{
+		$this->loadModel('AccountsTax');
+		
+		if($this->data)
+		{
+			if($this->data['AccountsTax']['percent'])
+			{
+				if($this->request->is('post'))
+				{
+					//save and redirect
+					
+					//Makes the first inactive
+					$saveOne->data = null;
+					$this->AccountsTax->create();
+					$saveOne->data['AccountsTax']['id']= $id;
+					$saveOne->data['AccountsTax']['active'] = 'N';
+					$this->AccountsTax->save($saveOne->data);
+					
+						
+					//creates a new record with the updated percent value
+					$saveTwo->data = null;
+					$this->AccountsTax->create();
+					$saveTwo->data['AccountsTax']['name'] = $this->data['AccountsTax']['name'];
+					$saveTwo->data['AccountsTax']['description'] = $this->data['AccountsTax']['description'];
+					$saveTwo->data['AccountsTax']['valid_from'] = date('Y-m-d', strtotime($this->data['AccountsTax']['valid_from1']));
+					$saveTwo->data['AccountsTax']['percent'] = $this->data['AccountsTax']['percent'];
+					$saveTwo->data['AccountsTax']['active'] = 'Y';
+					$this->AccountsTax->save($saveTwo->data);
+				
+					$this->Session->setFlash(__('<div class = "flashMessageSuccess">The Tax has been saved</div>'));
+					$this->redirect(array('action' => 'index',1));
+					
+				}
+				
+			}
+			
+			else
+			{
+				//error list
+				if(!$this->data['AccountsTax']['percent'])
+				$this->Session->setFlash(__('<div class="flashMessageError">Please enter the value for percent</div>'));
+				
+				
+				$this->AccountsTax->id = $id;
+				$details = $this->AccountsTax->read(null, $id);
+				$date = AppModel :: dateFormat($details['AccountsTax']['valid_from']);
+				if (!$this->AccountsTax->exists()) {
+					throw new NotFoundException(__('Invalid tax'));
+				}
+				$this->set('tax', $this->AccountsTax->read(null, $id));
+			}
+			
+		}
+		
+		else
+		{
+			// list
+			$this->AccountsTax->id = $id;
+			$details = $this->AccountsTax->read(null, $id);
+			$date = AppModel :: dateFormat($details['AccountsTax']['valid_from']);
+			if (!$this->AccountsTax->exists()) {
+				throw new NotFoundException(__('Invalid tax'));
+			}
+			$this->set('tax', $this->AccountsTax->read(null, $id));
+		}
+		
+		
+		$this->set(compact('date'));
+	}
+	
+	public function percent_checkedit($id = null)
+	{
+		$this->loadModel('AccountsTax');
+		
+		$def_percent2 = $this->AccountsTax->findById($id);
+		$def_percent = $def_percent2['AccountsTax']['percent'];
+		$percentcheck = $this->data['AccountsTax']['percent'];
+		if(!is_numeric($percentcheck))
+		{
+			$string_validate = 1;
+		}
+		
+		if($percentcheck < 1 || $percentcheck  > 99)
+		$string_validate = 1;
+		
+		
+		
+		$this->set(compact('string_validate','percentcheck','def_percent','id'));
+	}
+	
+	public function name_check()
+	{
+		$this->loadModel('AccountsTax');
+		$names = $this->AccountsTax->find('all',array('conditions'=>array('AND'=>array('AccountsTax.name LIKE'=>$this->data['AccountsTax']['name'],'AccountsTax.active'=>'Y'))));
+		if($names)
+		{
+			$string_repeat = 1;
+			$string_validate = 0;
+		}
+		$namecheck = $this->data['AccountsTax']['name'];
+		if(strlen($namecheck) > 50)
+		{
+			$string_validate = 1;
+		}
+		if (preg_match("/[^a-zA-Z 0-9]/i", $namecheck))
+		{
+			$string_validate = 1;	
+		}
+		if(is_numeric($namecheck))
+		{
+			$string_validate = 1;
+		}
+		$this->set(compact('string_validate','namecheck','string_repeat'));
+	}
+	
+	public function percent_check()
+	{
+		$percentcheck = $this->data['AccountsTax']['percent'];
+		if(!is_numeric($percentcheck))
+		{
+			$string_validate = 1;
+		}
+		if($percentcheck < 1 || $percentcheck  > 99)
+		$string_validate = 1;
+		$this->set(compact('string_validate','percentcheck'));
+	}
+	public function groupname_check()
+	{
+		$this->loadModel('AccountsTaxgroup');
+		$names = $this->AccountsTaxgroup->find('all',array('conditions'=>array('AND'=>array('AccountsTaxgroup.groupname LIKE'=>$this->data['AccountsTaxgroup']['groupname']))));
+		if($names)
+		{
+			$string_repeat = 1;
+			$string_validate = 0;
+		}
+		$namecheck = $this->data['AccountsTaxgroup']['groupname'];
+		
+		if(strlen($namecheck) > 50)
+		{
+			$string_validate = 1;
+		}
+		if (preg_match("/[^a-zA-Z 0-9]/i", $namecheck))
+		{
+			$string_validate = 1;	
+		}
+		if(is_numeric($namecheck))
+		{
+			$string_validate = 1;
+		}
+		
+		$this->set(compact('string_validate','namecheck','string_repeat'));
+	}
+	public function addtax_group2($flag_check = null,$comp = null) 
+	{
+		$this->loadModel('AccountsTax');
+		$this->loadModel('AccountsTaxgroup');
+		$this->loadModel('AccountsTaxgroupmapping');
+		foreach($this->data['AccountsTaxgroup']['check'] as $k1 => $v1) //Check box validation
+		{
+			if($v1 == 1)
+			{
+				$no_validate = 1;
+			}
+				
+		}
+		
+		if($this->data)
+		{
+			
+			if(($this->data['AccountsTaxgroup']['groupname'] && $no_validate == "1") && ($comp == '0'))
+			{
+				if ($this->request->is('post')) 
+				{
+					//save and redirect
+					$this->AccountsTaxgroup->create();
+					$save_group->data = null;
+					$save_group->data['AccountsTaxgroup']['groupname'] = $this->data['AccountsTaxgroup']['groupname'];
+					$save_group->data['AccountsTaxgroup']['compounded'] = 'N';
+					
+					$this->AccountsTaxgroup->save($save_group->data);
+					
+					//For mappings 
+					$insertId = $this->AccountsTaxgroup->getLastInsertId();
+					$x = 1;
+					foreach($this->data['AccountsTaxgroup']['check'] as $key => $value)
+					{
+						if($value == 1)
+						{
+							$this->AccountsTaxgroupmapping->create();
+							$save_groupmapping->data = null;
+							$save_groupmapping->data['AccountsTaxgroupmapping']['accounts_taxgroup_id'] = $insertId;
+							$save_groupmapping->data['AccountsTaxgroupmapping']['accounts_tax_id'] = $key;
+							$save_groupmapping->data['AccountsTaxgroupmapping']['priority'] = $x;
+							$this->AccountsTaxgroupmapping->save($save_groupmapping->data);
+						}
+						$x++;
+					}
+					$this->Session->setFlash(__('Tax has been saved'));
+					$this->redirect(array ('action' => 'index',1));
+					
+				}
+			}
+			
+			else
+			{
+				//list+error
+				if(!$this->data['AccountsTaxgroup']['groupname'])
+				{
+					$alert_name = 1;
+				
+				}
+				if(!$no_validate)
+				$alert_tax = 1;
+				
+				$individual_taxes=$this->AccountsTax->find('list',array('fields'=>array('AccountsTax.percent','AccountsTax.name','AccountsTax.id') ,'conditions'=>array('AccountsTax.active'=>'Y') ,'order'=>array('AccountsTax.name ASC'))  );
+				$Compounded = 0;
+			}
+			
+		}
+		
+		else
+		{
+			//list
+			$individual_taxes=$this->AccountsTax->find('list',array('fields'=>array('AccountsTax.percent','AccountsTax.name','AccountsTax.id') ,'conditions'=>array('AccountsTax.active'=>'Y') ,'order'=>array('AccountsTax.name ASC'))  );
+			$Compounded = 0;
+		}
+		//debug($individual_taxes);
+		$this->set(compact('individual_taxes','flag_check','alert_name','alert_tax','alert_priority','Compounded'));
+	}
+	public function addtax_group($flag_check = null) 
+	{
+		$this->loadModel('AccountsTax');
+		$this->loadModel('AccountsTaxgroup');
+		$this->loadModel('AccountsTaxgroupmapping');
+		foreach($this->data['AccountsTaxgroup']['check'] as $k1 => $v1) //Check box validation
+		{
+			if($v1 == 1)
+			{
+				$no_validate = 1;
+			}
+				
+		}
+		
+		foreach($this->data['AccountsTaxgroup']['priority'] as $k2 => $v2) //Priority validation
+		{
+			if(empty($v2))
+			{
+				$validate_priority = 1;
+				
+			}
+				
+		}
+		if($this->data)
+		{
+			
+			
+			if(($this->data['AccountsTaxgroup']['groupname'] && $no_validate == "1") && (!$validate_priority ))
+			{
+				if ($this->request->is('post')) 
+				{
+					//save and redirect
+					$this->AccountsTaxgroup->create();
+					$save_group->data = null;
+					$save_group->data['AccountsTaxgroup']['groupname'] = $this->data['AccountsTaxgroup']['groupname'];
+					$save_group->data['AccountsTaxgroup']['compounded'] = 'Y';
+					
+					$this->AccountsTaxgroup->save($save_group->data);
+					
+					//For mappings 
+					$insertId = $this->AccountsTaxgroup->getLastInsertId();
+					
+					foreach($this->data['AccountsTaxgroup']['priority'] as $key => $value)
+					{
+						$this->AccountsTaxgroupmapping->create();
+						$save_groupmapping->data = null;
+						$save_groupmapping->data['AccountsTaxgroupmapping']['accounts_taxgroup_id'] = $insertId;
+						$save_groupmapping->data['AccountsTaxgroupmapping']['accounts_tax_id'] = $key;
+						$save_groupmapping->data['AccountsTaxgroupmapping']['priority'] = $value;
+						$this->AccountsTaxgroupmapping->save($save_groupmapping->data);
+					}
+					$this->Session->setFlash(__('Tax has been saved'));
+					$this->redirect(array ('action' => 'index',1));
+					
+				}
+			}
+			
+			else
+			{
+				//list+error
+				if(!$this->data['AccountsTaxgroup']['groupname'])
+				{
+					$alert_name = 1;
+				}
+				if(!$no_validate)
+				$alert_tax = 1;
+				
+				if($validate_priority)
+				$alert_priority = 1;
+				$individual_taxes=$this->AccountsTax->find('list',array('fields'=>array('AccountsTax.percent','AccountsTax.name','AccountsTax.id') ,'conditions'=>array('AccountsTax.active'=>'Y') ,'order'=>array('AccountsTax.name ASC'))  );
+		
+			}
+			
+		}
+		
+		else
+		{
+			//list
+			$individual_taxes=$this->AccountsTax->find('list',array('fields'=>array('AccountsTax.percent','AccountsTax.name','AccountsTax.id') ,'conditions'=>array('AccountsTax.active'=>'Y') ,'order'=>array('AccountsTax.name ASC'))  );
+		}
+		$this->set(compact('individual_taxes','flag_check','alert_name','alert_tax','alert_priority'));
+	}
+	
+	public function view_taxgroup($id = null)
+	{
+		$this->loadModel('AccountsTax');
+		$this->loadModel('AccountsTaxgroup');
+		$this->loadModel('AccountsTaxgroupmapping');
+		// For group taxes
+		$groupmapping_taxes = $this->AccountsTaxgroupmapping->find('all',array('conditions'=>array('AccountsTaxgroupmapping.accounts_taxgroup_id'=>$id)),array('order'=>array('AccountsTaxgroupmapping.priority ASC')));
+		foreach($groupmapping_taxes as $gm1 => $gm2)
+		{
+			$groups = $this->AccountsTaxgroup->find('first',array('conditions'=>array('AccountsTaxgroup.id'=>$id)));
+			$individual_taxes2=$this->AccountsTax->find('first',array('conditions'=>array('AccountsTax.id'=>$gm2['AccountsTaxgroupmapping']['accounts_tax_id'])));
+			$comp = $groups['AccountsTaxgroup']['compounded'];
+			$grpname = $groups['AccountsTaxgroup']['groupname'];
+			$final_grpTaxes2[$gm2['AccountsTaxgroupmapping']['accounts_tax_id']] = $individual_taxes2['AccountsTax']['name'].'('.$individual_taxes2['AccountsTax']['percent'].'%)';
+			
+		}
+		
+		foreach($final_grpTaxes2 as $one => $two)
+		{
+			ksort($two);
+			$final_grpTaxes[$one] = $two;
+		}
+		$this->set(compact('final_grpTaxes','comp','grpname','id'));
+		
+	}
+	public function checkbox_check($pass_id = null) 
+	{
+		$this->loadModel('AccountsTax');
+		if($this->data)
+		{
+			if($this->data['AccountsTaxgroup']['Compounded'] == "1" && $this->data['AccountsTaxgroup']['check'][$pass_id] == "1")
+			{
+				$priority_box = 1;
+			}
+			else
+			{
+				$priority_box = 0;
+			}
+			/*$individual_taxes=$this->AccountsTax->find('list',array('fields'=>array('AccountsTax.percent','AccountsTax.name','AccountsTax.id') ,'conditions'=>array('AccountsTax.active'=>'Y') ,'order'=>array('AccountsTax.name ASC'))  );
+			
+			foreach($this->data['AccountsTaxgroup']['check'] as $k1 => $v1)
+			{
+				if($v1 == 1)
+				{
+					if($this->data['AccountsTaxgroup']['Compounded'] == "1" && $this->data['AccountsTaxgroup']['check'][$k1] == "1")
+					{
+						$priority_box = 1;
+						debug($k1);
+					}
+				}	
+			}
+			
+			//only compunded
+			if($compounded2 == "yes")
+			{
+				$compounded = 1;
+				//$individual_taxes=$this->AccountsTax->find('list',array('fields'=>array('AccountsTax.percent','AccountsTax.name','AccountsTax.id') ,'conditions'=>array('AccountsTax.active'=>'Y') ,'order'=>array('AccountsTax.name ASC'))  );
+			
+			}*/
+			/*if($this->data['AccountsTaxgroup']['Compounded'] == "1" && $this->data['AccountsTaxgroup']['check'][$pass_id] == "1")
+			{
+				$priority_box = 1;
+			}
+			else
+			{
+				$priority_box = 0;
+			}
+			*/
+		}
+		
+		
+		$this->set(compact('priority_box','individual_taxes','compounded','pass_id'));
+		
+	}
+	
+	public function priority_check($pass_id = null )
+	{
+		$this->loadModel('AccountsTax');
+		$this->set(compact('pass_id'));
+		$j=0;
+		$count = $this->AccountsTax->find('count',array('conditions'=>array('AccountsTax.active'=>'Y')));
+		foreach($this->data['AccountsTaxgroup']['priority'] as $key => $value)
+		{
+			
+			$final_value[$j] = $value;
+			
+			$j++;
+			
+			if($pass_id == $key)
+			{
+				if($value)
+				{
+					$def_value = $value;
+				}
+				
+				//Validations
+				if(!is_numeric($value))
+					$validate = 1;
+					
+				if($value > $count)
+				{
+					$validatecount = 1;
+					$msg = "test".$count;
+					$validate = 1;
+				}	
+			}
+		}
+		
+		
+		
+		
+		$m = 1;$n=0;
+		$store=null;
+		foreach($final_value as $k1 => $v1)
+		{
+			//$var[$m]
+			
+			if($store==null)
+			{
+				$store[$k1]=$v1;
+				debug($store);
+			}
+			
+			foreach($store as $ks=>$vs )
+			{
+				if(($v1==$vs)&& ($k1!=0))
+				{
+					$validate123 = 1;
+					//echo"Test Successful";
+				}
+				else
+				{
+					if($v1)
+					{
+						$store[$k1]=$v1;
+					}
+				}
+			}
+		}
+		$this->set(compact('def_value','validate','pass_id','validate123','validatecount','count','msg'));
+	}
+	
+	// For general settings
+	public function general_settings()
+	{
+		if($this->data)
+		{
+			if(($this->data['Settings']['date_format'] && $this->data['Settings']['time_format']) && ($this->data['Settings']['accounting_format']))
+			{
+				
+				if($this->request->is('post'))
+				{
+					//save
+					$settings_details2 = $this->Setting->find('all',array('conditions'=>array('Setting.active'=>'Y')));
+					foreach($settings_details2 as $sd1 => $sd2)
+					{
+						if($this->Setting->deleteAll(array('Setting.id'=>$sd2['Setting']['id'])));
+					}
+					//Saving for the first time
+					
+						//For date
+						$savedate->data = null;
+						$this->Setting->create();
+						$savedate->data['Setting']['name']  = "Date Format";
+						$savedate->data['Setting']['label'] = "Date Format";
+						$savedate->data['Setting']['value'] = $this->data['Settings']['date_format'];
+						$savedate->data['Setting']['active'] = "Y";
+						$savedate->data['Setting']['updates_on'] = date('Y-m-d');
+						$this->Setting->save($savedate->data);
+						
+						
+						//For time
+						$savetime = null;
+						$this->Setting->create();
+						$savetime->data['Setting']['name']  = "Time Format";
+						$savetime->data['Setting']['label'] = "Time Format";
+						$savetime->data['Setting']['value'] = $this->data['Settings']['time_format'];
+						$savetime->data['Setting']['active'] = "Y";
+						$savetime->data['Setting']['updates_on'] = date('Y-m-d');
+						$this->Setting->save($savetime->data);
+						
+						//For accounting
+						$saveaccounting = null;
+						$this->Setting->create();
+						$saveaccounting->data['Setting']['name']  = "Accounting Format";
+						$saveaccounting->data['Setting']['label'] = "Accounting Format";
+						$saveaccounting->data['Setting']['value'] = $this->data['Settings']['accounting_format'];
+						$saveaccounting->data['Setting']['active'] = "Y";
+						$saveaccounting->data['Setting']['updates_on'] = date('Y-m-d');
+						$this->Setting->save($saveaccounting->data);
+						
+						
+						//For Minimum Bank Balance value
+						$saveaccounting = null;
+						$this->Setting->create();
+						$saveaccounting->data['Setting']['name']   = "Minimum Bank Balance";
+						$saveaccounting->data['Setting']['label']  = "Minimum Bank Balance";
+						$saveaccounting->data['Setting']['value']  = $this->data['Settings']['minimum_bank_balance'];
+						$saveaccounting->data['Setting']['active'] = "Y";
+						$saveaccounting->data['Setting']['updates_on'] = date('Y-m-d');
+						$this->Setting->save($saveaccounting->data);
+						
+						
+						//For Minimum Cash Balance value
+						$saveaccounting = null;
+						$this->Setting->create();
+						$saveaccounting->data['Setting']['name']   = "Minimum Cash Balance";
+						$saveaccounting->data['Setting']['label']  = "Minimum Cash Balance";
+						$saveaccounting->data['Setting']['value']  = $this->data['Settings']['minimum_cash_balance'];
+						$saveaccounting->data['Setting']['active'] = "Y";
+						$saveaccounting->data['Setting']['updates_on'] = date('Y-m-d');
+						$this->Setting->save($saveaccounting->data);
+						
+						//For storing to which the notification should go
+						$saveaccounting = null;
+						$this->Setting->create();
+						$saveaccounting->data['Setting']['name']   = "Mail To";
+						$saveaccounting->data['Setting']['label']  = "Mail To";
+						$saveaccounting->data['Setting']['value']  = $this->data['Settings']['mail_to'];
+						$saveaccounting->data['Setting']['active'] = "Y";
+						$saveaccounting->data['Setting']['updates_on'] = date('Y-m-d');
+						$this->Setting->save($saveaccounting->data);
+						
+						$this->Session->setFlash(__('<div class = "flashMessageSuccess">The Settings has been saved</div>'));
+						$this->redirect(array('action' => 'general_settings'));
+					
+				}
+			}
+			
+			
+			else
+			{
+				//list + error
+				if(!$this->data['Settings']['date_format'])
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select any one date format</div>'));
+				
+				if(!$this->data['Settings']['time_format'])
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select any one time format</div>'));
+				
+				if(!$this->data['Settings']['accounting_format'])
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select any one accounting year</div>'));
+				
+				
+				$settings_details = $this->Setting->find('all',array('conditions'=>array('Setting.active'=>'Y')));
+				foreach($settings_details as $s1 => $s2)
+				{
+					if($s2['Setting']['name'] == "Date Format")
+					$def_date = $s2['Setting']['value'];
+					
+					if($s2['Setting']['name'] == "Time Format")
+					$def_time = $s2['Setting']['value'];
+					
+					if($s2['Setting']['name'] == "Accounting Format")
+					$def_accounting = $s2['Setting']['value'];
+					
+					if($s2['Setting']['name'] == "Minimum Bank Balance")
+					$def_bank_balance = $s2['Setting']['value'];
+					
+					if($s2['Setting']['name'] == "Minimum Cash Balance")
+					$def_cash_balance = $s2['Setting']['value'];
+					
+					if($s2['Setting']['name'] == "Mail To")
+					$def_mail_to = $s2['Setting']['value'];
+					
+				}
+			}
+			
+		}
+		
+		else
+		{
+			$this->Setting->cacheQueries = FALSE;
+			$settings_details = $this->Setting->find('all',array('conditions'=>array('Setting.active'=>'Y')));
+			foreach($settings_details as $s1 => $s2)
+			{
+				if($s2['Setting']['name'] == "Date Format")
+				$def_date = $s2['Setting']['value'];
+				
+				if($s2['Setting']['name'] == "Time Format")
+				$def_time = $s2['Setting']['value'];
+				
+				if($s2['Setting']['name'] == "Accounting Format")
+				$def_accounting = $s2['Setting']['value'];
+				
+				if($s2['Setting']['name'] == "Minimum Bank Balance")
+				$def_bank_balance = $s2['Setting']['value'];
+				
+				if($s2['Setting']['name'] == "Minimum Cash Balance")
+				$def_cash_balance = $s2['Setting']['value'];
+				
+				if($s2['Setting']['name'] == "Mail To")
+				$def_mail_to = $s2['Setting']['value'];
+				
+			}
+			
+			/*$date_formates[1] = 'M d Y';
+			$date_formates[2] = 'd M Y';
+			
+			$time_formates[1] = '12-Hour';
+			$time_formates[2] = '24-Hour';
+			
+			$accounting_formates[1] = 'Jan-Dec';
+			$accounting_formates[2] = 'Apr-Mar';*/
+		}
+		$this->set(compact('def_date','def_time','def_accounting','def_bank_balance','def_cash_balance','def_mail_to'));
+			
+		
+	}
+	
+	
+	
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->Setting->id = $id;
+		if (!$this->Setting->exists()) {
+			throw new NotFoundException(__('Invalid setting'));
+		}
+		$this->set('setting', $this->Setting->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->Setting->create();
+			if ($this->Setting->save($this->request->data)) {
+				$this->Session->setFlash(__('Salary account setting has been added '));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The setting could not be saved. Please, try again.'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->Setting->id = $id;
+		if (!$this->Setting->exists()) {
+			throw new NotFoundException(__('Invalid setting'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->Setting->save($this->request->data)) {
+				$this->Session->setFlash(__('Salary account setting has been updated'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The setting could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->Setting->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) 
+	{
+		$this->loadModel('AccountsTax');
+		$this->loadModel('AccountsTaxgroupmapping');
+		
+		$save->data = null;
+		$this->AccountsTax->create();
+		$save->data['AccountsTax']['id'] = $id; 
+		$save->data['AccountsTax']['active'] = 'N';
+		$this->AccountsTax->save($save->data);
+		$this->Session->setFlash(__('Tax made inactive'));
+			$this->redirect(array('action'=>'index',1));
+		
+		/*if ($this->AccountsTax->delete($id)) 
+		{
+			debug("yes");
+			if($this->AccountsTaxgroupmapping->deleteAll(array('AccountsTaxgroupmapping.accounts_tax_id'=>$id)));
+			{
+			$this->Session->setFlash(__('Tax deleted'));
+			$this->redirect(array('action'=>'index',1));
+			}
+		}*/
+		
+		
+		
+		/*if (!$this->request->is('post')) 
+		{
+			throw new MethodNotAllowedException();
+		}
+		$this->Setting->id = $id;
+		if (!$this->Setting->exists()) 
+		{
+			throw new NotFoundException(__('Invalid setting'));
+		}
+		if ($this->Setting->delete()) 
+		{
+			$this->Session->setFlash(__('Setting deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Setting was not deleted'));
+		$this->redirect(array('action' => 'index'));*/
+	}
+	
+	public function deleteGroup($id = null) 
+	{
+		$this->loadModel('AccountsTaxgroup');
+		$this->loadModel('AccountsTaxgroupmapping');
+		if($this->AccountsTaxgroup->delete($id)) 
+		{
+			if($this->AccountsTaxgroupmapping->deleteAll(array('AccountsTaxgroupmapping.accounts_taxgroup_id'=>$id)));
+			{
+				$this->Session->setFlash(__('Group Tax deleted'));
+				$this->redirect(array('action'=>'index',1));
+			}
+		}
+	}
+	
+	/**Function to add the account to salary settings
+	 * 
+	 * @Ganesh
+	 * */
+	public function add_salary_accounts(){
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('SalarySetting');
+		$this->AccountsAccount->recursive=-1;
+		$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.company_id'=>$this->Session->read('Auth.company_id')),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.level','AccountsAccount.parent_id')));
+		
+		$i=$j=$k=$l=0;
+		/**
+		 * Foreach to seperate accounts in levelwise.
+		 * */
+		foreach($accounts as $accounts){
+			switch($accounts['AccountsAccount']['level']){
+				case 1:
+					$level1[$i]=$accounts;
+					$i++;
+					break;
+					
+				case 2:
+					$level2[$j]=$accounts;
+					$j++;
+					break;
+					
+				case 3:
+					$level3[$k]=$accounts;
+					$k++;
+					break;
+				case 4:
+					$level4[$l]=$accounts;
+					$l++;
+					break;
+			}
+		}
+		if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+		if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+		if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+		if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+
+		/**
+		 * To get all accounts in a tree structure.
+		 * It is used to set parent_id for a new account.
+		 * */
+		 $i=0;
+		foreach($level1 as $level11){
+			$final_account[$level11['AccountsAccount']['id']] = $level11['AccountsAccount']['account_name']; 
+			if($level2){
+				foreach($level2 as $level22){
+					if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+						$final_account[$level22['AccountsAccount']['id']] = '|----'.$level22['AccountsAccount']['account_name'];
+						if($level3){$w=1;
+							foreach($level3 as $level33){
+								if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+									$final_account[$level33['AccountsAccount']['id']] = '|--------'.$level33['AccountsAccount']['account_name'];
+									if($level4){
+										foreach($level4 as $level44){
+											if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+												$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		//$accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.company_id'=>$this->Session->read('Auth.company_id')),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+		$this->set(compact('final_account'));
+		$setting_salary = $this->SalarySetting->find('all');
+		
+		if(!empty($this->data)):
+		if(empty($this->data['SalarySetting']['accounts_account_id'])){
+			$this->Session->setFlash(__('<div class="flashMessageError">Account should be selected!</div>'));
+			return;
+		}
+		if(!empty($this->data['SalarySetting']['accounts_account_id'])){
+			foreach($setting_salary as $value){
+				if($this->data['SalarySetting']['accounts_account_id'] == $value['SalarySetting']['accounts_account_id']){
+					$this->Session->setFlash(__('<div class="flashMessageError">The account you selected has been already added!</div>'));
+					return;
+				}
+				if($value['SalarySetting']['default_cash'] == 'Yes'){
+					$default_cash = 'Yes';
+				}
+				if($value['SalarySetting']['default_bank'] == 'Yes'){
+					$default_bank = 'Yes';
+				}
+			}
+		}
+		if($this->data['SalarySetting']['default_cash'] == $default_cash){
+			$this->Session->setFlash(__('<div class="flashMessageError">The default cash account has been already added!</div>'));
+			return;
+		}
+		if($this->data['SalarySetting']['default_bank'] == $default_bank){
+			$this->Session->setFlash(__('<div class="flashMessageError">The default bank account has been already added!</div>'));
+			return;
+		}
+		
+		$this->SalarySetting->create();
+		$this->SalarySetting->save($this->data);
+		$this->Session->setFlash(__('<div class="flashMessageSuccess"> Salary setting has been added</div>'));
+		$this->redirect(array('controller'=>'settings','action'=>'salary_settings'));
+		endif;
+	}
+	
+	
+	/**
+	 * Function to edit the account in the salary setting 
+	 * 
+	 * @Ganesh Kumar R
+	 **/
+	public function edit_salary_settings($id=null){
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('SalarySetting');
+		$this->AccountsAccount->recursive=-1;
+		$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.company_id'=>$this->Session->read('Auth.company_id')),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.level','AccountsAccount.parent_id')));
+		$value11 = $this->SalarySetting->findById($id);
+		$i=$j=$k=$l=0;
+		foreach($accounts as $accounts){
+			switch($accounts['AccountsAccount']['level']){
+				case 1:
+					$level1[$i]=$accounts;
+					$i++;
+					break;
+					
+				case 2:
+					$level2[$j]=$accounts;
+					$j++;
+					break;
+					
+				case 3:
+					$level3[$k]=$accounts;
+					$k++;
+					break;
+				case 4:
+					$level4[$l]=$accounts;
+					$l++;
+					break;
+			}
+		}
+		if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+		if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+		if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+		if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+
+		 $i=0;
+		foreach($level1 as $level11){
+			$final_account[$level11['AccountsAccount']['id']] = $level11['AccountsAccount']['account_name']; 
+			if($level2){
+				foreach($level2 as $level22){
+					if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+						$final_account[$level22['AccountsAccount']['id']] = '|----'.$level22['AccountsAccount']['account_name'];
+						if($level3){$w=1;
+							foreach($level3 as $level33){
+								if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+									$final_account[$level33['AccountsAccount']['id']] = '|--------'.$level33['AccountsAccount']['account_name'];
+									if($level4){
+										foreach($level4 as $level44){
+											if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+												$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		//$accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.company_id'=>$this->Session->read('Auth.company_id')),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+		$this->set(compact('final_account','id','value11'));
+		$setting_salary = $this->SalarySetting->find('all');
+		
+		if(!empty($this->data)):
+		if(empty($this->data['SalarySetting']['accounts_account_id'])){
+			$this->Session->setFlash(__('<div class="flashMessageError">Account should be selected!</div>'));
+			return;
+		}
+		if(!empty($this->data['SalarySetting']['accounts_account_id'])){
+			foreach($setting_salary as $value){
+				/*if($this->data['SalarySetting']['accounts_account_id'] == $value['SalarySetting']['accounts_account_id']){
+					$this->Session->setFlash(__('<div class="flashMessageError">The account you selected has been already added!</div>'));
+					return;
+				}*/
+				if($value['SalarySetting']['default_cash'] == 'Yes'){
+					$default_cash = 'Yes';
+				}
+				if($value['SalarySetting']['default_bank'] == 'Yes'){
+					$default_bank = 'Yes';
+				}
+			}
+		}
+		if($this->data['SalarySetting']['default_cash'] == $default_cash){
+			$this->Session->setFlash(__('<div class="flashMessageError">The default cash account has been already added!</div>'));
+			return;
+		}
+		if($this->data['SalarySetting']['default_bank'] == $default_bank){
+			$this->Session->setFlash(__('<div class="flashMessageError">The default bank account has been already added!</div>'));
+			return;
+		}
+		
+		$this->SalarySetting->create();
+		$this->SalarySetting->save($this->data);
+		$this->Session->setFlash(__('<div class="flashMessageSuccess">Salary setting has been updated</div>'));
+		$this->redirect(array('controller'=>'settings','action'=>'salary_settings'));
+		endif;
+	}
+	
+	/**
+	 * Function to display all the accounts added to the salary settings
+	 * 
+	 * @Ganesh Kumar R
+	 **/
+	public function salary_settings(){
+                $this->loadModel('AccountsAccount');
+                $this->loadModel('SalarySetting');
+                $this->SalarySetting->cacheQueries = false;
+                $sal = $this->SalarySetting->find('all');
+                $i=0;
+                foreach($sal as $val){
+                        $account_name = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$val['SalarySetting']['accounts_account_id']),'fields'=>array('AccountsAccount.account_name')));
+                        if($val['SalarySetting']['default_cash'] == 'Yes'){
+                                $default_cash = $account_name['AccountsAccount']['account_name'];
+                        }
+                        if($val['SalarySetting']['default_bank'] == 'Yes'){
+                                $default_bank = $account_name['AccountsAccount']['account_name'];
+                        }
+                        $final[$i]['SalarySetting']['id'] =  $val['SalarySetting']['id'];
+                        $final[$i]['SalarySetting']['account_account_id'] =  $account_name['AccountsAccount']['account_name'];
+                        $final[$i]['SalarySetting']['default_cash'] = $val['SalarySetting']['default_cash'];
+                        $final[$i]['SalarySetting']['default_bank'] = $val['SalarySetting']['default_bank'];
+                        $i++;
+                }
+                $this->set(compact('final','default_cash','default_bank'));
+    }
+
+	
+	
+	/**
+	 * Function to delete the record from the accounts_salarysettings
+	 * 
+	 * @Ganesh Kumar R
+	 * 
+	**/
+	
+	public function delete1($id=null){
+		$this->loadModel('SalarySetting');
+		if ($this->SalarySetting->delete($id)) {
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Salary setting has been deleted</div>'));
+			$this->redirect(array('action'=>'salary_settings'));
+		}
+		$this->Session->setFlash(__('<div class="flashMessageError">Salary setting was not deleted</div>'));
+		$this->redirect(array('action' => 'salary_settings'));
+	}
+}

@@ -1,0 +1,2024 @@
+<?php
+App::uses('AppController', 'Controller');
+App::import('Vendor', 'Uploader.Uploader');
+/**
+ * AccountsSalaryprocesses Controller
+ *
+ * @property AccountsSalaryprocess $AccountsSalaryprocess
+ */
+class AccountsSalaryprocessesController extends AppController {
+public $components = array('Email', 'RequestHandler','Session'/*,'Attachment'*/);
+	function beforeFilter() {
+		parent :: beforeFilter();
+//		Configure::write('debug',2);
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Process Salary';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+
+	}
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->AccountsSalaryprocess->recursive = 0;
+		$this->set('accountsSalaryprocesses', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsSalaryprocess->id = $id;
+		if (!$this->AccountsSalaryprocess->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryprocess'));
+		}
+		$this->set('accountsSalaryprocess', $this->AccountsSalaryprocess->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		
+		if ($this->request->is('post')) {
+			$this->AccountsSalaryprocess->create();
+			if ($this->AccountsSalaryprocess->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts salaryprocess has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts salaryprocess could not be saved. Please, try again.'));
+			}
+		}
+		$accountsSalaryregisters = $this->AccountsSalaryprocess->AccountsSalaryregister->find('list');
+		$this->set(compact('accountsSalaryregisters'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->AccountsSalaryprocess->id = $id;
+		if (!$this->AccountsSalaryprocess->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryprocess'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsSalaryprocess->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts salaryprocess has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts salaryprocess could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->AccountsSalaryprocess->read(null, $id);
+		}
+		$accountsSalaryregisters = $this->AccountsSalaryprocess->AccountsSalaryregister->find('list');
+		$this->set(compact('accountsSalaryregisters'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsSalaryprocess->id = $id;
+		if (!$this->AccountsSalaryprocess->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryprocess'));
+		}
+		if ($this->AccountsSalaryprocess->delete()) {
+			$this->Session->setFlash(__('Accounts salaryprocess deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Accounts salaryprocess was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	public function process_account($flag = null){
+	//	Configure::write('debug',2);
+		debug($this->data);
+		
+		$this->loadModel('AccountsSalaryregister');
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsSalarydetail');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('SalarySetting');
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsGoldenrule');
+		$this->loadModel('AccountsLedger');
+		
+		
+		if(empty($this->data) || (!empty($flag))){
+			
+			$accounts = $this->SalarySetting->find('all');
+			foreach($accounts as $account){
+				$acc_detail = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$account['SalarySetting']['accounts_account_id']),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.asset_type')));
+				if($acc_detail['AccountsAccount']['asset_type'] == 'Bank'){
+					$bank_accounts[$acc_detail['AccountsAccount']['id']] = $acc_detail['AccountsAccount']['account_name'];
+				}
+				
+				if($account['SalarySetting']['default_bank'] == 'Yes'){
+					$default_accountId = $account['SalarySetting']['accounts_account_id'];
+				}
+			}
+			
+			if(!empty($this->data['AccountsSalaryprocess']['accounts'])){
+				$default_accountId = $this->data['AccountsSalaryprocess']['accounts'];
+			}
+			
+			$salaryRegisterRecords = $this->AccountsSalaryregister->find('all',array('conditions'=>array('AccountsSalaryregister.month' => date('n'),'AccountsSalaryregister.year' =>date('Y')),'fields'=>array('AccountsSalaryregister.id','AccountsSalaryregister.accounts_account_id','AccountsSalaryregister.staff_id','AccountsSalaryregister.take_home','AccountsSalaryregister.ctc','AccountsSalaryregister.netctc')));
+			if(!empty($salaryRegisterRecords)){
+				$total_TakeHome=null;$totalnetCTC=null;$totalCTC=null;$accountHoldersTakehome=null;
+				foreach($salaryRegisterRecords as $key => $salaryRegisterRecord){
+					
+					$totalCTC = $totalCTC + $salaryRegisterRecord['AccountsSalaryregister']['ctc'];
+					$totalnetCTC = $totalnetCTC + $salaryRegisterRecord['AccountsSalaryregister']['netctc'];
+					$total_TakeHome = $total_TakeHome +$salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+					
+					$salaryRecord = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$salaryRegisterRecord['AccountsSalaryregister']['staff_id'],'AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.mode_of_payment'=>'Account','AccountsSalarydetail.accounts_account_id'=>$default_accountId),'fields'=>array('AccountsSalarydetail.mode_of_payment','AccountsSalarydetail.account_no')));
+					$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$salaryRegisterRecord['AccountsSalaryregister']['staff_id']),'fields'=>array('Staff.first_name','Staff.last_name')));
+					$process = $this->AccountsSalaryprocess->find('first',array('conditions'=>array('AccountsSalaryprocess.accounts_salaryregister_id'=>$salaryRegisterRecord['AccountsSalaryregister']['id'])));
+					debug($process);
+					
+					if((empty($process)) || ($process['AccountsSalaryprocess']['approved'] == 'No')):
+					
+						if($salaryRecord['AccountsSalarydetail']['mode_of_payment'] == 'Account'){
+							if($process['AccountsSalaryprocess']['accounts_salaryregister_id'] != $salaryRegisterRecord['AccountsSalaryregister']['id']){
+								$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = '';
+							}
+							else{
+								$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = 'checked';
+								$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['id'] = $process['AccountsSalaryprocess']['id'];
+							}
+							$accountHoldersTakehome = $accountHoldersTakehome + $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['salaryregister_id'] = $salaryRegisterRecord['AccountsSalaryregister']['id'];
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['take_home'] = $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['staff_name'] = $staff['Staff']['first_name']." ".$staff['Staff']['last_name'];
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['acc_no'] = $salaryRecord['AccountsSalarydetail']['account_no'];
+						}
+					endif;
+					$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['accounts_account_id'] = $process['AccountsSalaryprocess']['accounts_account_id'];
+				}
+			}
+			$final['default_accountId'] = $default_accountId;
+			$final['bank_account'] = $bank_accounts;
+			$final['accountHoldersTakehome'] = $accountHoldersTakehome;
+			$final['totalCTC'] = $totalCTC;
+			$final['totalnetCTC'] = $totalnetCTC;
+			$final['total_TakeHome'] = $total_TakeHome;
+			
+			$this->set(compact('final'));
+		}
+		
+		if(!empty($this->data['AccountsSalaryprocess']['Process'])){
+			
+			foreach($this->data['AccountsSalaryprocess']['Process'] as $qwe => $qaz){
+				if($qaz == 1){
+					$error1 = "No Error";
+				}
+			}
+			
+			$salaryRegisterRecords = $this->AccountsSalaryregister->find('all',array('conditions'=>array('AccountsSalaryregister.month' => date('n'),'AccountsSalaryregister.year' =>date('Y')),'fields'=>array('AccountsSalaryregister.id','AccountsSalaryregister.accounts_account_id','AccountsSalaryregister.staff_id','AccountsSalaryregister.take_home','AccountsSalaryregister.ctc','AccountsSalaryregister.netctc')));
+			foreach($salaryRegisterRecords as $salaryRegisterRecord){
+				$process = $this->AccountsSalaryprocess->find('first',array('conditions'=>array('AccountsSalaryprocess.accounts_salaryregister_id'=>$salaryRegisterRecord['AccountsSalaryregister']['id'])));
+			}
+			
+			$save_accountdata=null;
+			$save_accountdata['AccountsSalaryprocess']['mode_of_payment'] = 'Bank'; 
+			$save_accountdata['AccountsSalaryprocess']['approved'] = 'No';
+			$save_accountdata['AccountsSalaryprocess']['accounts_account_id'] = $this->data['AccountsSalaryprocess']['accounts'];
+			$save_accountdata['AccountsSalaryprocess']['date_added'] = date('Y-m-d');
+			$save_accountdata['AccountsSalaryprocess']['approval_date'] = date('Y-m-d',strtotime($this->data['AccountsSalaryprocess']['date2']));
+			 
+			foreach($this->data['AccountsSalaryprocess']['Process'] as $key => $value){
+			
+				if($value == 1){
+					if($this->data['AccountsSalaryprocess']['id'][$key]){
+						//$save_accountdata['AccountsSalaryprocess']['id'] = $this->data['AccountsSalaryprocess']['id'][$key];
+					}
+					else{
+						$record = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$key),array('fields'=>array('AccountsSalaryregister.take_home','AccountsSalaryregister.month','AccountsSalaryregister.year'))));
+						$save_accountdata['AccountsSalaryprocess']['accounts_salaryregister_id'] = $key;
+						$save_accountdata['AccountsSalaryprocess']['details'] = $this->data['AccountsSalaryprocess']['acc_no'][$key];
+						$save_accountdata['AccountsSalaryprocess']['month'] = $record['AccountsSalaryregister']['month'];
+						$save_accountdata['AccountsSalaryprocess']['year'] = $record['AccountsSalaryregister']['year'];
+						$this->AccountsSalaryprocess->create();
+						$this->AccountsSalaryprocess->save($save_accountdata);
+						
+						$salaryamount = $salaryamount + $record['AccountsSalaryregister']['take_home'];
+					}
+					
+				}
+			}
+			
+			/**Update Ledger**/
+			$accountsPayable_accountdetails = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Payable'),'fields'=>array('AccountsAccount.id','AccountsAccount.opening_balance','AccountsAccount.account_type_id')));
+			$accountsPayable_ledgerdetails = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accountsPayable_accountdetails['AccountsAccount']['id']),'order'=>array('AccountsLedger.date DESC','AccountsLedger.id DESC')));
+			
+			$accountsPayable_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accountsPayable_accountdetails['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+			$accountsPayable_golden_rule = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accountsPayable_type['AccountType']['accounts_goldenrule_id'])));
+					
+			if(empty($accountsPayable_ledgerdetails)){
+				$accountsPayable_balance_amount = $accountsPayable_accountdetails['AccountsAccount']['opening_balance'];
+			}
+			else{
+				$accountsPayable_balance_amount = $accountsPayable_ledgerdetails['AccountsLedger']['balance'];
+			}
+					
+			$savecredit->data = null;
+			$this->AccountsLedger->create();
+			$savecredit->data['AccountsLedger']['accounts_account_id'] = $accountsPayable_accountdetails['AccountsAccount']['id'];
+			$savecredit->data['AccountsLedger']['date'] = date('Y-m-d'); 
+			$savecredit->data['AccountsLedger']['is_neutral'] = 'Y'; 
+			$savecredit->data['AccountsLedger']['payment_description'] = "Amount Credited";
+			$savecredit->data['AccountsLedger']['cheque_no'] = "salary amount";
+			
+			if($accountsPayable_golden_rule['AccountsGoldenrule']['increase'] == 'Debit'){
+				$savecredit->data['AccountsLedger']['credit'] = "0";
+				$savecredit->data['AccountsLedger']['debit'] =$salaryamount;
+			}
+			else{
+				$savecredit->data['AccountsLedger']['debit'] = "0";
+				$savecredit->data['AccountsLedger']['credit'] =$salaryamount;
+			}
+			
+			$savecredit->data['AccountsLedger']['balance'] = $accountsPayable_balance_amount + $salaryamount;
+			
+			$this->AccountsLedger->save($savecredit->data);
+					
+			$acc_payable = $this->AccountsLedger->getLastInsertId();
+			$save_transac_id['AccountsLedger']['id'] = $acc_payable;
+			$save_transac_id['AccountsLedger']['transaction_id'] = $acc_payable;
+			
+			
+			
+			if($error1){
+				$this->Session->setFlash('<div class="flashMessageSuccess">Salary process details has been saved!</div>');
+				$this->redirect(array('controller'=>'accounts_salaryprocesses','action'=>'process_account',true));
+			}else{
+				$this->Session->setFlash('<div class="flashMessageError">No account has been selected, Salary process details not saved!</div>');
+				$this->redirect(array('controller'=>'accounts_salaryprocesses','action'=>'process_account',true));
+			}
+			
+		}
+	}
+	
+	public function process_cheque($flag=null){
+	//	Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('AccountsSalaryregister');
+		$this->loadModel('AccountsSalarydetail');
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('SalarySetting');
+		$this->loadModel('AccountsLedger');
+		$this->loadModel('AccountsGoldenrule');
+		
+	//	if(empty($this->data)){
+			//$bank_accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.asset_type'=>'Bank'),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+			$accounts = $this->SalarySetting->find('all');
+			foreach($accounts as $account){
+				$acc_detail = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$account['SalarySetting']['accounts_account_id']),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.asset_type')));
+				if($acc_detail['AccountsAccount']['asset_type'] == 'Bank'){
+					$bank_accounts[$acc_detail['AccountsAccount']['id']] = $acc_detail['AccountsAccount']['account_name'];
+				}
+				
+				if($account['SalarySetting']['default_bank'] == 'Yes'){
+					$default_accountId = $account['SalarySetting']['accounts_account_id'];
+				}
+			}
+			$salaryregisterrecords = $this->AccountsSalaryregister->find('all',array('conditions'=>array('AccountsSalaryregister.month'=>date('n'),'AccountsSalaryregister.year'=>date('Y'))));
+			$i=0;$totalctc=0;$totalnetctc=0;$totaltakehome=0;
+			foreach($salaryregisterrecords as $salaryRegisterRecord){
+				
+				$totalctc = $totalctc + $salaryRegisterRecord['AccountsSalaryregister']['ctc'];
+				$totalnetctc = $totalnetctc + $salaryRegisterRecord['AccountsSalaryregister']['netctc'];
+				$totaltakehome = $totaltakehome + $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+				
+				$salaryRecord = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$salaryRegisterRecord['AccountsSalaryregister']['staff_id'],'AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.mode_of_payment'=>'Other'),'fields'=>array('AccountsSalarydetail.id','AccountsSalarydetail.mode_of_payment')));
+				$process = $this->AccountsSalaryprocess->find('first',array('conditions'=>array('AccountsSalaryprocess.accounts_salaryregister_id'=>$salaryRegisterRecord['AccountsSalaryregister']['id'])));
+			
+				if($process['AccountsSalaryprocess']['mode_of_payment'] == 'Cheque' && $process['AccountsSalaryprocess']['approved'] == 'No' ){
+					if($salaryRecord['AccountsSalarydetail']['mode_of_payment'] == 'Other'){
+						
+						if($process['AccountsSalaryprocess']['accounts_salaryregister_id'] != $salaryRegisterRecord['AccountsSalaryregister']['id']){
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = '';
+						}else{
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = 'checked';
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['id'] = $process['AccountsSalaryprocess']['id'];
+						}
+						
+						$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$salaryRegisterRecord['AccountsSalaryregister']['staff_id']),'fields'=>array('Staff.first_name','Staff.last_name')));
+						$Takehome = $Takehome + $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['salaryregister_id'] = $salaryRegisterRecord['AccountsSalaryregister']['id'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['take_home'] = $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['staff_name'] = $staff['Staff']['first_name']." ".$staff['Staff']['last_name'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['acc_no'] = $salaryRecord['AccountsSalarydetail']['account_no'];
+						$i++;
+					}
+				}elseif(empty($process)){
+					if($salaryRecord['AccountsSalarydetail']['mode_of_payment'] == 'Other'){
+						if($process['AccountsSalaryprocess']['accounts_salaryregister_id'] != $salaryRegisterRecord['AccountsSalaryregister']['id']){
+								$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = '';
+							}else{
+								$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = 'checked';
+								$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['id'] = $process['AccountsSalaryprocess']['id'];
+							}
+							
+							$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$salaryRegisterRecord['AccountsSalaryregister']['staff_id']),'fields'=>array('Staff.first_name','Staff.last_name')));
+							$Takehome = $Takehome + $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['salaryregister_id'] = $salaryRegisterRecord['AccountsSalaryregister']['id'];
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['take_home'] = $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['staff_name'] = $staff['Staff']['first_name']." ".$staff['Staff']['last_name'];
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['acc_no'] = $salaryRecord['AccountsSalarydetail']['account_no'];
+							$i++;
+					}
+				}
+				$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['accounts_account_id'] = $process['AccountsSalaryprocess']['accounts_account_id'];
+				$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['cheque_no'] = $process['AccountsSalaryprocess']['details'];
+			}
+	//	}
+			$final['default_accountId'] = $default_accountId;
+			$final['bank_account'] = $bank_accounts;
+			$final['TakeHome'] = $Takehome;
+			$final['totalCTC'] = $totalctc;
+			$final['totalnetCTC'] = $totalnetctc;
+			$final['total_TakeHome'] = $totaltakehome;
+			//$this->set(compact('flag'));
+			$this->set(compact('final'));
+			
+		if(!empty($this->data)){
+			
+			foreach($this->data['AccountsSalaryprocess']['Process'] as $rgf => $yjm){
+				if($yjm == 1){
+					$success = "Success";
+				}
+			}
+			if(!$success){
+				$this->Session->setFlash(__('<div class="flashMessageError">Salary transfer unsuccessful! Records are not yet submitted!</div>',true));
+				return;
+			}
+			
+			if($flag=='js'){
+				$temp1 = null;$i=1;$temp2=null;	
+
+
+				foreach($this->data['AccountsSalaryprocess']['cheque_no'] as $key => $value){
+				$register = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$key),'fields'=>array('AccountsSalaryregister.staff_id')));
+					$staff_id = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$register['AccountsSalaryregister']['staff_id']),'fields'=>array('Staff.id')));
+				$error=null;
+				if($value):
+				if(empty($temp1)){
+						$temp1[$key] = $value;
+						$temp2[$i] = $value;
+					}else{
+						foreach($temp2 as $k1 =>$v1){
+							if($v1 == $value){
+								$xyz=0;
+								$error = " Error";
+								$value=0;
+							}else{
+								$temp1[$key] = $value;
+								$temp2[$i] = $value;
+								$xyz=1;
+							}
+						}
+					}
+					$i++;
+				
+				if($error){
+					$this->Session->setFlash('<div class="flashMessageError">Same cheque number shouldn\'t be there! Please enter different cheque number!</div>',true);
+				}
+				if(!is_numeric($value)){
+					$this->Session->setFlash('<div class="flashMessageError">Please enter valid check number!</div>',true);
+				}
+				endif;
+				
+					if($this->data['AccountsSalaryprocess']['Process'][$key]):
+					if($value){
+						$final['salaryregisterrecords']['cheque_no'][$staff_id['Staff']['id']] = $value;
+						$temp = $value + 1;
+					}else{
+						$final['salaryregisterrecords']['cheque_no'][$staff_id['Staff']['id']] = $temp;
+						$temp++;
+					}
+					
+					if($this->data['AccountsSalaryprocess']['Process'][$key] == 1){
+						$final['salaryregisterrecords'][$staff_id['Staff']['id']]['check'] = 'checked';
+					}
+					endif;
+				}	
+				$this->set(compact('final'));
+				
+			}
+			else{
+				$save_accountdata=null;
+				$save_accountdata['AccountsSalaryprocess']['mode_of_payment'] = 'Cheque'; 
+				$save_accountdata['AccountsSalaryprocess']['approved'] = 'No';
+				$save_accountdata['AccountsSalaryprocess']['accounts_account_id'] = $this->data['AccountsSalaryprocess']['accounts'];
+				$save_accountdata['AccountsSalaryprocess']['date_added'] = date('Y-m-d');
+				$save_accountdata['AccountsSalaryprocess']['approval_date'] = date('Y-m-d',strtotime($this->data['AccountsSalaryprocess']['date2']));
+				
+				foreach($this->data['AccountsSalaryprocess']['Process'] as $key => $value){
+					if($value == 1){
+						if($this->data['AccountsSalaryprocess']['id'][$key]){
+							//$save_accountdata['AccountsSalaryprocess']['id'] = $this->data['AccountsSalaryprocess']['id'][$key];
+						}
+						else{
+							$record = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$key),array('fields'=>array('AccountsSalaryregister.take_home','AccountsSalaryregister.month','AccountsSalaryregister.year'))));
+							$save_accountdata['AccountsSalaryprocess']['accounts_salaryregister_id'] = $key;
+							$save_accountdata['AccountsSalaryprocess']['details'] = $this->data['AccountsSalaryprocess']['cheque_no'][$key];
+							$save_accountdata['AccountsSalaryprocess']['month'] = $record['AccountsSalaryregister']['month'];
+							$save_accountdata['AccountsSalaryprocess']['year'] = $record['AccountsSalaryregister']['year'];
+							$this->AccountsSalaryprocess->create();
+							$this->AccountsSalaryprocess->save($save_accountdata);
+							
+							
+							$salaryamount = $salaryamount + $record['AccountsSalaryregister']['take_home'];
+						}
+					}
+				}
+				
+				
+				$this->loadModel('AccountType');
+				/**Update Ledger**/
+				$accountsPayable_accountdetails = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Payable'),'fields'=>array('AccountsAccount.id','AccountsAccount.opening_balance','AccountsAccount.account_type_id')));
+				$accountsPayable_ledgerdetails = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accountsPayable_accountdetails['AccountsAccount']['id']),'order'=>array('AccountsLedger.date DESC','AccountsLedger.id DESC')));
+				
+				$accountsPayable_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accountsPayable_accountdetails['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+				$accountsPayable_golden_rule = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accountsPayable_type['AccountType']['accounts_goldenrule_id'])));
+						
+				if(empty($accountsPayable_ledgerdetails)){
+					$accountsPayable_balance_amount = $accountsPayable_accountdetails['AccountsAccount']['opening_balance'];
+				}
+				else{
+					$accountsPayable_balance_amount = $accountsPayable_ledgerdetails['AccountsLedger']['balance'];
+				}
+						
+				$savecredit->data = null;
+				$this->AccountsLedger->create();
+				$savecredit->data['AccountsLedger']['accounts_account_id'] = $accountsPayable_accountdetails['AccountsAccount']['id'];
+				$savecredit->data['AccountsLedger']['date'] = date('Y-m-d'); 
+				$savecredit->data['AccountsLedger']['is_neutral'] = 'Y'; 
+				$savecredit->data['AccountsLedger']['payment_description'] = "Amount Credited";
+				$savecredit->data['AccountsLedger']['cheque_no'] = "salary amount";
+				
+				if($accountsPayable_golden_rule['AccountsGoldenrule']['increase'] == 'Debit'){
+					$savecredit->data['AccountsLedger']['credit'] = "0";
+					$savecredit->data['AccountsLedger']['debit'] =$salaryamount;
+				}
+				else{
+					$savecredit->data['AccountsLedger']['debit'] = "0";
+					$savecredit->data['AccountsLedger']['credit'] =$salaryamount;
+				}
+				
+				$savecredit->data['AccountsLedger']['balance'] = $accountsPayable_balance_amount + $salaryamount;
+				
+				$this->AccountsLedger->save($savecredit->data);
+						
+				$acc_payable = $this->AccountsLedger->getLastInsertId();
+				$save_transac_id['AccountsLedger']['id'] = $acc_payable;
+				$save_transac_id['AccountsLedger']['transaction_id'] = $acc_payable;
+				
+				
+				
+				
+				
+				$this->Session->setFlash('<div class="flashMessageSuccess">Salary process details has been saved!</div>',true);
+				$this->redirect(array('controller'=>'accounts_salaryprocesses','action'=>'process_cheque'));
+			}
+		}
+	}
+	
+	public function process_cash(){
+	//	Configure::write('debug',2);
+		$this->loadModel('AccountsSalaryregister');
+		$this->loadModel('AccountsSalarydetail');
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountsGoldenrule');
+		//$this->loadModel('AccountType');
+		
+		$this->loadModel('AccountsLedger');
+		$this->loadModel('SalarySetting');
+		
+		if(empty($this->data)){
+			//$cash_accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.asset_type'=>'Cash'),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+			$accounts = $this->SalarySetting->find('all');
+			foreach($accounts as $account){
+				$acc_detail = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$account['SalarySetting']['accounts_account_id']),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.asset_type')));
+				if($acc_detail['AccountsAccount']['asset_type'] == 'Cash'){
+					$cash_accounts[$acc_detail['AccountsAccount']['id']] = $acc_detail['AccountsAccount']['account_name'];
+				}
+				
+				if($account['SalarySetting']['default_cash'] == 'Yes'){
+					$default_accountId = $account['SalarySetting']['accounts_account_id'];
+				}
+			}
+			$salaryregisterrecords = $this->AccountsSalaryregister->find('all',array('conditions'=>array('AccountsSalaryregister.month'=>date('n'),'AccountsSalaryregister.year'=>date('Y'))));
+			$i=0;$totalctc=0;$totalnetctc=0;$totaltakehome=0;
+			foreach($salaryregisterrecords as $salaryRegisterRecord){
+				
+				$totalctc = $totalctc + $salaryRegisterRecord['AccountsSalaryregister']['ctc'];
+				$totalnetctc = $totalnetctc + $salaryRegisterRecord['AccountsSalaryregister']['netctc'];
+				$totaltakehome = $totaltakehome + $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+				
+				$salaryRecord = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$salaryRegisterRecord['AccountsSalaryregister']['staff_id'],'AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.mode_of_payment'=>'Other'),'fields'=>array('AccountsSalarydetail.id','AccountsSalarydetail.mode_of_payment')));
+				$process = $this->AccountsSalaryprocess->find('first',array('conditions'=>array('AccountsSalaryprocess.accounts_salaryregister_id'=>$salaryRegisterRecord['AccountsSalaryregister']['id'])));
+				debug($salaryRecord);
+				debug($process);
+				if(empty($process)){
+					if($salaryRecord['AccountsSalarydetail']['mode_of_payment'] == 'Other'){
+						
+						if($process['AccountsSalaryprocess']['accounts_salaryregister_id'] != $salaryRegisterRecord['AccountsSalaryregister']['id']){
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = '';
+						}else{
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = 'checked';
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['id'] = $process['AccountsSalaryprocess']['id'];
+						}
+						
+						$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$salaryRegisterRecord['AccountsSalaryregister']['staff_id']),'fields'=>array('Staff.first_name','Staff.last_name','Staff.emp_code')));
+						$Takehome = $Takehome + $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['salaryregister_id'] = $salaryRegisterRecord['AccountsSalaryregister']['id'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['take_home'] = $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['staff_name'] = $staff['Staff']['first_name']." ".$staff['Staff']['last_name'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['emp_code'] = $staff['Staff']['emp_code'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['acc_no'] = $salaryRecord['AccountsSalarydetail']['account_no'];
+						$i++;
+					}
+				}
+				elseif($process['AccountsSalaryprocess']['mode_of_payment'] == 'Cash' && $process['AccountsSalaryprocess']['approved'] == 'No'){
+					if($salaryRecord['AccountsSalarydetail']['mode_of_payment'] == 'Other'){
+						
+						if($process['AccountsSalaryprocess']['accounts_salaryregister_id'] != $salaryRegisterRecord['AccountsSalaryregister']['id']){
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = '';
+						}else{
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['check'] = 'checked';
+							$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['id'] = $process['AccountsSalaryprocess']['id'];
+						}
+						
+						$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$salaryRegisterRecord['AccountsSalaryregister']['staff_id']),'fields'=>array('Staff.first_name','Staff.last_name','Staff.emp_code')));
+						$Takehome = $Takehome + $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['salaryregister_id'] = $salaryRegisterRecord['AccountsSalaryregister']['id'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['take_home'] = $salaryRegisterRecord['AccountsSalaryregister']['take_home'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['staff_name'] = $staff['Staff']['first_name']." ".$staff['Staff']['last_name'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['emp_code'] = $staff['Staff']['emp_code'];
+						$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['acc_no'] = $salaryRecord['AccountsSalarydetail']['account_no'];
+						$i++;
+					}
+				}
+				
+				$final['salaryregisterrecords'][$salaryRegisterRecord['AccountsSalaryregister']['staff_id']]['accounts_account_id'] = $process['AccountsSalaryprocess']['accounts_account_id'];
+			}
+			$final['default_accountId'] = $default_accountId;
+			$final['cash_accounts'] = $cash_accounts;
+			$final['Takehome'] = $Takehome;
+			$final['totalctc'] = $totalctc;
+			$final['totalnetctc'] = $totalnetctc;
+			$final['totaltakehome'] = $totaltakehome;
+		}
+		debug($final);
+		$this->set(compact('final'));
+		
+		if(!empty($this->data)){
+		//	debug($this->data);
+			
+			foreach($this->data['AccountsSalaryprocess']['Process'] as $plm => $qaz){
+				if($qaz == 1){
+					$Success = "Success";
+				}
+			}
+			
+			$save_accountdata=null;
+			$save_accountdata['AccountsSalaryprocess']['mode_of_payment'] = 'Cash'; 
+			$save_accountdata['AccountsSalaryprocess']['approved'] = 'No';
+			$save_accountdata['AccountsSalaryprocess']['accounts_account_id'] = $this->data['AccountsSalaryprocess']['accounts'];
+			$save_accountdata['AccountsSalaryprocess']['date_added'] = date('Y-m-d');
+			$save_accountdata['AccountsSalaryprocess']['approval_date'] = date('Y-m-d',strtotime($this->data['AccountsSalaryprocess']['date2']));
+			
+			foreach($this->data['AccountsSalaryprocess']['Process'] as $key => $value){
+				if($value == 1){
+					if($this->data['AccountsSalaryprocess']['id'][$key]){
+						//$save_accountdata['AccountsSalaryprocess']['id'] = $this->data['AccountsSalaryprocess']['id'][$key];
+					}else{
+						$record = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$key),array('fields'=>array('AccountsSalaryregister.take_home','AccountsSalaryregister.month','AccountsSalaryregister.year'))));
+						$save_accountdata['AccountsSalaryprocess']['accounts_salaryregister_id'] = $key;
+						$save_accountdata['AccountsSalaryprocess']['month'] = $record['AccountsSalaryregister']['month'];
+						$save_accountdata['AccountsSalaryprocess']['year'] = $record['AccountsSalaryregister']['year'];
+					//	$save_accountdata['AccountsSalaryprocess']['details'] = $this->data['AccountsSalaryprocess']['acc_no'][$key];
+						$this->AccountsSalaryprocess->create();
+						$this->AccountsSalaryprocess->save($save_accountdata);
+						
+						$record = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$key),array('fields'=>array('AccountsSalaryregister.take_home'))));
+						$salaryamount = $salaryamount + $record['AccountsSalaryregister']['take_home'];
+						$no_record = 'Records are to be processed.';
+						debug($salaryamount);
+						
+						
+					}
+				}
+			}
+			if(!empty($no_record)){
+			
+			
+				/**Update Ledger**/
+				$accountsPayable_accountdetails = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Payable'),'fields'=>array('AccountsAccount.id','AccountsAccount.opening_balance','AccountsAccount.account_type_id')));
+				debug($accountsPayable_accountdetails);
+				$accountsPayable_ledgerdetails = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accountsPayable_accountdetails['AccountsAccount']['id']),'order'=>array('AccountsLedger.date DESC','AccountsLedger.id DESC')));
+				debug($accountsPayable_ledgerdetails);
+				$this->loadModel('AccountType');
+				
+				$accountsPayable_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accountsPayable_accountdetails['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+				debug($accountsPayable_type);
+				$accountsPayable_golden_rule = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accountsPayable_type['AccountType']['accounts_goldenrule_id'])));
+				debug($accountsPayable_golden_rule);		
+				if(empty($accountsPayable_ledgerdetails)){
+					$accountsPayable_balance_amount = $accountsPayable_accountdetails['AccountsAccount']['opening_balance'];
+				}
+				else{
+					$accountsPayable_balance_amount = $accountsPayable_ledgerdetails['AccountsLedger']['balance'];
+				}
+						
+				$savecredit->data = null;
+				$this->AccountsLedger->create();
+				$savecredit->data['AccountsLedger']['accounts_account_id'] = $accountsPayable_accountdetails['AccountsAccount']['id'];
+				$savecredit->data['AccountsLedger']['date'] = date('Y-m-d'); 
+				$savecredit->data['AccountsLedger']['is_neutral'] = 'Y'; 
+				$savecredit->data['AccountsLedger']['payment_description'] = "Amount Credited";
+				$savecredit->data['AccountsLedger']['cheque_no'] = "salary amount";
+				
+				if($accountsPayable_golden_rule['AccountsGoldenrule']['increase'] == 'Debit'){
+					$savecredit->data['AccountsLedger']['credit'] = "0";
+					$savecredit->data['AccountsLedger']['debit'] =$salaryamount;
+				}
+				else{
+					$savecredit->data['AccountsLedger']['debit'] = "0";
+					$savecredit->data['AccountsLedger']['credit'] =$salaryamount;
+				}
+				
+				$savecredit->data['AccountsLedger']['balance'] = $accountsPayable_balance_amount + $salaryamount;
+				
+				$this->AccountsLedger->create();
+				$this->AccountsLedger->save($savecredit->data);
+						
+				$acc_payable = $this->AccountsLedger->getLastInsertId();
+				$save_transac_id['AccountsLedger']['id'] = $acc_payable;
+				$save_transac_id['AccountsLedger']['transaction_id'] = $acc_payable;
+				$this->AccountsLedger->save();
+				
+			}
+			$this->set(compact('no_record'));
+			if(isset($no_record)){
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">Salary process details has been saved!</div>',true));
+				$this->redirect(array('controller'=>'accounts_salaryprocesses','action'=>'process_cash'));
+			}
+			else{
+				$this->Session->setFlash(__('<div class="flashMessageError">salary process details couldn\'t be saved!</div>',true));
+				$this->redirect(array('controller'=>'accounts_salaryprocesses','action'=>'process_cash'));
+			}
+			
+		}
+	}
+	
+	//Function to approve the salary.
+	public function approve_salary($payment_mode=null){
+		
+//		Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('AccountsSalaryregister');
+		$this->loadModel('AccountsLedger');
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountsGoldenrule');
+		
+		$expense_accounttype = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name'=>'Expenses'),'fields'=>array('AccountType.id')));
+		$salaryAccountId = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.month'=>date('n'),'AccountsSalaryregister.year'=>date('Y')),'fields'=>array('AccountsSalaryregister.accounts_account_id')));
+		
+	//Approving the salary accounts
+		if($payment_mode == 'account'){
+			if(!empty($this->data['AccountsSalaryprocess']['id'])){
+				$i=0;$error=null;
+				
+				foreach($this->data['AccountsSalaryprocess']['id'] as $key11 => $val11){
+					
+					if($val11){
+						
+						$accountsSalaryregisterRecord = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$key11)));
+						$transferAccountId['Transferledger'][$this->data['AccountsSalaryprocess']['accounts_account_id'][$key11]][$i] = $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+						$i++;
+						$error = 'noempty';
+					}
+					else{
+						$error = 'empty';
+					}
+				}
+				
+				foreach($transferAccountId['Transferledger'] as $key1123 => $val1123){
+					$totalamount=0;
+					foreach($val1123 as $k1456 => $v1456){
+						$totalamount123 = $totalamount123 + $v1456;
+					}
+					
+					
+				
+				//Valiadation
+					$transferledgerAccount123 = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$key1123),'order'=>array('AccountsLedger.id DESC')));
+					$BankAccountOpening_balance123 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$key1123),'fields'=>array('AccountsAccount.opening_balance')));
+					
+					if(empty($transferledgerAccount)){
+						if($BankAccountOpening_balance123['AccountsAccount']['opening_balance'] < $totalamount123){
+							$this->Session->setFlash('<div class="FlashMessageError">Sorry account doesn\'t have enough balance for this transfer!</div>');
+							return;
+						}
+					}else{
+						if($transferledgerAccount123['AccountsLedger']['balance'] < $totalamount123){
+							$this->Session->setFlash('<div class="FlashMessageError">Sorry account doesn\'t have enough balance for this transfer!</div>');
+							return;
+						}
+					}
+				}
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				foreach($this->data['AccountsSalaryprocess']['id'] as $key => $val){
+					
+					if($val){
+						
+						$save_accountdata['AccountsSalaryprocess']['id'] = $val;
+						$save_accountdata['AccountsSalaryprocess']['approved'] = 'Yes';
+						$save_accountdata['AccountsSalaryprocess']['approved_by'] = $this->Session->read('Auth.User.id');
+						$save_accountdata['AccountsSalaryprocess']['approved_date'] = date('Y-m-d');
+						$this->AccountsSalaryprocess->save($save_accountdata);
+						
+					}
+				}
+				
+				foreach($transferAccountId['Transferledger'] as $key1 => $val1){
+					$totalamount=0;
+					foreach($val1 as $k1 => $v1){
+						$totalamount = $totalamount + $v1;
+					}
+					
+					
+				
+				//Debiting from the Bank account.
+					$transferledgerAccount = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$key1),'order'=>array('AccountsLedger.date DESC','AccountsLedger.id DESC')));
+					
+					if(!empty($transferledgerAccount)){
+						$balance = $transferledgerAccount['AccountsLedger']['balance'] - $totalamount ;
+					}
+					else{
+						$BankAccountOpening_balance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$key1),'fields'=>array('AccountsAccount.opening_balance')));
+						$balance = $BankAccountOpening_balance['AccountsAccount']['opening_balance'] - $totalamount;
+					}
+				
+				//Crediting to the salary account.
+					$salaryAccountLedger = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$salaryAccountId['AccountsSalaryregister']['accounts_account_id']),'order'=>array('AccountsLedger.date DESC','AccountsLedger.id DESC')));
+				
+					if(!empty($salaryAccountLedger)){
+						$expenseBalance = $salaryAccountLedger['AccountsLedger']['balance'] + $totalamount;
+					}
+					else{
+						$expenseAccountOpeningBalance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$salaryAccountId['AccountsSalaryregister']['accounts_account_id']),'fields'=>array('AccountsAccount.opening_balance')));
+						$expenseBalance = $expenseBalance['AccountsAccount']['opening_balance'] + $totalamount;
+					}
+				 	$acc_detail11 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$key1),'fields'=>array('AccountsAccount.account_type_id')));
+				 	$account_type1 = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$acc_detail11['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+				 	$golden_rule1 = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$account_type1['AccountType']['accounts_goldenrule_id'])));
+				 	
+				 	if($golden_rule1['AccountsGoldenrule']['decrease'] == 'Debit'){
+				 		$saveBankAccountLedger['AccountsLedger']['debit'] = $totalamount;
+				 		$saveBankAccountLedger['AccountsLedger']['credit'] = 0;
+				 	}
+				 	else{
+				 		$saveBankAccountLedger['AccountsLedger']['debit'] = 0;
+				 		$saveBankAccountLedger['AccountsLedger']['credit'] = $totalamount;
+				 	}
+				 	
+				 	$saveBankAccountLedger['AccountsLedger']['accounts_account_id'] = $key1;
+				 	$saveBankAccountLedger['AccountsLedger']['date'] = date('Y-m-d');
+				 	$saveBankAccountLedger['AccountsLedger']['payment_description'] = 'Amount Debited!';
+				 	
+				 	$saveBankAccountLedger['AccountsLedger']['balance'] = $balance;
+				 	$saveBankAccountLedger['AccountsLedger']['approved_by'] = $this->Session->read('Auth.User.id');
+				 	$this->AccountsLedger->create();
+				 	$this->AccountsLedger->save($saveBankAccountLedger);
+				 	
+				 	$Bankledger_id = $this->AccountsLedger->getLastInsertId();
+				 	
+				 	
+				 	$acc_detail1 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$salaryAccountId['AccountsSalaryregister']['accounts_account_id']),'fields'=>array('AccountsAccount.account_type_id')));
+				 	$account_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$acc_detail1['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+				 	$golden_rule = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$account_type['AccountType']['accounts_goldenrule_id'])));
+				 	$saveExpenseAccountLedger['AccountsLedger']['accounts_account_id'] = $salaryAccountId['AccountsSalaryregister']['accounts_account_id'];
+				 	$saveExpenseAccountLedger['AccountsLedger']['date'] = date('Y-m-d');
+				 	$saveExpenseAccountLedger['AccountsLedger']['payment_description'] = 'Amount Credited!';
+				 	if($golden_rule['AccountsGoldenrule']['increase'] == 'Credit'){
+				 		$saveExpenseAccountLedger['AccountsLedger']['credit'] = $totalamount;
+				 		$saveExpenseAccountLedger['AccountsLedger']['debit'] = 0;
+				 	}
+				 	else{
+				 		$saveExpenseAccountLedger['AccountsLedger']['debit'] = $totalamount;
+				 		$saveExpenseAccountLedger['AccountsLedger']['credit'] = 0;
+				 	}
+				 	
+				 	
+				 	$saveExpenseAccountLedger['AccountsLedger']['balance'] = $expenseBalance;
+				 	$saveExpenseAccountLedger['AccountsLedger']['approved_by'] = $this->Session->read('Auth.User.id');
+				 	$this->AccountsLedger->create();
+				 	$this->AccountsLedger->save($saveExpenseAccountLedger);
+				 	
+				 	$transac_id = $this->AccountsLedger->getLastInsertId();
+				 	
+				 	$BankTransac_id = $this->AccountsLedger->findById($Bankledger_id);
+				 	$saveBankTransac_id['AccountsLedger']['id'] = $BankTransac_id['AccountsLedger']['id'];
+				 	$saveBankTransac_id['AccountsLedger']['transaction_id'] = $transac_id;
+				 	
+				 	$expenseTransac_id = $this->AccountsLedger->findById($transac_id);
+				 	$saveexpenseTransac_id['AccountsLedger']['id'] = $expenseTransac_id['AccountsLedger']['id'];
+				 	$saveexpenseTransac_id['AccountsLedger']['transaction_id'] = $transac_id;
+				 	
+				 	$this->AccountsLedger->save($saveBankTransac_id);
+				 	$this->AccountsLedger->save($saveexpenseTransac_id);
+				 	
+				 	
+				 	
+				 	//Accounts Payable Entries
+				 	
+				 	$accountsPayable_accountdetails = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Payable'),'fields'=>array('AccountsAccount.id','AccountsAccount.opening_balance','AccountsAccount.account_type_id')));
+					$accountsPayable_ledgerdetails = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accountsPayable_accountdetails['AccountsAccount']['id']),'order'=>array('AccountsLedger.date DESC','AccountsLedger.id DESC')));
+					
+					$accountsPayable_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accountsPayable_accountdetails['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+					$accountsPayable_golden_rule = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accountsPayable_type['AccountType']['accounts_goldenrule_id'])));
+					
+					if(empty($accountsPayable_ledgerdetails)){
+						$accountsPayable_balance_amount = $accountsPayable_accountdetails['AccountsAccount']['opening_balance'];
+					}
+					else{
+						$accountsPayable_balance_amount = $accountsPayable_ledgerdetails['AccountsLedger']['balance'];
+					}
+					
+					$savecredit->data = null;
+					$this->AccountsLedger->create();
+					$savecredit->data['AccountsLedger']['accounts_account_id'] = $accountsPayable_accountdetails['AccountsAccount']['id'];
+					$savecredit->data['AccountsLedger']['date'] = date('Y-m-d'); 
+					$savecredit->data['AccountsLedger']['is_neutral'] = 'Y'; 
+					$savecredit->data['AccountsLedger']['payment_description'] = "Amount Debited!";
+					$savecredit->data['AccountsLedger']['approved_by'] = $this->Session->read('Auth.User.id');
+					$savecredit->data['AccountsLedger']['cheque_no'] = "Salary amount processed";
+					if($accountsPayable_golden_rule['AccountsGoldenrule']['decrease'] == 'Debit'){
+						$savecredit->data['AccountsLedger']['credit'] = "0";
+						$savecredit->data['AccountsLedger']['debit'] =$totalamount;
+					}
+					else{
+						$savecredit->data['AccountsLedger']['debit'] = "0";
+						$savecredit->data['AccountsLedger']['credit'] =$totalamount;
+					}
+					
+					$savecredit->data['AccountsLedger']['balance'] = ($accountsPayable_balance_amount - $totalamount);
+					
+					$this->AccountsLedger->save($savecredit->data);
+					
+					$acc_payable = $this->AccountsLedger->getLastInsertId();
+					$save_transac_id['AccountsLedger']['id'] = $acc_payable;
+					$save_transac_id['AccountsLedger']['transaction_id'] = $acc_payable;
+					
+				 	
+				 	
+				 	
+				 	
+				}
+			}
+			if($error == 'empty'){
+				$this->Session->setFlash(__('<div class="flashMessageError">Salary transfer unsuccessful! Records has been not submitted yet!</div>'));
+			}else{
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">Successfully transfered!</div>'));
+			}
+			
+		//	$this->redirect(array('controller'=>'accounts_salaryprocesses','action'=>'process_account'));
+		}
+		
+	//Approving the cash salary processing.
+		if($payment_mode == 'cash'){
+			$save_accountdata = null;$accountsSalaryregisterRecord=null;$transferAccountId=null;
+			$key2=null;$val=null;$error=null;
+			if(!empty($this->data['AccountsSalaryprocess']['id'])){
+				$i=0;
+				foreach($this->data['AccountsSalaryprocess']['id'] as $key22 => $val22){
+
+					if($val22){
+						$accountsSalaryregisterRecord = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$key22)));
+						$transferAccountId['Transferledger'][$this->data['AccountsSalaryprocess']['accounts_account_id'][$key22]][$i] = $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+						$i++;
+						$error = 'noempty';
+					}
+					else{
+						$error = 'empty';
+					}
+				}
+				foreach($transferAccountId['Transferledger'] as $key33 => $val33){
+					$totalamount1=0;
+					foreach($val33 as $key44 => $val44){
+						$totalamount1 = $totalamount1 + $val44;
+					}
+					
+				//Debiting from the Bank account.
+					$transferledgerAccount11 = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$key33),'order'=>array('AccountsLedger.id DESC')));
+					$BankAccountOpening_balance11 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$key33),'fields'=>array('AccountsAccount.opening_balance')));
+					
+					if(empty($transferledgerAccount11)){
+						if($BankAccountOpening_balance11['AccountsAccount']['opening_balance'] < $totalamount1){
+							$this->Session->setFlash(__('<div class="flashMessageError">The cash account doesn\'t have enough balance for transfer!</div>'));
+							return;
+						}
+					}else{
+						if($transferledgerAccount11['AccountsLedger']['balance'] < $totalamount1){
+							$this->Session->setFlash(__('<div class="flashMessageError">The cash account doesn\'t have enough balance for transfer!</div>'));
+							return;
+						}
+					}
+				}
+				
+				
+				
+				
+				
+				
+				
+				foreach($this->data['AccountsSalaryprocess']['id'] as $key2 => $val2){
+
+					if($val2){
+						
+						$save_accountdata['AccountsSalaryprocess']['id'] = $val2;
+						$save_accountdata['AccountsSalaryprocess']['approved'] = 'Yes';
+						$save_accountdata['AccountsSalaryprocess']['approved_by'] = $this->Session->read('Auth.User.id');
+						$save_accountdata['AccountsSalaryprocess']['approved_date'] = date('Y-m-d');
+						$this->AccountsSalaryprocess->save($save_accountdata);
+						
+					}
+				}
+				
+				foreach($transferAccountId['Transferledger'] as $key3 => $val3){
+					$totalamount=0;
+					foreach($val3 as $key4 => $val4){
+						$totalamount = $totalamount + $val4;
+					}
+					
+				//Debiting from the Bank account.
+					$transferledgerAccount = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$key3),'order'=>array('AccountsLedger.id DESC')));
+					$BankAccountOpening_balance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$key3),'fields'=>array('AccountsAccount.opening_balance')));
+					
+					if(!empty($transferledgerAccount)){
+						$balance = $transferledgerAccount['AccountsLedger']['balance'] - $totalamount ;
+					}else{
+						
+						$balance = $BankAccountOpening_balance['AccountsAccount']['opening_balance'] - $totalamount;
+					}
+					$salaryAccountLedger = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$salaryAccountId['AccountsSalaryregister']['accounts_account_id']),'order'=>array('AccountsLedger.id DESC')));
+				//Crediting to the salary account.
+					if(!empty($salaryAccountLedger)){
+						$expenseBalance = $salaryAccountLedger['AccountsLedger']['balance'] + $totalamount;
+					}else{
+						$expenseAccountOpeningBalance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$salaryAccountId['AccountsSalaryregister']['accounts_account_id']),'fields'=>array('AccountsAccount.opening_balance')));
+						$expenseBalance = $expenseBalance['AccountsAccount']['opening_balance'] + $totalamount;
+					}
+				 	
+				 	$acc_detail22 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$key3),'fields'=>array('AccountsAccount.account_type_id')));
+				 	$account_type22 = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$acc_detail22['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+				 	$golden_rule22 = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$account_type22['AccountType']['accounts_goldenrule_id'])));
+				 	if($golden_rule22['AccountsGoldenrule']['decrease'] == 'Debit'){
+				 		$saveBankAccountLedger['AccountsLedger']['debit'] = $totalamount;
+				 		$saveBankAccountLedger['AccountsLedger']['credit'] = 0;
+				 	}
+				 	else{
+				 		$saveBankAccountLedger['AccountsLedger']['credit'] = $totalamount;
+				 		$saveBankAccountLedger['AccountsLedger']['debit'] = 0;
+				 	}
+				 	
+				 	
+				 	$saveBankAccountLedger['AccountsLedger']['accounts_account_id'] = $key3;
+				 	$saveBankAccountLedger['AccountsLedger']['date'] = date('Y-m-d');
+				 	$saveBankAccountLedger['AccountsLedger']['payment_description'] = 'Amount Debited!';
+				 	
+				 	$saveBankAccountLedger['AccountsLedger']['balance'] = $balance;
+				 	$saveBankAccountLedger['AccountsLedger']['approved_by'] = $this->Session->read('Auth.User.id');
+				 	$this->AccountsLedger->create();
+				 	$this->AccountsLedger->save($saveBankAccountLedger);
+				 	
+				 	$Bankledger_id = $this->AccountsLedger->getLastInsertId();
+				 	
+				 	$acc_detail33 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$salaryAccountId['AccountsSalaryregister']['accounts_account_id']),'fields'=>array('AccountsAccount.account_type_id')));
+				 	$account_type33 = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$acc_detail33['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+				 	$golden_rule33 = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$account_type33['AccountType']['accounts_goldenrule_id'])));
+				 	if($golden_rule33['AccountsGoldenrule']['increase'] == 'Debit'){
+				 		$saveExpenseAccountLedger['AccountsLedger']['debit'] = $totalamount;
+				 		$saveExpenseAccountLedger['AccountsLedger']['credit'] = 0;
+				 	}
+				 	else{
+				 		$saveExpenseAccountLedger['AccountsLedger']['credit'] = $totalamount;
+				 		$saveExpenseAccountLedger['AccountsLedger']['debit'] = 0;
+				 	}
+				 	
+				 	
+				 	$saveExpenseAccountLedger['AccountsLedger']['accounts_account_id'] = $salaryAccountId['AccountsSalaryregister']['accounts_account_id'];
+				 	$saveExpenseAccountLedger['AccountsLedger']['date'] = date('Y-m-d');
+				 	$saveExpenseAccountLedger['AccountsLedger']['payment_description'] = 'Amount Credited!';
+				 	$saveExpenseAccountLedger['AccountsLedger']['balance'] = $expenseBalance;
+				 	$saveExpenseAccountLedger['AccountsLedger']['approved_by'] = $this->Session->read('Auth.User.id');
+				 	$this->AccountsLedger->create();
+				 	$this->AccountsLedger->save($saveExpenseAccountLedger);
+				 	
+				 	$transac_id = $this->AccountsLedger->getLastInsertId();
+				 	
+				 	$BankTransac_id = $this->AccountsLedger->findById($Bankledger_id);
+				 	$saveBankTransac_id['AccountsLedger']['id'] = $BankTransac_id['AccountsLedger']['id'];
+				 	$saveBankTransac_id['AccountsLedger']['transaction_id'] = $transac_id;
+				 	
+				 	$expenseTransac_id = $this->AccountsLedger->findById($transac_id);
+				 	$saveexpenseTransac_id['AccountsLedger']['id'] = $expenseTransac_id['AccountsLedger']['id'];
+				 	$saveexpenseTransac_id['AccountsLedger']['transaction_id'] = $transac_id;
+				 	
+				 	$this->AccountsLedger->save($saveBankTransac_id);
+				 	$this->AccountsLedger->save($saveexpenseTransac_id);
+				 	
+				 	
+				 	//Accounts Payable Entries
+				 	$accountsPayable_accountdetails = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Payable'),'fields'=>array('AccountsAccount.id','AccountsAccount.opening_balance','AccountsAccount.account_type_id')));
+					$accountsPayable_ledgerdetails = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accountsPayable_accountdetails['AccountsAccount']['id']),'order'=>array('AccountsLedger.date DESC','AccountsLedger.id DESC')));
+					
+					$accountsPayable_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accountsPayable_accountdetails['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+					$accountsPayable_golden_rule = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accountsPayable_type['AccountType']['accounts_goldenrule_id'])));
+					
+					if(empty($accountsPayable_ledgerdetails)){
+						$accountsPayable_balance_amount = $accountsPayable_accountdetails['AccountsAccount']['opening_balance'];
+					}
+					else{
+						$accountsPayable_balance_amount = $accountsPayable_ledgerdetails['AccountsLedger']['balance'];
+					}
+					
+					$savecredit->data = null;
+					$this->AccountsLedger->create();
+					$savecredit->data['AccountsLedger']['accounts_account_id'] = $accountsPayable_accountdetails['AccountsAccount']['id'];
+					$savecredit->data['AccountsLedger']['date'] = date('Y-m-d'); 
+					$savecredit->data['AccountsLedger']['is_neutral'] = 'Y'; 
+					$savecredit->data['AccountsLedger']['payment_description'] = "Amount Debited!";
+					$savecredit->data['AccountsLedger']['approved_by'] = $this->Session->read('Auth.User.id');
+					$savecredit->data['AccountsLedger']['cheque_no'] = "Salary amount processed";
+					if($accountsPayable_golden_rule['AccountsGoldenrule']['decrease'] == 'Debit'){
+						$savecredit->data['AccountsLedger']['credit'] = "0";
+						$savecredit->data['AccountsLedger']['debit'] =$totalamount;
+					}
+					else{
+						$savecredit->data['AccountsLedger']['debit'] = "0";
+						$savecredit->data['AccountsLedger']['credit'] =$totalamount;
+					}
+					
+					$savecredit->data['AccountsLedger']['balance'] = ($accountsPayable_balance_amount - $totalamount);
+					
+					$this->AccountsLedger->save($savecredit->data);
+					
+					$acc_payable = $this->AccountsLedger->getLastInsertId();
+					$save_transac_id['AccountsLedger']['id'] = $acc_payable;
+					$save_transac_id['AccountsLedger']['transaction_id'] = $acc_payable;
+				 	$this->AccountsLedger->save($save_transac_id);
+				 	
+				 
+				}
+			}
+			if($error == 'empty'){
+				$this->Session->setFlash(__('<div class="flashMessageError">Salary transfer unsuccessful!</div>'));
+			}else{
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">Successfully transfered!</div>'));
+			}
+			
+			$this->redirect(array('controller'=>'accounts_salaryprocesses','action'=>'process_cash'));
+		}
+		
+	
+	//Approve the cheque payment salary	
+		if($payment_mode == 'cheque'){
+			debug($this->data);
+			$accountsSalaryregisterRecord=null;$save_accountdata=null;$transferledgerAccount=null;
+			$error=null;
+			if(!empty($this->data['AccountsSalaryprocess']['id'])){
+				$i=0;
+				foreach($this->data['AccountsSalaryprocess']['id'] as $key5 => $val5){
+					
+				$balance=null;$expenseBalance=null;$saveBankAccountLedger=null;
+				
+				
+				
+					if($val5){
+						$accountsSalaryregisterRecord = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$key5)));
+				//		$transferAccountId['Transferledger'][$this->data['AccountsSalaryprocess']['accounts_account_id'][$key5]][$i] = $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+				//		$i++;
+						
+						$transferledgerAccount = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$this->data['AccountsSalaryprocess']['accounts_account_id'][$key5]),'order'=>array('AccountsLedger.id DESC')));
+						$BankAccountOpening_balance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$this->data['AccountsSalaryprocess']['accounts_account_id'][$key5]),'fields'=>array('AccountsAccount.opening_balance')));
+						
+						if(empty($transferledgerAccount)){
+							if($BankAccountOpening_balance['AccountsAccount']['opening_balance'] < $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home']){
+								$this->Session->setFlash(__('<div class="flashMessageError">Salary cannot be transfer due to insufficent balance in account!</div>'));
+								return;
+							}
+						}else{
+							if($transferledgerAccount['AccountsLedger']['balance'] < $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home']){
+								$this->Session->setFlash(__('<div class="flashMessageError">Salary cannot be transfer due to insufficent balance in account!</div>'));
+								return;
+							}
+						}
+						 
+						
+						$save_accountdata['AccountsSalaryprocess']['id'] = $val5;
+						$save_accountdata['AccountsSalaryprocess']['approved'] = 'Yes';
+						$save_accountdata['AccountsSalaryprocess']['approved_by'] = $this->Session->read('Auth.User.id');
+						$save_accountdata['AccountsSalaryprocess']['approved_date'] = date('Y-m-d');
+						$this->AccountsSalaryprocess->save($save_accountdata);
+						
+						
+						//Debiting from the Bank account.
+						
+						if(!empty($transferledgerAccount)){
+							$balance = $transferledgerAccount['AccountsLedger']['balance'] - $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+						}else{
+							
+							$balance = $BankAccountOpening_balance['AccountsAccount']['opening_balance'] - $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+						}
+						$salaryAccountLedger = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$salaryAccountId['AccountsSalaryregister']['accounts_account_id']),'order'=>array('AccountsLedger.id DESC')));
+					//Crediting to the salary account.
+						if(!empty($salaryAccountLedger)){
+							$expenseBalance = $salaryAccountLedger['AccountsLedger']['balance'] + $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+						}else{
+							$expenseAccountOpeningBalance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$salaryAccountId['AccountsSalaryregister']['accounts_account_id']),'fields'=>array('AccountsAccount.opening_balance')));
+							$expenseBalance = $expenseBalance['AccountsAccount']['opening_balance'] + $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+						}
+						
+					 	$acc_detail55 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$this->data['AccountsSalaryprocess']['accounts_account_id'][$key5]),'fields'=>array('AccountsAccount.account_type_id')));
+				 		$account_type55 = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$acc_detail55['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+				 		$golden_rule55 = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$account_type55['AccountType']['accounts_goldenrule_id'])));
+					 	
+					 	if($golden_rule55['AccountsGoldenrule']['decrease'] == 'Debit'){
+					 		$saveBankAccountLedger['AccountsLedger']['debit'] = $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+					 		$saveBankAccountLedger['AccountsLedger']['credit'] = 0;
+					 	}
+					 	else{
+					 		$saveBankAccountLedger['AccountsLedger']['credit'] = $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+					 		$saveBankAccountLedger['AccountsLedger']['debit'] = 0;
+					 	}
+				 		$saveBankAccountLedger['AccountsLedger']['accounts_account_id'] = $this->data['AccountsSalaryprocess']['accounts_account_id'][$key5];
+					 	$saveBankAccountLedger['AccountsLedger']['date'] = date('Y-m-d');
+					 	$saveBankAccountLedger['AccountsLedger']['cheque_no'] = $this->data['AccountsSalaryprocess']['cheque_no'][$key5];
+					 	$saveBankAccountLedger['AccountsLedger']['payment_description'] = 'Amount Debited!';
+					 	
+					 	$saveBankAccountLedger['AccountsLedger']['balance'] = $balance;
+					 	$saveBankAccountLedger['AccountsLedger']['approved_by'] = $this->Session->read('Auth.User.id');
+					 	$this->AccountsLedger->create();
+					 	$this->AccountsLedger->save($saveBankAccountLedger);
+					 	
+					 	$Bankledger_id = $this->AccountsLedger->getLastInsertId();
+					 	
+					 	$acc_detail44 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$salaryAccountId['AccountsSalaryregister']['accounts_account_id']),'fields'=>array('AccountsAccount.account_type_id')));
+				 		$account_type44 = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$acc_detail44['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+				 		$golden_rule44 = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$account_type44['AccountType']['accounts_goldenrule_id'])));
+					 	
+					 	if($golden_rule44['AccountsGoldenrule']['increase'] == 'Debit'){
+					 		$saveExpenseAccountLedger['AccountsLedger']['debit'] = $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+					 		$saveExpenseAccountLedger['AccountsLedger']['credit'] = 0;
+					 	}
+					 	else{
+					 		$saveExpenseAccountLedger['AccountsLedger']['debit'] = 0;
+					 		$saveExpenseAccountLedger['AccountsLedger']['credit'] = $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+					 	}
+					 	
+					 	$saveExpenseAccountLedger['AccountsLedger']['accounts_account_id'] = $salaryAccountId['AccountsSalaryregister']['accounts_account_id'];
+					 	$saveExpenseAccountLedger['AccountsLedger']['date'] = date('Y-m-d');
+					 	$saveExpenseAccountLedger['AccountsLedger']['cheque_no'] = $this->data['AccountsSalaryprocess']['cheque_no'][$key5];
+					 	$saveExpenseAccountLedger['AccountsLedger']['payment_description'] = 'Amount Credited!';
+					 	$saveExpenseAccountLedger['AccountsLedger']['balance'] = $expenseBalance;
+					 	$saveExpenseAccountLedger['AccountsLedger']['approved_by'] = $this->Session->read('Auth.User.id');
+					 	
+					 	$this->AccountsLedger->create();
+					 	$this->AccountsLedger->save($saveExpenseAccountLedger);
+					 	
+					 	$transac_id = $this->AccountsLedger->getLastInsertId();
+					 	$BankTransac_id = $this->AccountsLedger->findById($Bankledger_id);
+					 	$saveBankTransac_id['AccountsLedger']['id'] = $BankTransac_id['AccountsLedger']['id'];
+					 	$saveBankTransac_id['AccountsLedger']['transaction_id'] = $transac_id;
+					 	
+					 	$expenseTransac_id = $this->AccountsLedger->findById($transac_id);
+					 	$saveexpenseTransac_id['AccountsLedger']['id'] = $expenseTransac_id['AccountsLedger']['id'];
+					 	$saveexpenseTransac_id['AccountsLedger']['transaction_id'] = $transac_id;
+					 	
+					 	$this->AccountsLedger->save($saveBankTransac_id);
+					 	$this->AccountsLedger->save($saveexpenseTransac_id);
+					 	
+					
+					//Accounts Payable Entries
+				 	$accountsPayable_accountdetails = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Payable'),'fields'=>array('AccountsAccount.id','AccountsAccount.opening_balance','AccountsAccount.account_type_id')));
+					$accountsPayable_ledgerdetails = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accountsPayable_accountdetails['AccountsAccount']['id']),'order'=>array('AccountsLedger.date DESC','AccountsLedger.id DESC')));
+					
+					$accountsPayable_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accountsPayable_accountdetails['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.accounts_goldenrule_id')));
+					$accountsPayable_golden_rule = $this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accountsPayable_type['AccountType']['accounts_goldenrule_id'])));
+					
+					if(empty($accountsPayable_ledgerdetails)){
+						$accountsPayable_balance_amount = $accountsPayable_accountdetails['AccountsAccount']['opening_balance'];
+					}
+					else{
+						$accountsPayable_balance_amount = $accountsPayable_ledgerdetails['AccountsLedger']['balance'];
+					}
+					
+					$savecredit->data = null;
+					$this->AccountsLedger->create();
+					$savecredit->data['AccountsLedger']['accounts_account_id'] = $accountsPayable_accountdetails['AccountsAccount']['id'];
+					$savecredit->data['AccountsLedger']['date'] = date('Y-m-d'); 
+					$savecredit->data['AccountsLedger']['is_neutral'] = 'Y'; 
+					$savecredit->data['AccountsLedger']['payment_description'] = "Amount Debited!";
+					$savecredit->data['AccountsLedger']['approved_by'] = $this->Session->read('Auth.User.id');
+					$savecredit->data['AccountsLedger']['cheque_no'] = "Salary amount processed";
+					if($accountsPayable_golden_rule['AccountsGoldenrule']['decrease'] == 'Debit'){
+						$savecredit->data['AccountsLedger']['credit'] = "0";
+						$savecredit->data['AccountsLedger']['debit'] =$accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+					}
+					else{
+						$savecredit->data['AccountsLedger']['debit'] = "0";
+						$savecredit->data['AccountsLedger']['credit'] =$accountsSalaryregisterRecord['AccountsSalaryregister']['take_home'];
+					}
+					
+					$savecredit->data['AccountsLedger']['balance'] = ($accountsPayable_balance_amount - $accountsSalaryregisterRecord['AccountsSalaryregister']['take_home']);
+					
+					$this->AccountsLedger->save($savecredit->data);
+					
+					$acc_payable = $this->AccountsLedger->getLastInsertId();
+					$save_transac_id['AccountsLedger']['id'] = $acc_payable;
+					$save_transac_id['AccountsLedger']['transaction_id'] = $acc_payable;
+					 	
+					 	
+					}
+				}
+			}
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Transfered the salary successfully!</div>'));
+			$this->redirect(array('controller'=>array('controller'=>'accounts_salaryprocesses','action'=>'process_cheque')));
+		}
+	}
+	
+	
+	public function cheque_no(){
+	//	Configure::write('debug',2);
+		debug($this->data);
+		foreach($this->data['AccountsSalaryprocess']['cheque_no'] as $key => $value){
+			if($value){
+				$final['salaryregisterrecords']['cheque_no'][$key] = $value;
+				$temp = $value + 1;
+			}else{
+				$final['salaryregisterrecords']['cheque_no'][$key] = $temp;
+				$temp++;
+			}
+		}
+		debug($final);
+		$this->set(compact('final'));
+	}
+	
+	
+	public function total_calculation(){
+	//	Configure::write('debug',2);
+		debug($this->data);
+		foreach($this->data['AccountsSalaryprocess']['Process'] as $key => $val){
+			if($val == 1 && empty($this->data['AccountsSalaryprocess']['id'][$key])){
+				$total = $total + $this->data['AccountsSalaryprocess']['take_home'][$key];
+			}
+		}
+		if($total == 0){
+			foreach($this->data['AccountsSalaryprocess']['take_home'] as $key => $val){
+				$total = $total + $val;
+			}
+			 
+		}
+		$this->set(compact('total'));
+	}
+	
+	
+	public function callpdf(){
+	//	Configure::write('debug',2);
+		$this->loadModel('AccountsSalaryprocess');
+		$this->loadModel('AccountsSalaryregister');
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsMonthlysalaryBreakup');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$salaryregisterrecords = $this->AccountsSalaryregister->find('all',array('conditions'=>array('AccountsSalaryregister.month'=>date('n'),'AccountsSalaryregister.year'=>date('Y'))));
+		foreach($salaryregisterrecords as $salaryregisterrecord){
+			
+			$salaryprocessrecords = $this->AccountsSalaryprocess->find('first',array('conditions'=>array('AccountsSalaryprocess.accounts_salaryregister_id'=>$salaryregisterrecord['AccountsSalaryregister']['id'])));
+			if(!empty($salaryprocessrecords)){
+			$staff_details = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$salaryregisterrecord['AccountsSalaryregister']['staff_id'],'Staff.active' =>'Y'),'fields'=>array('Staff.first_name','Staff.last_name','Staff.start_date','Staff.emp_code')));
+			$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['staff_name'] = $staff_details['Staff']['first_name'].' '.$staff_details['Staff']['last_name'];
+			$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['doj'] = $staff_details['Staff']['start_date'];
+			$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['emp_code'] = $staff_details['Staff']['emp_code'];
+			$salary_breakups = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$salaryregisterrecord['AccountsSalaryregister']['id'])));
+			$i=0;$j=0;
+			$breakup_details = $this->AccountsSalaryBreakupcomponent->find('all',array('conditions'=>array('AccountsSalaryBreakupcomponent.active'=>'Yes'),'order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+			foreach($breakup_details as $breakup_detail){
+				
+				$salary_breakup = $this->AccountsMonthlysalaryBreakup->find('first',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$salaryregisterrecord['AccountsSalaryregister']['id'],'AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$breakup_detail['AccountsSalaryBreakupcomponent']['id'])));
+				
+				if(!empty($salary_breakup)){
+					if($salary_breakup['AccountsMonthlysalaryBreakup']['is_deduction'] == 'Y'){
+						$total_deductions = $total_deductions + $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+					}
+				}
+				
+				
+				switch($breakup_detail['AccountsSalaryBreakupcomponent']['salary_component']){
+					
+					case 'Basic':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][1]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][1]['earning'] = 'BASIC';
+						}
+						break;
+					
+					case 'HRA':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][2]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][2]['earning'] = 'HOUSE RENT ALLOWANCE';
+						}
+						break;
+					
+					case 'Employer PF@12%':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][3]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][3]['deduction'] = 'EMPLOYER PF@12%';
+						}
+						break;
+					
+					case 'Professional Tax':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][2]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][2]['deduction'] = 'PROFESSIONAL TAX';
+						}
+						break;
+					
+					case 'Medical':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][4]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][4]['earning'] = 'MEDICAL';
+						}
+						break;
+					
+					case 'CCA':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][3]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][3]['earning'] = 'CCA';
+						}
+						break;
+					
+					case 'Conveyance':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][5]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][5]['earning'] = 'CONVEYANCE';
+						}
+						break;
+					
+					case 'Employee PF@12%':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][1]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][1]['deduction'] = 'EMPLOYEE PF@12%';
+							
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][6]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][6]['earning'] = 'PF@12%';
+						}
+						break;
+					
+					case 'Special Allowance':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][7]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][7]['earning'] = 'SPECIAL ALLOWANCE';
+						}
+						break;
+					
+					case 'Cab Service':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][4]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][4]['deduction'] = 'CAB SERVICE';
+						}
+						break;
+					
+					case 'Food Coupons':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][5]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][5]['deduction'] = 'FOOD COUPONS';
+						}
+						break;
+					
+					case 'Income Tax':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][6]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][6]['deduction'] = 'INCOME TAX';
+						}
+						break;
+					
+					case 'LOP':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][7]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][7]['deduction'] = 'LOSS OF PAY';
+						}
+						break;
+					
+					case 'NSA':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][9]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][9]['earning'] = 'NSA';
+						}
+						break;
+					
+					case 'Others':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][8]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][8]['deduction'] = 'OTHERS';
+						}
+						break;
+					}
+				}
+				if(!empty($salaryregisterrecord['AccountsSalaryregister']['variable_pay'])){
+					$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][8]['amount'] = $salaryregisterrecord['AccountsSalaryregister']['variable_pay'];
+					$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][8]['earning'] = 'VARIABLE PAY';
+				}
+			
+				$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['grosspay'] = $salaryregisterrecord['AccountsSalaryregister']['ctc'];
+				$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['total_deductions'] = $total_deductions;
+				$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['net_salary'] = $salaryregisterrecord['AccountsSalaryregister']['take_home'];
+			}
+		}
+		$this->set(compact('final'));
+	}
+	
+	public function pdf(){
+	//	Configure::write('debug',2);
+		$this->loadModel('AccountsSalaryprocess');
+		$this->loadModel('AccountsSalaryregister');
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsMonthlysalaryBreakup');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$salaryregisterrecords = $this->AccountsSalaryregister->find('all',array('conditions'=>array('AccountsSalaryregister.month'=>date('n'),'AccountsSalaryregister.year'=>date('Y'))));
+		foreach($salaryregisterrecords as $salaryregisterrecord){
+			
+			$salaryprocessrecords = $this->AccountsSalaryprocess->find('first',array('conditions'=>array('AccountsSalaryprocess.accounts_salaryregister_id'=>$salaryregisterrecord['AccountsSalaryregister']['id'])));
+			if(!empty($salaryprocessrecords)){
+			$staff_details = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$salaryregisterrecord['AccountsSalaryregister']['staff_id'],'Staff.active' =>'Y'),'fields'=>array('Staff.first_name','Staff.last_name','Staff.start_date','Staff.emp_code')));
+			$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['staff_name'] = $staff_details['Staff']['first_name'].' '.$staff_details['Staff']['last_name'];
+			$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['doj'] = $staff_details['Staff']['start_date'];
+			$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['emp_code'] = $staff_details['Staff']['emp_code'];
+			$salary_breakups = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$salaryregisterrecord['AccountsSalaryregister']['id'])));
+			$i=0;$j=0;
+			$breakup_details = $this->AccountsSalaryBreakupcomponent->find('all',array('conditions'=>array('AccountsSalaryBreakupcomponent.active'=>'Yes'),'order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+			$total_deductions = 0;
+			foreach($breakup_details as $breakup_detail){
+				
+				$salary_breakup = $this->AccountsMonthlysalaryBreakup->find('first',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$salaryregisterrecord['AccountsSalaryregister']['id'],'AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$breakup_detail['AccountsSalaryBreakupcomponent']['id'])));
+				
+				if(!empty($salary_breakup)){
+					if($salary_breakup['AccountsMonthlysalaryBreakup']['is_deduction'] == 'Y'){
+						$total_deductions = $total_deductions + $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+					}
+				}
+				
+				
+				switch($breakup_detail['AccountsSalaryBreakupcomponent']['salary_component']){
+					
+					case 'Basic':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][1]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][1]['earning'] = 'BASIC';
+						}
+						break;
+					
+					case 'HRA':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][2]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][2]['earning'] = 'HOUSE RENT ALLOWANCE';
+						}
+						break;
+					
+					case 'Employer PF@12%':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][3]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][3]['deduction'] = 'EMPLOYER PF@12%';
+						}
+						break;
+					
+					case 'Professional Tax':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][2]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][2]['deduction'] = 'PROFESSIONAL TAX';
+						}
+						break;
+					
+					case 'Medical':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][4]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][4]['earning'] = 'MEDICAL';
+						}
+						break;
+					
+					case 'CCA':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][3]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][3]['earning'] = 'CCA';
+						}
+						break;
+					
+					case 'Conveyance':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][5]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][5]['earning'] = 'CONVEYANCE';
+						}
+						break;
+					
+					case 'Employee PF@12%':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][1]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][1]['deduction'] = 'EMPLOYEE PF@12%';
+							
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][6]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][6]['earning'] = 'PF@12%';
+						}
+						break;
+					
+					case 'Special Allowance':
+						if(!empty($salary_breakup)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][7]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][7]['earning'] = 'SPECIAL ALLOWANCE';
+						}
+						break;
+					
+					case 'Cab Service':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][4]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][4]['deduction'] = 'CAB SERVICE';
+						}
+						break;
+					
+					case 'Food Coupons':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][5]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][5]['deduction'] = 'FOOD COUPONS';
+						}
+						break;
+					
+					case 'Income Tax':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][6]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][6]['deduction'] = 'INCOME TAX';
+						}
+						break;
+					
+					case 'LOP':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][7]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][7]['deduction'] = 'LOSS OF PAY';
+						}
+						break;
+					
+					case 'NSA':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][9]['amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][9]['earning'] = 'NSA';
+						}
+						break;
+					
+					case 'Others':
+						if(!empty($salary_breakup) && ($salary_breakup['AccountsMonthlysalaryBreakup']['amount'] > 0)){
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][8]['deduction_amount'] = $salary_breakup['AccountsMonthlysalaryBreakup']['amount'];
+							$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][8]['deduction'] = 'OTHERS';
+						}
+						break;
+					}
+				}
+				if(!empty($salaryregisterrecord['AccountsSalaryregister']['variable_pay'])){
+					$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][8]['amount'] = $salaryregisterrecord['AccountsSalaryregister']['variable_pay'];
+					$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['breakups'][8]['earning'] = 'VARIABLE PAY';
+				}
+			
+				$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['grosspay'] = $salaryregisterrecord['AccountsSalaryregister']['ctc'];
+				$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['total_deductions'] = $total_deductions;
+				$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['net_salary'] = $salaryregisterrecord['AccountsSalaryregister']['take_home'];
+			}
+		
+		
+			
+		
+			$num = $salaryregisterrecord['AccountsSalaryregister']['take_home'];
+			list($num, $dec) = explode(".", $num);
+
+   			$output = "";
+
+			if($num{0} == "-"){
+				$output = "negative ";
+			    $num = ltrim($num, "-");
+			}
+			else if($num{0} == "+"){
+				$output = "positive ";
+			   	$num = ltrim($num, "+");
+			}
+			if($num{0} == "0"){
+				$output .= "zero";
+			}
+			else{
+				$num = str_pad($num, 36, "0", STR_PAD_LEFT);
+			    $group = rtrim(chunk_split($num, 3, " "), " ");
+			    $groups = explode(" ", $group);
+			
+			    $groups2 = array();
+			    foreach($groups as $g) $groups2[] = $this->convertThreeDigit($g{0}, $g{1}, $g{2});
+			
+			    for($z = 0; $z < count($groups2); $z++){
+			       	if($groups2[$z] != ""){
+			           	$output .= $groups2[$z].$this->convertGroup(11 - $z).($z < 11 && !array_search('', array_slice($groups2, $z + 1, -1))
+			           	&& $groups2[11] != '' && $groups[11]{0} == '0' ? " and " : ", ");
+			       	}
+			    }
+			
+			   	$output = rtrim($output, ", ");
+			}
+			if($dec > 0){
+				$output .= " point";
+			    for($i = 0; $i < strlen($dec); $i++) $output .= " ".$this->convertDigit($dec{$i});
+			}
+			$final[$salaryregisterrecord['AccountsSalaryregister']['staff_id']]['words'] = 	$output;
+			
+			
+			
+			
+			
+		}	
+		$this->set(compact('final'));
+    	$this->layout = 'pdflayout'; 
+    	$this->render();
+    	
+    	foreach($salaryregisterrecords as $salaryregisterrecord){
+    		$salaryprocessrecords = $this->AccountsSalaryprocess->find('first',array('conditions'=>array('AccountsSalaryprocess.accounts_salaryregister_id'=>$salaryregisterrecord['AccountsSalaryregister']['id'])));
+			if(!empty($salaryprocessrecords)){
+			$staff_details = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$salaryregisterrecord['AccountsSalaryregister']['staff_id'],'Staff.active' =>'Y'),'fields'=>array('Staff.email1','Staff.last_name','Staff.first_name','Staff.emp_code')));
+			$from = 'mohan@carmatec.com'; 
+			$to = $staff_details['Staff']['email1'];
+			/*$ccaddress = 'mohan@carmatec.com';*/
+			$subject = "Payslip for the month of ".date('M').' '.date('Y');
+			$staff_name=$staff_details['Staff']['first_name'].' '.$staff_details['Staff']['last_name'];
+			$body = "Hello  $staff_name\n\n" ."	Please find the attachment of  your payslip." .
+			" \n\n\n" .
+			"Thanks & Regards\n" .
+			"Mohan Raj R\n" .
+			"Manager-Operations\n" .
+			"Carmatec IT Solutions Pvt. Ltd.\n" .
+			"Bangalore - 560103.";
+			
+			$path = $_SERVER['DOCUMENT_ROOT'].$this->webroot."app/webroot/files/uploads/salaryslips/";
+    		$file = $path.$staff_details['Staff']['emp_code'].'_'.date('M').'_'.date('Y').'.pdf';
+    		$content = chunk_split(base64_encode(file_get_contents($file)));
+  			ob_start(); 
+    		$uid = md5(uniqid(time()));
+   	 		$name = basename($file);
+    		$header = "From: "." <".'mohan@carmatec.com'.">\r\n";
+    	//	$header .= "Reply-To: ".'mohan@carmatec.com'."\r\n";
+    	//	$header .= "CC: ".$ccaddress."\n";
+    		$header .= "MIME-Version: 1.0\r\n";
+    		$header .= "Content-Type: multipart/mixed; boundary=\"".$uid."\"\r\n\r\n";
+    		$header .= "This is a multi-part message in MIME format.\r\n";
+    		$header .= "--".$uid."\r\n";
+   	 		$header .= "Content-type:text/plain; charset=iso-8859-1\r\n";
+    		$header .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    		$header .= $body."\r\n\r\n";
+    		$header .= "--".$uid."\r\n";
+    		$header .= "Content-Type: application/pdf; name=\""."Invoice-".$staff_details['Staff']['emp_code'].'_'.date('M').'_'.date('Y')."\"\r\n"; // use different content types here
+    		$header .= "Content-Transfer-Encoding: base64\r\n";
+    		$header .= "Content-Disposition: attachment; filename=\""."Payslip-".$staff_details['Staff']['emp_code'].'_'.date('M').'_'.date('Y')."\"\r\n\r\n";
+    		$header .= $content."\r\n\r\n";
+   	 		$header .= "--".$uid."--";
+			$success = mail($to, $subject, $body, $header);
+
+    		}
+		}
+		
+		if($success == 1){
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Mail has been sent successfully to the employees</div>'));
+			$this->redirect(array('controller'=>'accounts_salaryprocesses','action'=>'process_account'));
+		}
+	}
+	
+	
+	public function view_statement(){
+		//Configure::write('debug',2);		
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountType');
+		$this->loadModel('Staff');	
+		$this->loadModel('AccountsSalarydetail');
+		$this->loadModel('AccountsSalaryregister');
+	    $this->loadModel('AccountsMonthlysalaryBreakup');
+	    $this->loadModel('AccountsSalaryBreakupcomponent');	    
+		
+		$this->AccountsSalaryprocess->recursive = 0;
+		$empname = $this->data['searchbyEmp']['empName'];
+		if($empname) {
+			$emprecord=1;
+			$this->set(compact('emprecord'));
+			$strCond = 'Staff.first_name LIKE'."'".$empname.'%'."'";
+			$staffIdArr = $this->Staff->find('all',array('conditions'=>array($strCond),'fields'=>array('Staff.id')));
+			$this->paginate = $staffIdArr;
+			$month = $this->data['searchbyEmp']['month'];
+		    $year  = $this->data['searchbyEmp']['year'];	
+		    $mode  = $this->data['searchbyEmp']['mode'];	
+		    $startYear = date( "Y"); 
+        	$currMonth  = date("m");
+            
+        	if (is_null($month) && is_null($year) && is_null($mode))
+        		{
+        			$month     = $currMonth;
+        			$year      = $startYear;  
+        			$mode      = 'All';      	
+        		}
+       
+       		for($currentYear = $startYear - 10; $currentYear <= $startYear+8;$currentYear++) 
+        		{ 
+            		$yearArr[$currentYear] = $currentYear;
+        		}      
+			$monthName = array(1=>"January", "February", "March", 
+            "April", "May", "June", "July", "August", 
+            "September", "October", "November", "December");        
+                
+       	 	for($currentMonth = 1; $currentMonth <= 12; $currentMonth++) 
+        		{   	
+        			$i=0;   
+        			if($currentMonth <=9) {$cm = $i.$currentMonth;} 
+        			else {$cm = $currentMonth;}         
+            		$monthArr[$cm] = $monthName[$currentMonth];
+        		}
+       	 	$currentMonth = $monthName[$month]; 
+       	 	debug($staffIdArr);
+       	 	foreach($this->paginate  as $keyId=>$valId)
+       	 		{
+       	 			  	 			
+       	 			if($mode == 'All') {
+       	 				//$this->paginate = array('limit'=>'20','conditions'=>array('AccountsSalaryprocess.month'=>$month, 'AccountsSalaryprocess.year'=>$year, 'AccountsSalaryprocess.approved'=>'Yes','AccountsSalaryregister.staff_id'=>$valId['Staff']['id']));
+				  		
+				  		//$aspArr[] = $this->paginate();
+				  		
+				  		$aspArr[] = $this->AccountsSalaryprocess->find('all',array('conditions'=>array('AccountsSalaryprocess.month'=>$month, 'AccountsSalaryprocess.year'=>$year, 'AccountsSalaryprocess.approved'=>'Yes','AccountsSalaryregister.staff_id'=>$valId['Staff']['id'])));
+				  	}else {
+				  		
+				  		//$this->paginate = array('limit'=>'20','conditions'=>array('AccountsSalaryprocess.month'=>$month, 'AccountsSalaryprocess.year'=>$year, 'AccountsSalaryprocess.mode_of_payment'=>$mode, 'AccountsSalaryprocess.approved'=>'Yes','AccountsSalaryregister.staff_id'=>$valId['Staff']['id']));
+				  		
+				  		//$aspArr[] = $this->paginate();
+				  	
+				  	    $aspArr[] = $this->AccountsSalaryprocess->find('all',array('conditions'=>array('AccountsSalaryprocess.month'=>$month, 'AccountsSalaryprocess.year'=>$year, 'AccountsSalaryprocess.mode_of_payment'=>$mode, 'AccountsSalaryprocess.approved'=>'Yes','AccountsSalaryregister.staff_id'=>$valId['Staff']['id'])));
+				  	} 
+					  	 				
+            }
+                
+       	 		//debug($this->paginate());
+       	 	//$this->paginate=array('limit'=>'20','conditions'=>array('AccountsSalaryprocess.month'=>$month, 'AccountsSalaryprocess.year'=>$year, 'AccountsSalaryprocess.mode_of_payment'=>$mode, 'AccountsSalaryprocess.approved'=>'Yes'));
+		    //$salDetailsArrs  = $this->paginate();	
+		   
+       	 	debug($aspArr);
+	  		foreach($aspArr as $aspKeys1=>$aspvals1){
+	  			foreach($aspvals1 as $aspKeys=>$aspvals)
+	  				{
+	  					$staffName = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$aspvals['AccountsSalaryregister']['staff_id']),'fields'=>array('Staff.first_name')));
+	  					$staffNameArr[$aspKeys1] = $staffName['Staff']['first_name'];
+	  					$salBrkupsArrs   = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$aspvals['AccountsSalaryprocess']['accounts_salaryregister_id'],'AccountsMonthlysalaryBreakup.is_deduction'=>'N')));
+	  	   	  
+						foreach($salBrkupsArrs as $salBrkupsArr){
+							$breakupcomponent =  $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'])));
+							$salmonthlybreakups[$salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount'];
+						}		
+						$deductArrs   = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$aspvals['AccountsSalaryprocess']['accounts_salaryregister_id'],'AccountsMonthlysalaryBreakup.is_deduction'=>'Y')));
+						foreach($deductArrs as $deductbreakup){
+							$breakupcomponent =  $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'])));
+							$saldeductbreakups[$deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $deductbreakup['AccountsMonthlysalaryBreakup']['amount'];
+						}
+	  				}
+	  		
+	            }
+	                	$this->set(compact('currentMonth','month','year','mode','yearArr','monthArr','aspArr','staffNameArr','salmonthlybreakups','saldeductbreakups'));		    
+		  }
+		else {
+			$month = $this->data['viewStatement']['month'];
+			$year  = $this->data['viewStatement']['year'];	
+			$mode  = $this->data['viewStatement']['mode'];		
+			
+        $startYear = date( "Y"); 
+        $currMonth  = date("m");
+        
+        if (is_null($month) && is_null($year) && is_null($mode))
+        {
+        	$month     = $currMonth;
+        	$year      = $startYear;  
+        	$mode      = 'All';      	
+        }
+       
+        for($currentYear = $startYear - 10; $currentYear <= $startYear+8;$currentYear++) 
+        { 
+            $yearArr[$currentYear] = $currentYear;
+        }      
+		$monthName = array(1=>"January", "February", "March", 
+            "April", "May", "June", "July", "August", 
+            "September", "October", "November", "December");        
+                
+        for($currentMonth = 1; $currentMonth <= 12; $currentMonth++) 
+        {   	
+        	$i=0;   
+        	if($currentMonth <=9) {$cm = $i.$currentMonth;} 
+        	else {$cm = $currentMonth;}         
+            $monthArr[$cm] = $monthName[$currentMonth];
+        }
+        $currentMonth = $monthName[$month]; 
+     
+      
+		  	if($mode == 'All') {
+		  		$this->paginate = array('limit'=>'20','conditions'=>array('AccountsSalaryprocess.month'=>$month, 'AccountsSalaryprocess.year'=>$year, 'AccountsSalaryprocess.approved'=>'Yes'));
+				$aspArr = $this->paginate();
+				
+		  		///$aspArr = $this->AccountsSalaryprocess->find('all',array('conditions'=>array('AccountsSalaryprocess.month'=>$month, 'AccountsSalaryprocess.year'=>$year, 'AccountsSalaryprocess.approved'=>'Yes')));
+		  	}else {
+		  		$this->paginate = array('limit'=>'20','conditions'=>array('AccountsSalaryprocess.month'=>$month, 'AccountsSalaryprocess.year'=>$year, 'AccountsSalaryprocess.mode_of_payment'=>$mode, 'AccountsSalaryprocess.approved'=>'Yes'));
+				$aspArr = $this->paginate();
+		  	
+		  	    //$aspArr = $this->AccountsSalaryprocess->find('all',array('conditions'=>array('AccountsSalaryprocess.month'=>$month, 'AccountsSalaryprocess.year'=>$year, 'AccountsSalaryprocess.mode_of_payment'=>$mode, 'AccountsSalaryprocess.approved'=>'Yes')));
+		  	}
+       
+	  	foreach($aspArr as $aspKeys=>$aspvals){
+	  		$staffName = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$aspvals['AccountsSalaryregister']['staff_id']),'fields'=>array('Staff.first_name')));
+	  		
+	  		    $staffNameArr[$aspKeys] = $staffName['Staff']['first_name'];
+	  		$salBrkupsArrs   = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$aspvals['AccountsSalaryprocess']['accounts_salaryregister_id'],'AccountsMonthlysalaryBreakup.is_deduction'=>'N')));
+	  	   	  
+		foreach($salBrkupsArrs as $salBrkupsArr){
+				$breakupcomponent =  $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'])));
+				$salmonthlybreakups[$salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount'];
+			}		
+		 
+		$deductArrs   = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$aspvals['AccountsSalaryprocess']['accounts_salaryregister_id'],'AccountsMonthlysalaryBreakup.is_deduction'=>'Y')));
+		foreach($deductArrs as $deductbreakup){
+			$breakupcomponent =  $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'])));
+			$saldeductbreakups[$deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $deductbreakup['AccountsMonthlysalaryBreakup']['amount'];
+			}
+	}
+	    	$this->set(compact('currentMonth','month','year','mode','yearArr','monthArr','aspArr','staffNameArr','salmonthlybreakups','saldeductbreakups'));
+	
+	}
+	    //debug($aspKeys1);
+	  	//debug($salmonthlybreakups);
+	  	//debug($saldeductbreakups);
+	  	//debug($staffNameArr);
+	   // debug($aspArr);
+		
+		
+	}
+	
+	
+	
+	
+	function convertGroup($index)
+{
+   switch($index)
+   {
+      case 11: return " decillion";
+      case 10: return " nonillion";
+      case 9: return " octillion";
+      case 8: return " septillion";
+      case 7: return " sextillion";
+      case 6: return " quintrillion";
+      case 5: return " quadrillion";
+      case 4: return " trillion";
+      case 3: return " billion";
+      case 2: return " million";
+      case 1: return " thousand";
+      case 0: return "";
+   }
+}
+
+function convertThreeDigit($dig1, $dig2, $dig3)
+{
+   $output = "";
+
+   if($dig1 == "0" && $dig2 == "0" && $dig3 == "0") return "";
+
+   if($dig1 != "0")
+   {
+      $output .= $this->convertDigit($dig1)." hundred";
+      if($dig2 != "0" || $dig3 != "0") $output .= " and ";
+   }
+
+   if($dig2 != "0") $output .= $this->convertTwoDigit($dig2, $dig3);
+   else if($dig3 != "0") $output .= $this->convertDigit($dig3);
+
+   return $output;
+}
+
+function convertTwoDigit($dig1, $dig2)
+{
+   if($dig2 == "0")
+   {
+      switch($dig1)
+      {
+         case "1": return "ten";
+         case "2": return "twenty";
+         case "3": return "thirty";
+         case "4": return "forty";
+         case "5": return "fifty";
+         case "6": return "sixty";
+         case "7": return "seventy";
+         case "8": return "eighty";
+         case "9": return "ninety";
+      }
+   }
+   else if($dig1 == "1")
+   {
+      switch($dig2)
+      {
+         case "1": return "eleven";
+         case "2": return "twelve";
+         case "3": return "thirteen";
+         case "4": return "fourteen";
+         case "5": return "fifteen";
+         case "6": return "sixteen";
+         case "7": return "seventeen";
+         case "8": return "eighteen";
+         case "9": return "nineteen";
+      }
+   }
+   else
+   {
+      $temp = $this->convertDigit($dig2);
+      switch($dig1)
+      {
+         case "2": return "twenty-$temp";
+         case "3": return "thirty-$temp";
+         case "4": return "forty-$temp";
+         case "5": return "fifty-$temp";
+         case "6": return "sixty-$temp";
+         case "7": return "seventy-$temp";
+         case "8": return "eighty-$temp";
+         case "9": return "ninety-$temp";
+      }
+   }
+}
+      
+function convertDigit($digit)
+{
+   switch($digit)
+   {
+      case "0": return "zero";
+      case "1": return "one";
+      case "2": return "two";
+      case "3": return "three";
+      case "4": return "four";
+      case "5": return "five";
+      case "6": return "six";
+      case "7": return "seven";
+      case "8": return "eight";
+      case "9": return "nine";
+   }
+}
+}

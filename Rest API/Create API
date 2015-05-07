@@ -1,0 +1,28 @@
+Rest API
+
+1:- Add the below lines in routes.php above ( require CAKE . 'Config' . DS . 'routes.php'; )
+
+     Router::mapResources(array('job_descriptions','users'));
+     Router::parseExtensions();
+
+2:- In Controller write one api function.
+
+	function sample_api(){
+		$data // Put the all values into $data.
+		$this->set(array(
+	            'data' => $data,
+	            '_serialize' => array('job_description')
+	        ));	 
+ 		// This is to set compact to the view that u have been sent.
+	}
+
+
+
+3:- In View create one folder ie xml. And add the  sample_api.ctp file.
+
+    Add the below code to the file.
+
+	<?php
+		echo $data;
+	?> 
+     

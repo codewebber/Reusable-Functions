@@ -1,0 +1,1440 @@
+<?php
+App::uses('AppController', 'Controller');
+
+/**
+ * AccountsSalaryregisters Controller
+ *
+ * @property AccountsSalaryregister $AccountsSalaryregister
+ */
+class AccountsSalaryregistersController extends AppController {
+	
+//public $helpers = array('GoogleChart');
+    
+    public function beforeFilter(){
+		parent::beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Salary Register';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;	    		
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+    }
+         
+/**
+ * index method
+ *
+ * @return void
+ */
+
+	public function index($month=null,$year=null,$accountid=null,$empStrength=null) {
+	   	//Configure::write('debug',2);
+	  	//debug($this->request->params['named']['page']);
+		//debug($empStrength);
+		$this->AccountsMonthlysalaryBreakup->cacheQueries = false;
+		$this->AccountsSalarydetail->cacheQueries = false;
+		$this->AccountsSalaryregister->cacheQueries = false;
+		$page = $this->request->params['named']['page'];
+		if(empty($page)) $page =1;
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountType');
+		$this->loadModel('Staff');	
+		$this->loadModel('AccountsSalarydetail');
+		$this->AccountsSalarydetail->recursive = 0;		
+		$acntypeid       = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name'=>'Expenses'),'fields'=>array('AccountType.id')));
+	   // debug($acntypeid['AccountType']['id']);
+	    $salacntname     = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Salary','AccountsAccount.account_type_id'=>$acntypeid['AccountType']['id']),'fields'=>array('AccountsAccount.id')));
+	   // debug($salacntname['AccountsAccount']['id']);
+	    $staffArrs            = $this->Staff->find('all',array('fields' => array('Staff.id'),array('conditions'=>array('Staff.active'=>'Y'))));
+	   
+        $startYear = date( "Y"); 
+        $currMonth  = date("m");
+        
+        if (is_null($month) && is_null($year) && is_null($accountid))
+        {
+        	$month     = $currMonth;
+        	$year      = $startYear;
+        	$accountid = $salacntname['AccountsAccount']['id'];
+        }
+
+        $dtLastDay = date('t', mktime(0, 0, 0, $month+1 , date('d')-date('d'), $year)); 
+        $strDate         = $year.'-'.$month.'-'.$dtLastDay;
+	    $staffnoInsalDetails  = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.applicable_from <='=>$strDate)));
+	    $staffcount  = $this->AccountsSalaryregister->find('count',array('conditions'=>array('AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y')));
+	    $empStrength     = $staffcount;
+	    
+	    
+	    
+	    
+       //debug($startYear);
+       //debug($currMonth);
+        for($currentYear = $startYear - 10; $currentYear <= $startYear+8;$currentYear++) 
+        { 
+            $yearArr[$currentYear] = $currentYear;
+        }      
+		$monthName = array(1=>"January", "February", "March", 
+            "April", "May", "June", "July", "August", 
+            "September", "October", "November", "December");        
+                
+        for($currentMonth = 1; $currentMonth <= 12; $currentMonth++) 
+        {   	
+        	$i=0;   
+        	if($currentMonth <=9) {$cm = $i.$currentMonth;} 
+        	else {$cm = $currentMonth;}         
+            $monthArr[$cm] = $monthName[$currentMonth];
+        }
+        $currentMonth = $monthName[$month]; 
+	    //debug($month);
+	    //debug($monthArr[$cm]);             
+        $performance = array("High"=>"High","Good"=>"Good","Average"=>"Average","Poor"=>"Poor");    	
+		$this->loadModel('AccountsMonthlysalaryBreakup');		
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsSalarydetail');
+		$this->loadModel('AccountsSalaryhikesdue');
+		$this->AccountsSalaryregister->recursive = 0;
+		$accountids =  $this->AccountsAccount->find('list', array('fields' => array('AccountsAccount.id','AccountsAccount.account_name'),'conditions'=>array('AccountsAccount.account_name'=>'Salary','AccountsAccount.account_type_id'=>$acntypeid['AccountType']['id'])));
+		
+		$totalNSA = 0;
+		$salRegIDs  = $this->AccountsSalaryregister->find('all',array('fields' => array('AccountsSalaryregister.id'),'conditions'=>array('AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y')));
+		foreach($salRegIDs as $salRegIDss){
+			$brkupArrays  = $this->AccountsMonthlysalaryBreakup->find('all',array('fields' => array('AccountsMonthlysalaryBreakup.amount'),'conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$salRegIDss['AccountsSalaryregister']['id'],'AccountsMonthlysalaryBreakup.is_deduction'=>'N','AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>14)));
+			foreach($brkupArrays as $brkupArray) {
+					$totalNSA = $totalNSA + $brkupArray['AccountsMonthlysalaryBreakup']['amount'];
+			}
+		}
+		
+		//$this->paginate  = $salDetailsArrs;
+		$this->AccountsSalaryregister->recursive = 0;
+		$this->AccountsSalaryregister->unbindModel(array('belongsTo'=>array('AccountsAccount')));
+		$this->paginate=array('limit'=>'20','conditions'=>array('AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y'),'order'=>'Staff.first_name ASC');
+		debug($this->paginate);
+		$salDetailsArrs  = $this->paginate();
+		debug($this->paginate());
+		
+		
+		
+		
+		
+		
+		
+		// Total amount for the month
+		//$month_nonzero = (int)$month;
+	    $totalPay  = $this->AccountsSalaryregister->find('first',
+	    array('fields' => array('SUM(AccountsSalaryregister.fixed_pay) AS fixed_pay',
+	   'SUM(AccountsSalaryregister.variable_pay) AS variable_pay',
+       'SUM(AccountsSalaryregister.netctc) AS netctc',
+       'SUM(AccountsSalaryregister.take_home) AS take_home',
+       'SUM(AccountsSalaryregister.ctc) AS ctc',
+       ),
+       'conditions'=>array('AccountsSalaryregister.month'=>$month,
+       'AccountsSalaryregister.year'=>$year,
+       'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y')));
+		$totalFixed = $totalPay['0']['fixed_pay'];
+		$totalVariable = $totalPay['0']['variable_pay'];
+		$totalNetctc = $totalPay['0']['netctc'];
+		$totalTakehome = $totalPay['0']['take_home']; 
+	    $this->AccountsMonthlysalaryBreakup->recursive = 0;
+	    $monthlyBreakupcomponentID = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component'=>'NSA'),'fields'=>array('AccountsSalaryBreakupcomponent.id')));
+	    $breakupNSATotal = $this->AccountsSalaryregister->AccountsMonthlysalaryBreakup->find('first',array('fields'=>array('SUM(AccountsMonthlysalaryBreakup.amount) as amount'),'conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$monthlyBreakupcomponentID['AccountsSalaryBreakupcomponent']['id'],'AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y')));
+	    
+	    $monthlyBreakupcomponentID2 = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component'=>'Food Coupons'),'fields'=>array('AccountsSalaryBreakupcomponent.id')));
+	    $breakupFoodTotal = $this->AccountsSalaryregister->AccountsMonthlysalaryBreakup->find('first',array('fields'=>array('SUM(AccountsMonthlysalaryBreakup.amount) as amount'),'conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$monthlyBreakupcomponentID2['AccountsSalaryBreakupcomponent']['id'],'AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y')));
+	    
+	    $monthlyBreakupcomponentID3 = $this->AccountsSalaryBreakupcomponent->find('list',array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component'=>'LOP'),'fields'=>array('AccountsSalaryBreakupcomponent.id')));
+	    $breakupLOPTotal = $this->AccountsSalaryregister->AccountsMonthlysalaryBreakup->find('first',array('fields'=>array('SUM(AccountsMonthlysalaryBreakup.amount) as amount'),'conditions'=>array('OR'=>array('AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$monthlyBreakupcomponentID3),'AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y')));
+	   
+	    $monthlyBreakupcomponentID4 = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component'=>'Cab Service'),'fields'=>array('AccountsSalaryBreakupcomponent.id')));
+	    $breakupCabTotal = $this->AccountsSalaryregister->AccountsMonthlysalaryBreakup->find('first',array('fields'=>array('SUM(AccountsMonthlysalaryBreakup.amount) as amount'),'conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$monthlyBreakupcomponentID4['AccountsSalaryBreakupcomponent']['id'],'AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y')));
+	    
+	    $monthlyBreakupcomponentID5 = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component'=>'Others'),'fields'=>array('AccountsSalaryBreakupcomponent.id')));
+	    $breakupOtherTotal = $this->AccountsSalaryregister->AccountsMonthlysalaryBreakup->find('first',array('fields'=>array('SUM(AccountsMonthlysalaryBreakup.amount) as amount'),'conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$monthlyBreakupcomponentID5['AccountsSalaryBreakupcomponent']['id'],'AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y')));
+	    
+	    $monthlyBreakupcomponentID6 = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component'=>'Income Tax'),'fields'=>array('AccountsSalaryBreakupcomponent.id')));
+	    $breakupIncomeTotal = $this->AccountsSalaryregister->AccountsMonthlysalaryBreakup->find('first',array('fields'=>array('SUM(AccountsMonthlysalaryBreakup.amount) as amount'),'conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$monthlyBreakupcomponentID6['AccountsSalaryBreakupcomponent']['id'],'AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.active'=>'Y')));
+	    
+		$this->set(compact('totalPay','breakupNSATotal','breakupCabTotal','breakupLOPTotal','breakupIncomeTotal','breakupFoodTotal','breakupOtherTotal'));
+		
+		foreach($salDetailsArrs as $salDetailsA) {
+			$empExp[$salDetailsA['AccountsSalaryregister']['id']] = $this->datecal($salDetailsA['Staff']['start_date'],date('Y-m-d'));
+			$dojoin[$salDetailsA['AccountsSalaryregister']['id']] = AppModel::dateFormat($salDetailsA['Staff']['start_date']);
+			//debug($dojoin);
+			$i=0;
+			$hikes = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$salDetailsA['AccountsSalaryregister']['staff_id'],'AccountsSalarydetail.current'=>'N'),'order'=>array('AccountsSalarydetail.applicable_from DESC')));
+			foreach($hikes as $hike) {
+				$hike_history[$hike['AccountsSalarydetail']['staff_id']][$i] = $hike;
+				$i++;
+			}
+			//debug($hike_history);
+			
+			$hikes_dues = $this->AccountsSalaryhikesdue->find('first',array('conditions'=>array('AccountsSalaryhikesdue.staff_id'=>$salDetailsA['AccountsSalaryregister']['staff_id'],'AccountsSalaryhikesdue.active'=>'Y')));
+			$hike_due[$hikes_dues['AccountsSalaryhikesdue']['staff_id']]= $hikes_dues;
+			
+			if($salDetailsA['AccountsSalaryregister']['comments'] == '' ) {
+						$commenticon[$salDetailsA['AccountsSalaryregister']['id']] = 'add.png';
+						$commentnote[$salDetailsA['AccountsSalaryregister']['id']] = $salDetailsA['AccountsSalaryregister']['comments'];
+					} else {
+					     $commenticon[$salDetailsA['AccountsSalaryregister']['id']] = 'Notes-icon.png';
+						 $commentnote[$salDetailsA['AccountsSalaryregister']['id']] = $salDetailsA['AccountsSalaryregister']['comments'];
+					}
+			
+			$salBrkupsArrs   = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$salDetailsA['AccountsSalaryregister']['id'],'AccountsMonthlysalaryBreakup.is_deduction'=>'N')));
+			
+			$salmonthlybreakups[$salDetailsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$salBrkupsArrs['AccountsSalaryBreakupcomponent']['salary_component']] = $salDetailsA['AccountsMonthlysalaryBreakup']['amount'];
+			//debug($salmonthlybreakups);
+			/*foreach($salBrkupsArrs as $salBrkupsArr){
+				$breakupcomponent =  $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'])));
+				$salmonthlybreakups[$salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount'];
+				//$salmonthlybreakups[$salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $breakupcomponent['AccountsSalaryBreakupcomponent']['order'];
+			}*/
+			
+			/*******ORDER******/
+			$breakupcomponents =  $this->AccountsSalaryBreakupcomponent->find('all',array('conditions'=>array('AccountsSalaryBreakupcomponent.deduction'=>'N'),'order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+			foreach($breakupcomponents as $breakupcomponent) {
+				$monthlyBreakUpComponent = $this->AccountsMonthlysalaryBreakup->find('first',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$salDetailsA['AccountsSalaryregister']['id'],'AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$breakupcomponent['AccountsSalaryBreakupcomponent']['id'])));
+				$salmonthlybreakups[$monthlyBreakUpComponent['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $monthlyBreakUpComponent['AccountsMonthlysalaryBreakup']['amount'];
+			}
+			/**********ORDER*********/
+			
+			debug($salmonthlybreakups);
+			//$salmonthlyorder = Set::sort($salmonthlyorder, '{n}.AccountsSalaryBreakupcomponent.order', 'asc');
+			foreach($salBrkupsArrs as $salBrkupsA) {
+				$sbaid = $salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'];
+				if($sbaid == 14) {
+					$nsaid[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $salBrkupsA['AccountsMonthlysalaryBreakup']['id'];
+					if($salBrkupsA['AccountsMonthlysalaryBreakup']['amount'] == '' ) {
+						$nsaamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = '0.00';
+					} else {
+						$nsaamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $salBrkupsA['AccountsMonthlysalaryBreakup']['amount'];
+					}
+					if($salBrkupsA['AccountsMonthlysalaryBreakup']['notes'] == '' ) {
+						$nsaicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'add.png';
+						$nsanote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $salBrkupsA['AccountsMonthlysalaryBreakup']['notes'];
+					} else {
+					  $nsaicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'Notes-icon.png';
+					  $nsanote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $salBrkupsA['AccountsMonthlysalaryBreakup']['notes'];
+					}
+				}
+			}
+			
+			$deductArrs   = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$salDetailsA['AccountsSalaryregister']['id'],'AccountsMonthlysalaryBreakup.is_deduction'=>'Y')));
+			$saldeductbreakups[$salDetailsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$deductArrs['AccountsSalaryBreakupcomponent']['salary_component']] = $salDetailsA['AccountsMonthlysalaryBreakup']['amount'];
+			/*******ORDER******/
+			$breakupcomponents =  $this->AccountsSalaryBreakupcomponent->find('all',array('conditions'=>array('AccountsSalaryBreakupcomponent.deduction'=>'Y'),'order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+			foreach($breakupcomponents as $breakupcomponent) {
+				$monthlyBreakUpComponent = $this->AccountsMonthlysalaryBreakup->find('first',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$salDetailsA['AccountsSalaryregister']['id'],'AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id'=>$breakupcomponent['AccountsSalaryBreakupcomponent']['id'])));
+				$saldeductbreakups[$monthlyBreakUpComponent['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $monthlyBreakUpComponent['AccountsMonthlysalaryBreakup']['amount'];
+			}
+			/**********ORDER*********/
+			/*foreach($deductArrs as $deductbreakup){
+				$breakupcomponent =  $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'])));
+				$saldeductbreakups[$deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $deductbreakup['AccountsMonthlysalaryBreakup']['amount'];
+			}*/
+			
+			foreach($deductArrs as $deductA) {
+				$daid = $deductA['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'];
+				if($daid == 10) {
+					$cabid[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['id'];
+					if($deductA['AccountsMonthlysalaryBreakup']['amount'] == '' ) {
+						$cabamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = '0.00';
+					} else {
+						$cabamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['amount'];
+					}
+					if($deductA['AccountsMonthlysalaryBreakup']['notes'] == '' ) {
+						$cabicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'add.png';
+				        $cabnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+					} else {
+						$cabicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'Notes-icon.png';
+				        $cabnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+					}
+				}
+				if($daid == 11) {
+					$foodcid[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['id'];
+					if($deductA['AccountsMonthlysalaryBreakup']['amount'] == '' ) {
+						$foodcamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = '0.00';
+					} else {
+					$foodcamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['amount'];
+					}
+					if($deductA['AccountsMonthlysalaryBreakup']['notes'] == '' ) {
+						$foodcicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'add.png';
+						$foodcnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+					} else {
+						$foodcicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'Notes-icon.png';
+				   	    $foodcnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+					}
+				}
+				if($daid == 12) {
+					$incometaxid[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['id'];
+					if($deductA['AccountsMonthlysalaryBreakup']['amount'] == '' ) {
+						$incometaxamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = '0.00';
+					} else {
+					$incometaxamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['amount'];
+					}
+					if($deductA['AccountsMonthlysalaryBreakup']['notes'] == '' ) {
+						$incometaxicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'add.png';
+					    $incometaxnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+					} else {
+						$incometaxicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'Notes-icon.png';
+					    $incometaxnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+					}
+				}
+				if($daid == 13) {
+					$lopid[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['id'];
+					if($deductA['AccountsMonthlysalaryBreakup']['amount'] == '' ) {
+						$lopamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = '0.00';
+					} else {
+					$lopamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['amount'];
+					}
+					if($deductA['AccountsMonthlysalaryBreakup']['notes'] == '' ) {
+						$lopicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'add.png';
+					    $lopnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+					} else {
+						$lopicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'Notes-icon.png';
+					    $lopnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+					}
+				}
+				if($daid == 15) {
+					$othersid[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['id'];
+					if($deductA['AccountsMonthlysalaryBreakup']['amount'] == '' ) {
+						$othersamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = '0.00';
+					} else {
+					$othersamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['amount'];
+					}
+					if($deductA['AccountsMonthlysalaryBreakup']['notes'] == '' ) {
+						$othersicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'add.png';
+					    $othersnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+				} else {
+					$othersicon[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = 'Notes-icon.png';
+					$othersnote[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['notes'];
+				}
+			  }
+				if($daid == 3) {
+						$employerpfid[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['id'];
+						if($deductA['AccountsMonthlysalaryBreakup']['amount'] == '' ) {
+						$employerpfamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = '0.00';
+						} else {
+						$employerpfamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['amount'];
+						}
+				}
+				if($daid == 4) {
+						$ptid[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['id'];
+						if($deductA['AccountsMonthlysalaryBreakup']['amount'] == '' ) {
+							$ptamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = '0.00';
+						} else {
+						$ptamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['amount'];
+						}
+				}
+				if($daid == 9) {
+						$emppfid[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['id'];
+						if($deductA['AccountsMonthlysalaryBreakup']['amount'] == '' ) {
+							$emppfamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = '0.00';
+						} else {
+						$emppfamount[$salBrkupsA['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']] = $deductA['AccountsMonthlysalaryBreakup']['amount'];
+						}
+				}
+		}
+		
+	}	foreach($staffnoInsalDetails as $staffnoInsalDetail){
+			$dateee[$staffnoInsalDetail['AccountsSalarydetail']['staff_id']] = $staffnoInsalDetail['AccountsSalarydetail']['applicable_from'];
+			$ctcccc[$staffnoInsalDetail['AccountsSalarydetail']['staff_id']] = $staffnoInsalDetail['AccountsSalarydetail']['currentCTC'];
+		}
+	    $this->set(compact('dateee','ctcccc','salmonthlyorder'));
+    	$this->set(compact('dojoin','empExp','hike_history','hike_due','salBrkupsArrs','deductArrs','performance','empStrength','currentMonth','month','year','accountid','salDetailsArrs','salmonthlybreakups'
+    	,'saldeductbreakups','accountids','yearArr','monthArr'));
+		$this->set(compact('employerpfamount','emppfamount','ptamount','commenticon','commentnote','nsaid','nsaamount','nsanote','nsaicon','cabid','cabamount','cabnote','cabicon','foodcid','foodcamount','foodcnote',
+		'foodcicon','incometaxid','incometaxamount','incometaxnote','incometaxicon','lopid','lopamount','lopnote','lopicon','othersid','othersamount','othersnote','othersicon'));
+		$this->set(compact('totalFixed','totalVariable','totalNetctc','totalTakehome','totalNSA','page'));
+		
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsSalaryregister->id = $id;
+		if (!$this->AccountsSalaryregister->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryregister'));
+		}
+		$this->set('accountsSalaryregister', $this->AccountsSalaryregister->read(null, $id));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null,$month,$year,$accountid,$page) {
+	
+	 $this->loadModel('AccountsMonthlysalaryBreakup');
+	 $this->loadModel('staff');	
+	 $this->loadModel('AccountsSalarydetail');
+	 $this->AccountsSalaryregister->id = $id;
+	 $staffArrs       = $this->staff->find('all',array('fields' => array('staff.id'),array('conditions'=>array('staff.active'=>'Y'))));
+	 $monSalBrkupdetails    = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$id)));
+	 $staffnoInsalDetails  = $this->AccountsSalarydetail->find('all',array('fields' =>array('AccountsSalarydetail.id'),'conditions'=>array('AccountsSalarydetail.current'=>'Y')));
+	 $empStrength     = count($staffnoInsalDetails);
+	 $vp              = $this->data['updateRegister']['varpay'.$id];
+	 
+	 foreach($monSalBrkupdetails as $monSalBrkupdetail) {
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 3) {
+ 			$employerPF = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 4) {
+ 			$pt = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 9) {
+ 			$employeePF = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 10) {
+ 			$cab = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 11) {
+ 			$foodc = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 12) {
+ 			$tax = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 13) {
+ 			$lop = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 14) {
+ 			$nsa = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 15) {
+ 			$others = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}	
+ 	}
+	 $salreg  = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$id)));
+  	 $nctc    = $salreg['AccountsSalaryregister']['fixed_pay'] + $vp + $nsa; 
+  	 $takeHome = ($nctc) - ($employerPF + $pt + $employeePF + $cab + $foodc + $tax + $lop + $others); 	
+  	 $saveVP->data['AccountsSalaryregister']['accounts_account_id']          = $salreg['AccountsSalaryregister']['accounts_account_id'];
+	 $saveVP->data['AccountsSalaryregister']['month']                        = $salreg['AccountsSalaryregister']['month'];
+     $saveVP->data['AccountsSalaryregister']['year']                         = $salreg['AccountsSalaryregister']['year'];
+	 $saveVP->data['AccountsSalaryregister']['staff_id']                     = $salreg['AccountsSalaryregister']['staff_id'];
+	 $saveVP->data['AccountsSalaryregister']['ctc']                          = $salreg['AccountsSalaryregister']['ctc'];
+	 $saveVP->data['AccountsSalaryregister']['fixed_pay']                    = $salreg['AccountsSalaryregister']['fixed_pay'];
+	 $saveVP->data['AccountsSalaryregister']['variable_pay']                 = $vp;
+	 $saveVP->data['AccountsSalaryregister']['take_home']                    = $takeHome;
+	 $saveVP->data['AccountsSalaryregister']['netctc']                       = $nctc;
+	 $saveVP->data['AccountsSalaryregister']['performance_category']         = $salreg['AccountsSalaryregister']['performance_category'];
+     $saveVP->data['AccountsSalaryregister']['updated_date']                 = date('Y-m-d');
+     $saveVP->data['AccountsSalaryregister']['updated_by']                   = 'siddharth';
+	 $saveVP->data['AccountsSalaryregister']['comments']                     = $salreg['AccountsSalaryregister']['comments'];
+  	 	
+  	if (!$this->AccountsSalaryregister->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryregister'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsSalaryregister->save($saveVP->data)) {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+			} else {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+			}
+		} else {
+			$this->request->data = $this->AccountsSalaryregister->read(null, $id);
+		}  	
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsSalaryregister->id = $id;
+		if (!$this->AccountsSalaryregister->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryregister'));
+		}
+		if ($this->AccountsSalaryregister->delete()) {
+			$this->Session->setFlash(__('Accounts salaryregister deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Accounts salaryregister was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	public function generate() {
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('AccountsSalarydetail');	
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsMonthlysalaryBreakup');
+		$this->AccountsSalarydetail->cacheQueries = FALSE;
+		$this->Staff->cacheQueries = FALSE;
+		$this->AccountsSalaryregister->cacheQueries = FALSE;
+		$mnfArr = array(1=>"January", "February", "March", 
+            "April", "May", "June", "July", "August", 
+            "September", "October", "November", "December");  
+				
+		if ($this->request->is('post')) {
+			$month = $this->data['updateRegister']['month'];
+			$year  = $this->data['updateRegister']['year'];	
+			$accountid  = $this->data['updateRegister']['accountid'];
+			$trim_var = ltrim($month, '0');
+					
+			if(!$month || !$year || !$accountid ) {
+				$this->Session->setFlash(__('<div class="flashMessageError">Please Select Month, Year & AccountName.</div>'));
+			    $this->redirect(array('action' => 'index'));
+			}
+				
+		$cday             = date('d');  
+		$cmonth           = date('m');
+		$cyear            = date('Y'); 
+		if($month >= $cmonth && $year >= $cyear){
+			$strDate         = $year.'-'.$month.'-'.$cday;
+		}
+		else {
+			    $dtLastDay = date('t', mktime(0, 0, 0, $month+1 , date('d')-date('d'), $year)); 
+			    $strDate         = $year.'-'.$month.'-'.$dtLastDay;
+		}
+		
+		$staffArrs       = $this->Staff->find('all',array('fields' => array('Staff.id,start_date'),'conditions'=>array('Staff.active'=>'Y','Staff.start_date <=' => $strDate),'order' => array('Staff.id ASC')));
+		$staffnoInsalDetails  = $this->AccountsSalarydetail->find('all',array('fields' =>array('AccountsSalarydetail.id'),'conditions'=>array('AccountsSalarydetail.current'=>'Y')));
+	    $empStrength     	  = count($staffnoInsalDetails);
+		/*
+		if(!$accSalReg) 
+				{*/
+			foreach($staffArrs as $staffArr)
+			{    
+				$flag = 0;  
+				/**
+				 * Code to checks for hike, if it is present it will process
+				 * **/
+				$this->loadModel('AccountsSalaryhikesdue');
+				$this->loadModel('AccountsSalaryBreakupcomponent');
+				$this->loadModel('AccountsSalarybreakup');
+				$this->loadModel('AccountsVariablepay');
+				if($month <= 9){
+					$monthforhikes = '0'.$month;
+				}
+				else{
+					$monthforhikes = $month;
+				}
+				$hike_due = $this->AccountsSalaryhikesdue->find('first',array('conditions'=>array('AccountsSalaryhikesdue.staff_id'=>$staffArr['Staff']['id'],'AccountsSalaryhikesdue.due_on_date LIKE'=>$year.'-'.$monthforhikes.'%','AccountsSalaryhikesdue.active'=>'Y','AccountsSalaryhikesdue.approved'=>'Y'),'order'=>array('AccountsSalaryhikesdue.due_on_date ASC')));         
+				if(!empty($hike_due)){
+					$update_hikedue['AccountsSalaryhikesdue']['id'] = $hike_due['AccountsSalaryhikesdue']['id'];
+					$update_hikedue['AccountsSalaryhikesdue']['active'] = 'N';
+					if($this->AccountsSalaryhikesdue->save($update_hikedue)){
+						$current_salarydetails = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$staffArr['Staff']['id'],'AccountsSalarydetail.current'=>'Y')));
+						$update_salarydetail['AccountsSalarydetail']['id'] = $current_salarydetails['AccountsSalarydetail']['id'];
+						$update_salarydetail['AccountsSalarydetail']['current'] = 'N';
+						if($this->AccountsSalarydetail->save($update_salarydetail)){
+							$save_salarydetails['AccountsSalarydetail']['staff_id'] = $current_salarydetails['AccountsSalarydetail']['staff_id'];
+							$save_salarydetails['AccountsSalarydetail']['currentCTC'] = $hike_due['AccountsSalaryhikesdue']['total_hikedCTC'];
+							$save_salarydetails['AccountsSalarydetail']['fixed_component'] = $hike_due['AccountsSalaryhikesdue']['fixed_hikedCTC'];
+							$save_salarydetails['AccountsSalarydetail']['variable_component'] = $hike_due['AccountsSalaryhikesdue']['variable_hike'];
+							$save_salarydetails['AccountsSalarydetail']['current'] = 'Y';
+							$save_salarydetails['AccountsSalarydetail']['last_updated'] = date('Y-m-d');
+							$save_salarydetails['AccountsSalarydetail']['applicable_from'] = $hike_due['AccountsSalaryhikesdue']['due_on_date'];
+							$save_salarydetails['AccountsSalarydetail']['notes'] = $hike_due['AccountsSalaryhikesdue']['notes'];
+							$save_salarydetails['AccountsSalarydetail']['account_no'] = $current_salarydetails['AccountsSalarydetail']['account_no'];
+							$save_salarydetails['AccountsSalarydetail']['mode_of_payment'] = $current_salarydetails['AccountsSalarydetail']['mode_of_payment'];
+							$save_salarydetails['AccountsSalarydetail']['accounts_account_id'] = $current_salarydetails['AccountsSalarydetail']['accounts_account_id'];
+							$this->AccountsSalarydetail->create();
+							$this->AccountsSalarydetail->save($save_salarydetails);
+							$salarydetails_id = $this->AccountsSalarydetail->getLastInsertId();
+							
+							$components = $this->AccountsSalaryBreakupcomponent->find('all',array('order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+							foreach($components as $component){
+								$amount=null;
+								if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Basic'){
+									$basic_component = $component['AccountsSalaryBreakupcomponent']['salary_component'];
+									$basic = ($component['AccountsSalaryBreakupcomponent']['value']/100)*($hike_due['AccountsSalaryhikesdue']['fixed_hikedCTC']);
+									$amount = $basic;
+								}
+								if(($component['AccountsSalaryBreakupcomponent']['type'] == '%') && ($component['AccountsSalaryBreakupcomponent']['salary_component']!='Basic')){
+									$amount = ($component['AccountsSalaryBreakupcomponent']['value']/100)*$basic;
+								}
+								elseif($component['AccountsSalaryBreakupcomponent']['type'] == 'fixed'){
+									$amount = $component['AccountsSalaryBreakupcomponent']['value'];
+								}
+								if($component['AccountsSalaryBreakupcomponent']['type'] == 'variable'){
+									$foodcoupons = $this->AccountsSalarybreakup->find('first',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$current_salarydetails['AccountsSalarydetail']['id'],'AccountsSalarybreakup.accounts_salary_breakupcomponent_id'=>$component['AccountsSalaryBreakupcomponent']['id'])));
+									if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Special Allowance'){
+										$breakupcomp_id = $component['AccountsSalaryBreakupcomponent']['id'];
+									}
+									else{
+										$amount = $foodcoupons['AccountsSalarybreakup']['amount'];
+									}
+								}
+								if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Professional Tax') {
+									if($hike_due['AccountsSalaryhikesdue']['total_hikedCTC'] < 15000){
+										$amount = 150;
+									}
+								}
+								$data['AccountsSalarybreakup']['accounts_salarydetail_id'] =  $salarydetails_id;
+								$data['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id'] = $component['AccountsSalaryBreakupcomponent']['id'];
+								$data['AccountsSalarybreakup']['is_deduction'] = $component['AccountsSalaryBreakupcomponent']['deduction'];
+								$data['AccountsSalarybreakup']['amount']=$amount;
+								$data['AccountsSalarybreakup']['order'] = $component['AccountsSalaryBreakupcomponent']['order'];
+								$this->AccountsSalarybreakup->create();
+								$this->AccountsSalarybreakup->save($data);
+								$special_alowance = $special_alowance+$amount;
+								if($component['AccountsSalaryBreakupcomponent']['deduction'] == 'N'){
+									$take_homesalary = $take_homesalary + $amount;
+								}
+							}
+							
+							$spl_alwnce = $hike_due['AccountsSalaryhikesdue']['fixed_hikedCTC'] - $special_alowance;
+							$spl_alwance = $this->AccountsSalarybreakup->find('first',array('conditions'=>array('AccountsSalarybreakup.accounts_salary_breakupcomponent_id'=>$breakupcomp_id,'AccountsSalarybreakup.accounts_salarydetail_id'=>$salarydetails_id)));
+							$spl_alownace_breakup['AccountsSalarybreakup']['id'] = $spl_alwance['AccountsSalarybreakup']['id'];
+							$spl_alownace_breakup['AccountsSalarybreakup']['amount'] = $spl_alwnce;
+							$this->AccountsSalarybreakup->save($spl_alownace_breakup);
+								
+							$take_home = $take_homesalary+$hike_due['AccountsSalaryhikesdue']['variable_hike']+$spl_alwnce;
+							$save['AccountsSalarydetail']['id'] = $salarydetails_id;
+							$save['AccountsSalarydetail']['take_home'] = $take_home;
+							$this->AccountsSalarydetail->save($save);
+							$variability = $hike_due['AccountsSalaryhikesdue']['variability'];
+							$variable_amounts = explode('-',$variability);
+							
+							$variable_amounts12['High'] = $variable_amounts[0];
+							$variable_amounts12['Good'] = $variable_amounts[1];
+							$variable_amounts12['Average'] = $variable_amounts[2];
+							$variable_amounts12['Poor'] = $variable_amounts[3];
+							foreach($variable_amounts12 as $key => $variable_amount){
+								$variablepay['AccountsVariablepay']['performance_level'] = $key;
+								$variablepay['AccountsVariablepay']['amount'] = $variable_amount;
+								$variablepay['AccountsVariablepay']['rating'] = $variable_amount/1000;
+								$variablepay['AccountsVariablepay']['accounts_salarydetail_id'] = $salarydetails_id;
+								$this->AccountsVariablepay->create();
+								$this->AccountsVariablepay->save($variablepay);
+							}
+						}
+					}
+				}
+				/**End of hike process**/
+				$flag = NULL;
+				$accSalReg = NULL;				
+			   $accSalReg       = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.staff_id'=>$staffArr['Staff']['id'])));
+			   if($accSalReg['AccountsSalaryregister']['id']) {
+				     $flag = 1;			   
+			   }
+			   else {
+			   	    $flag = 2;
+			   }
+			   $salDetailsArr = NULL;
+			   
+			   if($month >= $cmonth && $year >= $cyear) {	 		   	     	
+						$salDetailsArr  = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$staffArr['Staff']['id'],'AccountsSalarydetail.current'=>'Y')));
+			   } else {				   	
+				   	    $salDetailsArr  = $this->AccountsSalarydetail->find
+				   	    ('first',array(
+				   	    'conditions'=>array('AccountsSalarydetail.staff_id'=>$staffArr['Staff']['id'],'AccountsSalarydetail.applicable_from <='=>$strDate,'AccountsSalarydetail.current'=>'Y')
+						,'order' => array('AccountsSalarydetail.applicable_from DESC')));
+			
+				}			   	
+			    if (!empty($salDetailsArr['AccountsSalarydetail']['staff_id']) && $flag == 2) {
+				    $saveACS->data = null;
+				    $this->AccountsSalaryregister->create();
+				    $saveACS->data['AccountsSalaryregister']['accounts_account_id']          = $accountid;
+				    $saveACS->data['AccountsSalaryregister']['month']                        = $month;
+				    $saveACS->data['AccountsSalaryregister']['year']                         = $year;
+				    $saveACS->data['AccountsSalaryregister']['staff_id']                     = $salDetailsArr['AccountsSalarydetail']['staff_id'];
+				    $saveACS->data['AccountsSalaryregister']['ctc']                          = $salDetailsArr['AccountsSalarydetail']['currentCTC'];
+				    $saveACS->data['AccountsSalaryregister']['fixed_pay']                    = $salDetailsArr['AccountsSalarydetail']['fixed_component'];
+				    $saveACS->data['AccountsSalaryregister']['variable_pay']                 = $salDetailsArr['AccountsSalarydetail'][''];
+				    $saveACS->data['AccountsSalaryregister']['take_home']                    = $salDetailsArr['AccountsSalarydetail']['take_home'] - $salDetailsArr['AccountsSalarydetail']['variable_component'];
+				    $saveACS->data['AccountsSalaryregister']['netctc']             			 = $salDetailsArr['AccountsSalarydetail']['fixed_component'];
+				    $saveACS->data['AccountsSalaryregister']['performance_category']         = $salDetailsArr['AccountsSalarydetail'][''];
+				    $saveACS->data['AccountsSalaryregister']['updated_date']                 = $salDetailsArr['AccountsSalarydetail']['last_updated'];
+				    $saveACS->data['AccountsSalaryregister']['updated_by']                   = $salDetailsArr['AccountsSalarydetail'][''];
+				    $saveACS->data['AccountsSalaryregister']['comments']                     = $salDetailsArr['AccountsSalarydetail'][''];
+				    $sal_register_existing = $this->AccountsSalaryregister->find('all',array('conditions'=>array('AccountsSalaryregister.month'=>$month,'AccountsSalaryregister.year'=>$year,'AccountsSalaryregister.accounts_account_id'=>$accountid,'AccountsSalaryregister.staff_id'=>$staffArr['staff']['id'])));
+				    if(empty($sal_register_existing)) {
+				    	$this->AccountsSalaryregister->save($saveACS->data);
+					    $salaryregister_id = $this->AccountsSalaryregister->getLastInsertId();
+					    $salBrkupsArrs  = $this->AccountsSalarybreakup->find('all',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id '=>$salDetailsArr['AccountsSalarydetail']['id'])));
+						$PTxx = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component'=>'Professional Tax'),'fields'=>array('AccountsSalaryBreakupcomponent.id')));
+						foreach($salBrkupsArrs as $salBrkupsArr) {
+							$saveSB->data = null;
+							if(($PTxx['AccountsSalaryBreakupcomponent']['id'] == $salBrkupsArr['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id']) && $salDetailsArr['AccountsSalarydetail']['fixed_component'] < 15000) {
+								$salBrkupsArr['AccountsSalarybreakup']['amount'] = 150;
+							}
+							$this->AccountsMonthlysalaryBreakup->create();
+							$saveSB->data['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']          = $salaryregister_id;
+							$saveSB->data['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] = $salBrkupsArr['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id'];
+							$saveSB->data['AccountsMonthlysalaryBreakup']['amount']                              = $salBrkupsArr['AccountsSalarybreakup']['amount'];
+							$saveSB->data['AccountsMonthlysalaryBreakup']['is_deduction']                        = $salBrkupsArr['AccountsSalarybreakup']['is_deduction'];
+							$this->AccountsMonthlysalaryBreakup->save($saveSB->data);				
+						}
+				    }
+			  	}
+			elseif (!empty($accSalReg['AccountsSalaryregister']['staff_id']) && $flag == 1) {
+				$saveACS->data = null;
+				    $saveACS->data['AccountsSalaryregister']['id']                           = $accSalReg['AccountsSalaryregister']['id'];
+					$saveACS->data['AccountsSalaryregister']['accounts_account_id']          = $accountid;
+				    $saveACS->data['AccountsSalaryregister']['month']                        = $month;
+				    $saveACS->data['AccountsSalaryregister']['year']                         = $year;
+				    $saveACS->data['AccountsSalaryregister']['staff_id']                     = $accSalReg['AccountsSalaryregister']['staff_id'];
+				    if($accSalReg['AccountsSalaryregister']['ctc'] == $salDetailsArr['AccountsSalarydetail']['currentCTC']) {
+						$saveACS->data['AccountsSalaryregister']['ctc']                      = $accSalReg['AccountsSalaryregister']['ctc'];
+					} else {
+						$saveACS->data['AccountsSalaryregister']['ctc']                      = $salDetailsArr['AccountsSalarydetail']['currentCTC'];
+					}
+				    $saveACS->data['AccountsSalaryregister']['fixed_pay']                    = $accSalReg['AccountsSalaryregister']['fixed_pay'];
+				    $saveACS->data['AccountsSalaryregister']['variable_pay']                 = $accSalReg['AccountsSalaryregister']['variable_pay'];
+				    $saveACS->data['AccountsSalaryregister']['take_home']                    = $accSalReg['AccountsSalaryregister']['take_home'];
+				    $saveACS->data['AccountsSalaryregister']['netctc']             			 = $accSalReg['AccountsSalaryregister']['netctc'];
+				    $saveACS->data['AccountsSalaryregister']['performance_category']         = $accSalReg['AccountsSalaryregister']['performance_category'];
+				    $saveACS->data['AccountsSalaryregister']['updated_date']                 = $accSalReg['AccountsSalaryregister']['updated_date'];
+				    $saveACS->data['AccountsSalaryregister']['updated_by']                   = $accSalReg['AccountsSalaryregister']['updated_by'];
+				    $saveACS->data['AccountsSalaryregister']['comments']                     = $accSalReg['AccountsSalaryregister']['comments'];
+				    $this->AccountsSalaryregister->save($saveACS->data);
+				    $salBrkupsArrs  = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id '=>$accSalReg['AccountsSalaryregister']['id'])));
+					foreach($salBrkupsArrs as $salBrkupsArr) {
+						$id  = $this->AccountsMonthlysalaryBreakup->find('first',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id '=>$accSalReg['AccountsSalaryregister']['id'],'AccountsMonthlysalaryBreakup.accounts_salary_breakupcomponent_id '=>$salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id']))); 
+						$saveSB->data['AccountsMonthlysalaryBreakup']['id']                                  = $id['AccountsMonthlysalaryBreakup']['id']; 
+						$saveSB->data['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']          = $accSalReg['AccountsSalaryregister']['id'];
+						$saveSB->data['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] = $salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'];
+						$saveSB->data['AccountsMonthlysalaryBreakup']['amount']                              = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount'];
+						$saveSB->data['AccountsMonthlysalaryBreakup']['is_deduction']                        = $salBrkupsArr['AccountsMonthlysalaryBreakup']['is_deduction'];
+						$this->AccountsMonthlysalaryBreakup->save($saveSB->data);				
+					}
+					
+								$this->AccountsMonthlysalaryBreakup->cacheQueries = false;			
+			} else {
+				
+			}	
+		}
+		$this->Session->setFlash(__('<div class="flashMessageSuccess">Salary Register Created for'.' '.$mnfArr[$trim_var].' '.$year.'</div>'));
+		$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength));
+	 }
+  }
+  
+  public function performanceLevel($staff_id,$regid,$month,$year,$accountid,$page) {
+ 	//Configure::write('debug',2);
+ 	$this->AccountsSalaryregister->id = $regid;
+ 	$this->loadModel('staff');
+  	$this->loadModel('AccountsVariablepays');
+  	$this->loadModel('AccountsSalarydetail');
+  	$this->loadModel('AccountsMonthlysalaryBreakup');	
+	$plevel   = $this->data['updateRegister']['performance'.$regid];
+	$staffArrs       = $this->staff->find('all',array('fields' => array('staff.id'),array('conditions'=>array('staff.active'=>'Y'))));
+	 $staffnoInsalDetails  = $this->AccountsSalarydetail->find('all',array('fields' =>array('AccountsSalarydetail.id'),'conditions'=>array('AccountsSalarydetail.current'=>'Y')));
+	$empStrength     = count($staffnoInsalDetails);
+	$monSalBrkupdetails    = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$regid)));	
+  	$sdetail  = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$staff_id,'AccountsSalarydetail.current'=>'Y')));
+  	$varPay   = $this->AccountsVariablepays->find('first',array('conditions'=>array('AccountsVariablepays.accounts_salarydetail_id '=>$sdetail['AccountsSalarydetail']['id'],'AccountsVariablepays.performance_level'=>$plevel)));
+  	
+  	foreach($monSalBrkupdetails as $monSalBrkupdetail) {
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 3) {
+ 			$employerPF = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 4) {
+ 			$pt = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 9) {
+ 			$employeePF = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 10) {
+ 			$cab = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 11) {
+ 			$foodc = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 12) {
+ 			$tax = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 13) {
+ 			$lop = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 14) {
+ 			$nsa = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 15) {
+ 			$others = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}	
+ 	}
+  	
+  	 $salreg  = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$regid)));
+  	 $nctc    = $salreg['AccountsSalaryregister']['fixed_pay'] + $varPay['AccountsVariablepays']['amount'] + $nsa; 
+  	 $takeHome = ($nctc) - ($employerPF + $pt + $employeePF + $cab + $foodc + $tax + $lop + $others); 	
+  	 $savePL->data['AccountsSalaryregister']['accounts_account_id']          = $salreg['AccountsSalaryregister']['accounts_account_id'];
+	 $savePL->data['AccountsSalaryregister']['month']                        = $salreg['AccountsSalaryregister']['month'];
+     $savePL->data['AccountsSalaryregister']['year']                         = $salreg['AccountsSalaryregister']['year'];
+	 $savePL->data['AccountsSalaryregister']['staff_id']                     = $salreg['AccountsSalaryregister']['staff_id'];
+	 $savePL->data['AccountsSalaryregister']['ctc']                          = $salreg['AccountsSalaryregister']['ctc'];
+	 $savePL->data['AccountsSalaryregister']['fixed_pay']                    = $salreg['AccountsSalaryregister']['fixed_pay'];
+	 $savePL->data['AccountsSalaryregister']['variable_pay']                 = $varPay['AccountsVariablepays']['amount'];
+	 $savePL->data['AccountsSalaryregister']['take_home']                    = $takeHome;
+	 $savePL->data['AccountsSalaryregister']['netctc']                       = $nctc;
+	 $savePL->data['AccountsSalaryregister']['performance_category']         = $plevel;
+     $savePL->data['AccountsSalaryregister']['updated_date']                 = date('Y-m-d');
+     $savePL->data['AccountsSalaryregister']['updated_by']                   = 'siddharth';
+	 $savePL->data['AccountsSalaryregister']['comments']                     = $salreg['AccountsSalaryregister']['comments'];
+  	 	
+  	if (!$this->AccountsSalaryregister->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryregister'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsSalaryregister->save($savePL->data)) {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+			} else {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+			}
+		} else {
+			$this->request->data = $this->AccountsSalaryregister->read(null, $regid);
+		}  	
+  	
+  }
+  
+  public function editMonthly($id=null,$deduction,$month,$year,$accountid,$page=null) {
+  	//debug($id);
+  	//debug($this->data);
+  	$this->loadModel('staff');
+  	$this->loadModel('AccountsMonthlysalaryBreakup');
+    //$this->AccountsMonthlysalaryBreakup->id = $id;
+    $this->loadModel('AccountsSalarydetail');
+    
+ 	$monSalBrkups  = $this->AccountsMonthlysalaryBreakup->find('first',array('conditions'=>array('AccountsMonthlysalaryBreakup.id'=>$id)));
+ 	$monSalBrkupdetails  = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$monSalBrkups['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id'])));
+ 	$salRegDetails  = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$monSalBrkups['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id'])));
+ 	//debug($salRegDetails);
+ 	$fd = $salRegDetails['AccountsSalaryregister']['fixed_pay'];
+ 	$vp = $salRegDetails['AccountsSalaryregister']['variable_pay'];
+ 	$this->AccountsSalaryregister->id = $salRegDetails['AccountsSalaryregister']['id'];
+ 	//debug($this->AccountsSalaryregister->id);
+ 	foreach($monSalBrkupdetails as $monSalBrkupdetail) {
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 3) {
+ 			$employerPF = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 4) {
+ 			$pt = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 9) {
+ 			$employeePF = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 10) {
+ 			$cab = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 11) {
+ 			$foodc = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 12) {
+ 			$tax = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 13) {
+ 			$lop = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 14) {
+ 			$nsa = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 15) {
+ 			$others = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 		}
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 8) {
+ 			$spclallwnce = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+ 			$spclallwnceid = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['id'];
+ 		} 		
+ 		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 1) {
+		 			$basic = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}
+		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 2) {
+		 			$hra = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}
+		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 5) {
+		 			$medical = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}
+		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 6) {
+		 			$cca = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount'];
+		 		}
+		if($monSalBrkupdetail['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 7) {
+		 			$conveyance = $monSalBrkupdetail['AccountsMonthlysalaryBreakup']['amount'];
+		 		} 			
+ 	} 	
+ 
+ 	
+ 	//debug($monSalBrkupdetail);
+ 	$staffArrs       = $this->staff->find('all',array('fields' => array('staff.id'),array('conditions'=>array('staff.active'=>'Y'))));
+	 $staffnoInsalDetails  = $this->AccountsSalarydetail->find('all',array('fields' =>array('AccountsSalarydetail.id'),'conditions'=>array('AccountsSalarydetail.current'=>'Y')));
+	$empStrength     = count($staffnoInsalDetails);
+  	if ($deduction == 'incometax') {  		  		
+  	$takeHome = ($fd + $vp + $nsa) - ($employerPF + $pt + $employeePF + $cab + $foodc + $this->data['updateRegister']['incometax'.$id] + $lop + $others); 	
+	$saveSalReg->data['AccountsSalaryregister']['take_home'] = $takeHome;
+  	$saveMSB->data['AccountsMonthlysalaryBreakup']['amount'] = $this->data['updateRegister']['incometax'.$id];
+  	
+  	$spallow = ($takeHome - ($vp + $nsa)) - ($basic + $hra + $medical + $cca + $conveyance); 	
+	$savespallow->data['AccountsMonthlysalaryBreakup']['amount'] = $spallow;
+  	}
+  	elseif ($deduction == 'nsa') {
+  	$takeHome = ($fd + $vp + $this->data['updateRegister']['nsa'.$id]) - ($employerPF + $pt + $employeePF + $cab + $foodc + $tax + $lop  + $others); 	
+	$netctc   = ($fd + $vp + $this->data['updateRegister']['nsa'.$id]) - ($lop  + $others);	
+	$saveSalReg->data['AccountsSalaryregister']['take_home'] = $takeHome;
+	$saveSalReg->data['AccountsSalaryregister']['netctc'] = $netctc;
+	//debug($saveSalReg->data);
+  	$saveMSB->data['AccountsMonthlysalaryBreakup']['amount'] = $this->data['updateRegister']['nsa'.$id];
+  	}
+  	elseif ($deduction == 'cab') {
+  	$takeHome = ($fd + $vp + $nsa) - ($employerPF + $pt + $employeePF + $this->data['updateRegister']['cab'.$id] + $foodc + $tax + $lop + $others); 	
+	$saveSalReg->data['AccountsSalaryregister']['take_home'] = $takeHome;
+  	$saveMSB->data['AccountsMonthlysalaryBreakup']['amount'] = $this->data['updateRegister']['cab'.$id];
+  	
+  	$spallow = ($takeHome - ($vp + $nsa)) - ($basic + $hra + $medical + $cca + $conveyance);
+	$savespallow->data['AccountsMonthlysalaryBreakup']['amount'] = $spallow;
+  	}
+  	elseif ($deduction == 'lop') {
+  	$takeHome = ($fd + $vp + $nsa) - ($employerPF + $pt + $employeePF + $cab + $foodc + $tax + $this->data['updateRegister']['lop'.$id] + $others); 	
+	//$netctc   = ($fd + $vp + $nsa) - ($this->data['updateRegister']['lop'.$id]  + $others);
+	$netctc   = ($fd + $vp + $nsa);	
+	$saveSalReg->data['AccountsSalaryregister']['take_home'] = $takeHome;
+  	$saveSalReg->data['AccountsSalaryregister']['netctc'] = $netctc;
+  	$saveMSB->data['AccountsMonthlysalaryBreakup']['amount'] = $this->data['updateRegister']['lop'.$id];
+  	
+  	$spallow = ($takeHome - ($vp + $nsa)) - ($basic + $hra + $medical + $cca + $conveyance);
+	$savespallow->data['AccountsMonthlysalaryBreakup']['amount'] = $spallow;
+  	}
+  	elseif ($deduction == 'foodcoupon') {
+  	$takeHome = ($fd + $vp + $nsa) - ($employerPF + $pt + $employeePF + $cab + $this->data['updateRegister']['foodcoupon'.$id] + $tax + $lop + $others); 	
+	$saveSalReg->data['AccountsSalaryregister']['take_home'] = $takeHome;
+  	$saveMSB->data['AccountsMonthlysalaryBreakup']['amount'] = $this->data['updateRegister']['foodcoupon'.$id];
+  	
+  	$spallow = ($takeHome - ($vp + $nsa)) - ($basic + $hra + $medical + $cca + $conveyance);
+	$savespallow->data['AccountsMonthlysalaryBreakup']['amount'] = $spallow;
+  	}
+  	elseif ($deduction == 'others') {
+  	$takeHome = ($fd + $vp + $nsa) - ($employerPF + $pt + $employeePF + $cab + $foodc + $tax + $lop + $this->data['updateRegister']['others'.$id]); 	
+	//$netctc   = ($fd + $vp + $nsa) - ($lop  + $this->data['updateRegister']['others'.$id]);
+	$netctc   = ($fd + $vp + $nsa);	
+	$saveSalReg->data['AccountsSalaryregister']['take_home'] = $takeHome;
+  	$saveSalReg->data['AccountsSalaryregister']['netctc'] = $netctc;
+  	$saveMSB->data['AccountsMonthlysalaryBreakup']['amount'] = $this->data['updateRegister']['others'.$id];
+  	
+  	$spallow = ($takeHome - ($vp + $nsa)) - ($basic + $hra + $medical + $cca + $conveyance);
+	$savespallow->data['AccountsMonthlysalaryBreakup']['amount'] = $spallow;
+  	}
+  	//debug($saveSalReg->data);
+  	
+  	 //$saveMSB->data['AccountsMonthlysalaryBreakup']['id'] = $id;
+  	 //debug($saveMSB->data);
+  	 /*$monSalBrkups  = $this->AccountsMonthlysalaryBreakup->find('first',array('conditions'=>array('AccountsMonthlysalaryBreakup.id'=>$id)));
+  	 //debug($monSalBrkups);  	
+  		
+  		$saveMSB->data['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']           = $monSalBrkups['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id'];
+  		$saveMSB->data['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id']  = $monSalBrkups['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'];
+  		$saveMSB->data['AccountsMonthlysalaryBreakup']['is_deduction']                         = $monSalBrkups['AccountsMonthlysalaryBreakup']['is_deduction'];
+  		$saveMSB->data['AccountsMonthlysalaryBreakup']['notes']                                = $monSalBrkups['AccountsMonthlysalaryBreakup']['notes'];
+  		*/
+  	 $z = 1;	
+  	 switch ($z)
+		{
+		case 1:
+			  $this->AccountsMonthlysalaryBreakup->id = $id;
+			if (!$this->AccountsMonthlysalaryBreakup->exists()) {
+				throw new NotFoundException(__('Invalid accounts salaryregister'));
+			}
+			if ($this->request->is('post') || $this->request->is('put')) {
+				   
+				    $this->AccountsMonthlysalaryBreakup->save($saveMSB->data,array('validate' => false));			    				
+					$res = $this->AccountsSalaryregister->save($saveSalReg->data,array('validate' => false));
+			/*	if($res) {
+					$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength));
+				} else {
+					$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength));
+				}*/
+			} else {
+				$this->request->data = $this->AccountsMonthlysalaryBreakup->read(null, $id);
+			}
+		  
+		case 2:
+			  $this->AccountsMonthlysalaryBreakup->id = $spclallwnceid;
+			if (!$this->AccountsMonthlysalaryBreakup->exists()) {
+				throw new NotFoundException(__('Invalid accounts salaryregister'));
+			}
+			if ($this->request->is('post') || $this->request->is('put')) {
+				   
+				    //$this->AccountsMonthlysalaryBreakup->save($savespallow->data,array('validate' => false));			    				
+					//$res = $this->AccountsSalaryregister->save($saveSalReg->data,array('validate' => false));
+				if($res) {
+					$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+				} else {
+					$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+				}
+			} else {
+				$this->request->data = $this->AccountsMonthlysalaryBreakup->read(null, $id);
+			}
+		    break;
+		  
+		}	
+  	 
+  	 	/*$this->AccountsMonthlysalaryBreakup->id = $id;
+		if (!$this->AccountsMonthlysalaryBreakup->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryregister'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			   
+			    $this->AccountsMonthlysalaryBreakup->save($saveMSB->data,array('validate' => false));			    				
+				$res = $this->AccountsSalaryregister->save($saveSalReg->data,array('validate' => false));
+			if($res) {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength));
+			} else {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength));
+			}
+		} else {
+			$this->request->data = $this->AccountsMonthlysalaryBreakup->read(null, $id);
+		}*/
+  	 
+  }
+  
+	public function idnotesDisplay($id,$comp,$month,$year,$accountid,$page) {
+		
+		if($comp == 'registercomment') {
+			$monSalBrkups  = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$id)));
+		    $comment = $monSalBrkups['AccountsSalaryregister']['comments'];
+		}
+		else {
+	  	$this->loadModel('AccountsMonthlysalaryBreakup');
+	  	$monSalBrkups  = $this->AccountsMonthlysalaryBreakup->find('first',array('conditions'=>array('AccountsMonthlysalaryBreakup.id'=>$id)));
+		$comment = $monSalBrkups['AccountsMonthlysalaryBreakup']['notes'];
+		}
+		$this->set(compact('id','comp','month','year','accountid','comment','page'));	
+	  }
+ 
+	  
+  	public function editNote($page=null) {
+  		
+  	$str = $this->data['notededuction']['comp'];
+  	if($str == 'registercomment') {
+  	$this->loadModel('AccountsSalarydetail');	
+  	$this->loadModel('staff');
+  	$this->AccountsSalaryregister->id = $this->data['notededuction']['id'];
+ 
+  	$staffArrs       = $this->staff->find('all',array('fields' => array('staff.id'),array('conditions'=>array('staff.active'=>'Y'))));
+	$staffnoInsalDetails  = $this->AccountsSalarydetail->find('all',array('fields' =>array('AccountsSalarydetail.id'),'conditions'=>array('AccountsSalarydetail.current'=>'Y')));
+	$empStrength     = count($staffnoInsalDetails);
+  	$saveMSB->data['AccountsSalaryregister']['comments'] =  $this->data['notededuction']['comment'];
+  	$id = $this->data['notededuction']['id'];  	
+  	$month = $this->data['notededuction']['month'];
+  	$year = $this->data['notededuction']['year'];
+  	$accountid = $this->data['notededuction']['accountid'];
+  	$monSalBrkups  = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$id)));
+  	//debug($monSalBrkups);   		
+  	if(!$page) {
+  		$page = 1;
+  	}	
+  	
+		if (!$this->AccountsSalaryregister->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryregister'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsSalaryregister->save($saveMSB->data)) {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+			} else {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+			}
+		} else {
+			$this->request->data = $this->AccountsSalaryregister->read(null, $id);
+		} 
+  	}
+	else {
+	//Configure::write('debug',2);
+	$this->loadModel('staff');
+	$this->loadModel('AccountsSalarydetail');
+  	$this->loadModel('AccountsMonthlysalaryBreakup');
+  	$this->AccountsMonthlysalaryBreakup->id = $this->data['notededuction']['id'];
+ 
+  	$staffArrs       = $this->staff->find('all',array('fields' => array('staff.id'),array('conditions'=>array('staff.active'=>'Y'))));
+	$staffnoInsalDetails  = $this->AccountsSalarydetail->find('all',array('fields' =>array('AccountsSalarydetail.id'),'conditions'=>array('AccountsSalarydetail.current'=>'Y')));
+	$empStrength     = count($staffnoInsalDetails);
+  	$saveMSB->data['AccountsMonthlysalaryBreakup']['notes'] =  $this->data['notededuction']['comment'];
+  	$id = $this->data['notededuction']['id'];  	
+  	$month = $this->data['notededuction']['month'];
+  	$year = $this->data['notededuction']['year'];
+  	$accountid = $this->data['notededuction']['accountid'];
+  	$monSalBrkups  = $this->AccountsMonthlysalaryBreakup->find('first',array('conditions'=>array('AccountsMonthlysalaryBreakup.id'=>$id)));
+  	//debug($monSalBrkups);  	
+  		
+  		$saveMSB->data['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id']           = $monSalBrkups['AccountsMonthlysalaryBreakup']['accounts_salaryregister_id'];
+  		$saveMSB->data['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id']  = $monSalBrkups['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'];
+  		$saveMSB->data['AccountsMonthlysalaryBreakup']['is_deduction']                         = $monSalBrkups['AccountsMonthlysalaryBreakup']['is_deduction'];
+  		$saveMSB->data['AccountsMonthlysalaryBreakup']['amount']                                = $monSalBrkups['AccountsMonthlysalaryBreakup']['amount'];
+  		
+  	
+		if (!$this->AccountsMonthlysalaryBreakup->exists()) {
+			throw new NotFoundException(__('Invalid accounts salaryregister'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsMonthlysalaryBreakup->save($saveMSB->data)) {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+			} else {
+				$this->redirect(array('action' => 'index'.'/'.$month.'/'.$year.'/'.$accountid.'/'.$empStrength.'/'.'page:'.$page));
+			}
+		} else {
+			$this->request->data = $this->AccountsMonthlysalaryBreakup->read(null, $id);
+		} 
+	}	
+}
+	
+       function salaryLog($staffid) {
+	    	//Configure::write('debug',2);	
+	    	$this->loadModel('Staff');  
+	    	//debug($staffid);	
+	    	//$salLogs  = $this->AccountsSalaryregister->find('all',array('conditions'=>array('AccountsSalaryregister.staff_id'=>$staffid)));
+	    	$this->paginate = array('limit'=>20,'conditions'=>array('AccountsSalaryregister.staff_id'=>$staffid));	    	
+	    	//debug($this->Paginate);
+	    	$staffdetails  = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$staffid)));
+	    	$monthName = array(1=>"January", "February", "March", 
+            "April", "May", "June", "July", "August", 
+            "September", "October", "November", "December"); 
+             $salLogs= $this->paginate();
+	    	 $this->set(compact('salLogs','monthName','staffdetails'));
+	    	// debug($staffdetails);
+	    }
+	    
+	    function viewsalaryLog($id = null) {
+	    //Configure::write('debug',2);
+	      			    	
+	    $this->loadModel('Staff');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsMonthlysalaryBreakup');
+		$this->AccountsSalaryregister->recursive = 0;
+		$salregister     = $this->AccountsSalaryregister->find('first',array('conditions'=>array('AccountsSalaryregister.id'=>$id)));
+		$doj = AppModel::dateFormat($salregister['Staff']['start_date']);
+		//debug($doj);
+		$variable = $salregister['AccountsSalaryregister']['variable_pay'];
+		$salBrkupsArrs   = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$id,'AccountsMonthlysalaryBreakup.is_deduction'=>'N')));
+		foreach($salBrkupsArrs as $salBrkupsArr){
+				
+				if($salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 1) {
+		 			$basic = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}
+		 		if($salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 2) {
+		 			$hra = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}
+		 		if($salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 5) {
+		 			$medical = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}
+		 		if($salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 6) {
+		 			$cca = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount'];
+		 		}
+		 		if($salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 7) {
+		 			$conveyance = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount'];
+		 		}
+		 		if($salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 8) {
+		 			$spclallwnce = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}		 		
+		 		if($salBrkupsArr['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 14) {
+		 			$nsa = $salBrkupsArr['AccountsMonthlysalaryBreakup']['amount'];
+		 			$nsanote = $salBrkupsArr['AccountsMonthlysalaryBreakup']['notes'];
+		 		}
+		 			
+	      }
+			
+		$deductArrs   = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id'=>$id,'AccountsMonthlysalaryBreakup.is_deduction'=>'Y')));
+		foreach($deductArrs as $deductbreakup){
+			
+				if($deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 3) {
+		 			$employerPF = $deductbreakup['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}
+		 		if($deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 4) {
+		 			$pt = $deductbreakup['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}
+		 		if($deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 9) {
+		 			$employeePF = $deductbreakup['AccountsMonthlysalaryBreakup']['amount']; 
+		 		}
+		 		if($deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 10) {
+		 			$cab = $deductbreakup['AccountsMonthlysalaryBreakup']['amount'];
+		 			$cabnote = $deductbreakup['AccountsMonthlysalaryBreakup']['notes'];
+		 		}
+		 		if($deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 11) {
+		 			$foodc = $deductbreakup['AccountsMonthlysalaryBreakup']['amount'];
+		 			$foodcnote = $deductbreakup['AccountsMonthlysalaryBreakup']['notes'];
+		 		}
+		 		if($deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 12) {
+		 			$tax = $deductbreakup['AccountsMonthlysalaryBreakup']['amount']; 
+		 			$taxnote = $deductbreakup['AccountsMonthlysalaryBreakup']['notes'];
+		 		}
+		 		if($deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 13) {
+		 			$lop = $deductbreakup['AccountsMonthlysalaryBreakup']['amount'];
+		 			$lopnote = $deductbreakup['AccountsMonthlysalaryBreakup']['notes'];
+		 		}
+		 		if($deductbreakup['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id'] == 15) {
+		 			$others = $deductbreakup['AccountsMonthlysalaryBreakup']['amount']; 
+		 			$othersnote = $deductbreakup['AccountsMonthlysalaryBreakup']['notes'];
+		 		}	
+			
+			}
+			$deductTotal = $employerPF+$pt+$employeePF+$cab+$foodc+$tax+$lop+$others;
+			$earnTotal = $basic+$hra+$medical+$cca+$conveyance+$spclallwnce+$nsa+$variable;
+			$this->set(compact('doj','salregister','variable','deductTotal','earnTotal','basic','hra','medical','cca','conveyance','spclallwnce','nsa','nsanote','employerPF','pt','employeePF','cab','cabnote','foodc','foodcnote','tax','taxnote','lop','lopnote','others','othersnote'));
+	    }
+	
+		function datecal($date1=null,$date2=null) {
+		//to calculate difference between two dates
+		$diff = abs(strtotime($date2) - strtotime($date1));
+		$years = floor($diff / (365*60*60*24));
+		$months = floor(($diff - $years * 365*60*60*24) / (30*60*60*24));
+		$days = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24)/ (60*60*24));
+		$exp = $years."/".$months."/".$days;
+		return($exp);
+	}
+	
+	
+	
+	
+	
+	function deleteRegister($id = null,$page=NULL){
+		//Configure::write('debug',2);
+		//$this->autoRender = false;
+		$this->loadModel('AccountsMonthlysalaryBreakup');
+		$this->loadModel('Staff');
+		$staff_id = $this->AccountsSalaryregister->findById($id);
+		$staff_name = $this->Staff->findById($staff_id['AccountsSalaryregister']['staff_id'],array('Staff.first_name','Staff.last_name'));
+		//$this->AccountsMonthlysalaryBreakup->deleteAll(array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id' => $id), false);
+		debug($staff_id);
+		$update['AccountsSalaryregister']['id'] = $staff_id['AccountsSalaryregister']['id'];
+		$update['AccountsSalaryregister']['active'] = 'N';
+		$this->AccountsSalaryregister->save($update);
+		if($this->AccountsSalaryregister->save($update)) {
+			debug($staff_id);
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Salary register of '.$staff_name['Staff']['first_name'].' '.$staff_name['Staff']['last_name'].' for the month of '.date("F", mktime(0, 0, 0, ($staff_id['AccountsSalaryregister']['month']))).' '.$staff_id['AccountsSalaryregister']['year'].' has been deleted successfully!'.'</div>'));
+			$this->redirect(array('controller'=>'accounts_salaryregisters','action'=>'index'.'/'.$staff_id['AccountsSalaryregister']['month'].'/'.$staff_id['AccountsSalaryregister']['year'].'/'.$staff_id['AccountsSalaryregister']['accounts_account_id'].'/'.'page:'.$page));
+		} else {
+			$this->Session->setFlash(__('<div class="flashMessageError">Record has not deleted!</div>'));
+			$this->redirect(array('controller'=>'accounts_salaryregisters','action'=>'index'.'/'.$staff_id['AccountsSalaryregister']['month'].'/'.$staff_id['AccountsSalaryregister']['year'].'/'.$staff_id['AccountsSalaryregister']['accounts_account_id'].'/'.'page:'.$page));
+		}
+	}
+	
+	public function lopDaysUpdate($month,$year,$accountid,$page) {
+		//Configure::write('debug',2);
+		$this->autoRender = false;
+		foreach($this->data['lop_days'] as $salaryregisterId => $value){
+			$save['AccountsSalaryregister']['id'] = $salaryregisterId;
+			$save['AccountsSalaryregister']['lop_days'] = $value;
+			$this->AccountsSalaryregister->save($save);
+		}
+		$this->Session->setFlash(__('<div class="flashMessageSuccess">LOP days has been updated successfully!</div>'));
+		$this->redirect(array('controller'=>'accounts_salaryregisters','action'=>'index'.'/'.$month.'/'.$year.'/'.$accountid.'/page:'.$page));
+	}
+	
+	
+	
+	
+	
+	
+	
+	function editRegister($id=null,$page=null) {
+		//Configure::Write('debug',2);
+		debug($this->data);
+		debug($page);
+		
+		$this->loadModel('AccountsMonthlysalaryBreakup');
+		$this->loadModel('AccountsSalarydetail');
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsVariablepay');
+		$salaryregister = $this->AccountsSalaryregister->findById($id);
+		debug($salaryregister);
+		$this->AccountsMonthlysalaryBreakup->recursive = 0;
+		$breakupComponents = $this->AccountsMonthlysalaryBreakup->find('all',array('conditions'=>array('AccountsMonthlysalaryBreakup.accounts_salaryregister_id' => $id),'order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+		$components = $this->AccountsSalaryBreakupcomponent->find('list',array('fields'=>array('AccountsSalaryBreakupcomponent.id','AccountsSalaryBreakupcomponent.salary_component')));
+		$emp_code = $this->Staff->findById($salaryregister['AccountsSalaryregister']['staff_id'],array('Staff.first_name','Staff.last_name','Staff.emp_code'));
+		
+		$component_type = $this->AccountsSalaryBreakupcomponent->find('list',array('fields'=>array('AccountsSalaryBreakupcomponent.id','AccountsSalaryBreakupcomponent.order')));
+		foreach($breakupComponents as $component) {
+			if($component['AccountsMonthlysalaryBreakup']['is_deduction'] == 'N') {
+				$data['earnings'][$components[$component['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id']]] = $component['AccountsMonthlysalaryBreakup']['amount'];
+				$data['Breakup'][$components[$component['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id']]] = $component['AccountsMonthlysalaryBreakup']['id'];
+			}
+			if($component['AccountsMonthlysalaryBreakup']['is_deduction'] == 'Y') {
+				$data['deductions'][$components[$component['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id']]] = $component['AccountsMonthlysalaryBreakup']['amount'];
+				$data['Breakup'][$components[$component['AccountsMonthlysalaryBreakup']['accounts_salary_breakupcomponent_id']]] = $component['AccountsMonthlysalaryBreakup']['id'];
+			}
+		}
+		$salarydetail_id = $this->AccountsSalarydetail->findByStaff_id($salaryregister['AccountsSalaryregister']['staff_id'],array('AccountsSalarydetail.id'));
+		$variable_pays = $this->AccountsVariablepay->find('all',array('conditions'=>array('AccountsVariablepay.accounts_salarydetail_id'=>$salarydetail_id['AccountsSalarydetail']['id']),'order'=>array('AccountsVariablepay.id ASC')));
+		$this->set(compact('emp_code','salaryregister','components','breakupComponents','variable_pays','data','component_type','id','page'));
+		$this->set('salaryId',$salarydetail_id['AccountsSalarydetail']['id']);
+		
+		
+		if(!empty($this->data['AccountsSalaryregister'])) {
+			
+			if( empty($this->data['AccountsSalaryregister']['ctc'])) {
+				$this->Session->setFlash(__('<div class="flashMessageError">CTC can\'t be left empty</div>'));
+				return;
+			}
+			
+			if( empty($this->data['AccountsSalaryregister']['fixed'])) {
+				$this->Session->setFlash(__('<div class="flashMessageError">Fixed CTC can\'t be left empty</div>'));
+				return;
+			}
+			
+			if( $this->data['AccountsSalaryregister']['ctc'] < $this->data['AccountsSalaryregister']['fixed']) {
+				$this->Session->setFlash(__('<div class="flashMessageError">Fixed CTC should be less than CTC</div>'));
+				return;
+			}
+			
+			
+			$saveBreakups=null;$saveRegister=null;$variablePay=0;
+			if(!empty($this->data['AccountsSalaryregister'][$this->data['AccountsSalaryregister']['variablepay']])) {
+				$variablePay = $this->data['AccountsSalaryregister'][$this->data['AccountsSalaryregister']['variablepay']];
+			}
+			if($this->data['AccountsSalarybreakupss']) {
+				$deduct = 0;$earnings = 0;$netCtcDeduction=0;
+				foreach($this->data['AccountsSalarybreakupss'] as $breakupComponent => $amount) {
+					if($this->data['Applicable'][$breakupComponent] == 1) {
+						if($breakupComponent == 'LOP' || $breakupComponent == 'Others'){
+							$netCtcDeduction = $netCtcDeduction+$amount['amount'];
+						}
+						
+						if(!empty($amount['deduct'])) {
+							$deduct += $amount['amount'];
+						}
+						if(empty($amount['deduct'])) {
+							$earnings += $amount['amount'];
+						}
+					}
+					$saveBreakups['AccountsMonthlysalaryBreakup']['id'] = $amount['id'];
+					$saveBreakups['AccountsMonthlysalaryBreakup']['amount'] = $amount['amount'];  
+					$this->AccountsMonthlysalaryBreakup->save($saveBreakups);
+				}
+			}
+			$saveRegister['AccountsSalaryregister']['id'] = $this->data['AccountsSalaryregister']['id'];
+			$saveRegister['AccountsSalaryregister']['ctc'] = $this->data['AccountsSalaryregister']['ctc'];
+			$saveRegister['AccountsSalaryregister']['fixed_pay'] = $this->data['AccountsSalaryregister']['fixed'];
+			$saveRegister['AccountsSalaryregister']['variable_pay'] = $this->data['AccountsSalaryregister'][$this->data['AccountsSalaryregister']['variablepay']];
+			$saveRegister['AccountsSalaryregister']['comments'] = $this->data['AccountsSalaryregister']['comments'];
+			$saveRegister['AccountsSalaryregister']['performance_category'] = $this->data['AccountsSalaryregister']['variablepay']; 
+			$saveRegister['AccountsSalaryregister']['take_home'] = $earnings - $deduct + $variablePay;
+			$saveRegister['AccountsSalaryregister']['netctc'] = ($earnings + $variablePay);
+			if($this->AccountsSalaryregister->save($saveRegister)) {
+				$this->redirect(array('action'=>'index'.'/'.$salaryregister['AccountsSalaryregister']['month'].'/'.$salaryregister['AccountsSalaryregister']['year'].'/'.$salaryregister['AccountsSalaryregister']['accounts_account_id'].'/'.'page:'.$page));
+			}
+		}
+	}
+	
+	
+	
+	
+	function process($ctc=null,$first_name=null,$last_name=null,$emp_code=null,$id=null,$salaryDetailId=null){
+	//	Configure::write('debug',2);
+		debug($this->data);
+		debug($id);
+		$this->set('sal',$this->data);
+		$this->set(compact('ctc','first_name','last_name','emp_code','id','mode','salaryDetailId'));
+		
+		$this->loadModel('AccountsSalarydetail');
+		$this->loadModel('AccountsVariablepay');
+		
+		if($this->data['AccountsSalaryregister']['ctc']) {
+			$fixed_ctc = $this->data['AccountsSalaryregister']['fixed'];
+		}
+		debug($fixed_ctc);
+		if($this->data['AccountsSalaryregister']['id']) {
+			$id=$this->data['AccountsSalaryregister']['id'];
+		} else {
+			$id = $id;
+		}
+		
+		$variable_pays = $this->AccountsVariablepay->find('all',array('conditions'=>array('AccountsVariablepay.accounts_salarydetail_id'=>$salaryDetailId),'order'=>array('AccountsVariablepay.id ASC')));
+		//$variable_pays = $this->AccountsVariablepay->find('all',array('conditions'=>array('AccountsVariablepay.accounts_salarydetail_id' => )));
+		debug($variable_pays);
+		debug($id);
+		
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsSalarybreakup');
+		
+		$components = $this->AccountsSalaryBreakupcomponent->find('all',array('order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+		
+		$i=0;
+		foreach($components as $component){
+			$amount=null;
+				if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Basic'){
+					$basic_component = $component['AccountsSalaryBreakupcomponent']['salary_component'];
+					$basic = ($component['AccountsSalaryBreakupcomponent']['value']/100)*$fixed_ctc;
+					$amount = $basic;
+				 }
+				if(($component['AccountsSalaryBreakupcomponent']['type'] == '%') && ($component['AccountsSalaryBreakupcomponent']['salary_component']!='Basic')){
+					$amount = ($component['AccountsSalaryBreakupcomponent']['value']/100)*$basic;
+				}
+				elseif($component['AccountsSalaryBreakupcomponent']['type'] == 'fixed'){
+					$amount = $component['AccountsSalaryBreakupcomponent']['value'];
+				}
+				elseif($component['AccountsSalaryBreakupcomponent']['type'] == 'variable'){
+					$old_breakup = $this->AccountsSalarybreakup->find('first',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$id,'AccountsSalarybreakup.accounts_salary_breakupcomponent_id'=>$component['AccountsSalaryBreakupcomponent']['id'])));
+					debug($old_breakup);
+					$amount = $old_breakup['AccountsSalarybreakup']['amount'];
+				}
+				if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Professional Tax') {
+					if($fixed_ctc < 15000) {
+						$amount = 150;
+					}
+				}
+				$components[$i]['AccountsSalaryBreakupcomponent']['calculated_amount'] = $amount;
+				
+				if($component['AccountsSalaryBreakupcomponent']['salary_component']!='Special Allowance') {
+					$sp_amount = $sp_amount+$amount;
+					if($component['AccountsSalaryBreakupcomponent']['deduction'] == 'N'){
+						$earning_amount += $amount;
+					}
+				}
+				
+				$i++;
+		}
+		$spl_allowance1 = $fixed_ctc-$earning_amount;
+		$deduction=0;$earningss=0;
+		foreach($components as $BreakupDetails) {
+			if($this->data['Applicable'][$BreakupDetails['AccountsSalaryBreakupcomponent']['salary_component']] == 1) {
+				if($BreakupDetails['AccountsSalaryBreakupcomponent']['deduction'] == 'Y') {
+					$deduction += $BreakupDetails['AccountsSalaryBreakupcomponent']['calculated_amount'];
+				}
+				if($BreakupDetails['AccountsSalaryBreakupcomponent']['deduction'] == 'N') {
+					if($BreakupDetails['AccountsSalaryBreakupcomponent']['salary_component'] == 'Special Allowance') {
+						$earningss += $spl_allowance1;
+					} else {
+						$earningss += $BreakupDetails['AccountsSalaryBreakupcomponent']['calculated_amount'];
+					}
+				}
+			}
+		}
+		debug($earningss);
+		debug($deduction);
+		debug($this->data['AccountsSalaryregister'][$this->data['AccountsSalaryregister']['variablepay']]);
+		$take_home = ($earningss - $deduction) + $this->data['AccountsSalaryregister'][$this->data['AccountsSalaryregister']['variablepay']];
+		
+		$this->set(compact('components','spl_allowance1','variable_pays','take_home'));
+	}
+	
+	function calculateTakeHome() {
+		$earnings=0;$deduct=0;$variablePay=0;
+		foreach($this->data['AccountsSalarybreakupss'] as $component => $amount) {
+			if($this->data['Applicable'][$component] == 1){
+				if(!empty($amount['deduct'])) {
+					$deduct += $amount['amount'];
+				}
+				if(empty($amount['deduct'])){
+					$earnings += $amount['amount'];
+				}
+			}
+		}
+		if(!empty($this->data['AccountsSalaryregister'][$this->data['AccountsSalaryregister']['variablepay']])) {
+			$variablePay = $this->data['AccountsSalaryregister'][$this->data['AccountsSalaryregister']['variablepay']];
+		}
+		$take_home = ($earnings - $deduct) + $variablePay;
+		$this->set(compact('take_home'));
+	}	
+	
+}

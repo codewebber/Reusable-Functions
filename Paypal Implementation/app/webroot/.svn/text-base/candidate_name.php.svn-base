@@ -1,0 +1,61 @@
+<?php
+/*function for get the candidate name from resume */ 
+function getCandidateName($file){ 
+
+        $content = file_get_contents($file); 
+         
+        $content = strip_tags($content); 
+
+        $arrContent = explode("\r", $content); 
+         
+        $concat_content = ""; 
+         
+        for($i=0; $i<count($arrContent); $i++){ 
+             
+            if(trim((string)$arrContent[$i])!=""){ 
+             
+                $concat_content .= trim((string)$arrContent[$i])." "; 
+                 
+            } 
+        } 
+         
+        $arr_concat_content = str_word_count($concat_content, 1, '&!@#$%^*(){}[]:;\'".,?=1234567890/'); 
+       
+        $next_concat_content = ""; 
+         
+         
+         
+        for($i=0; $i<count($arr_concat_content); $i++){ 
+             
+             
+            $str = trim($arr_concat_content[$i]);     
+             
+            $next_concat_content .= $str." "; 
+                 
+             
+        } 
+        $next_concat_content = strtolower($next_concat_content); 
+        $pattern = array("resume","curriculum","vitae","summary",":","-","@","&nbsp;","#","9","8","7","6","5",";","&","4","3","2","1","(",")","0"); 
+        $next_concat_content = trim(str_replace($pattern,"",$next_concat_content)); 
+        $limit_content = substr(trim($next_concat_content),0,30); 
+        $arrlimit = explode(" ",trim($limit_content)); 
+        $firstname = ""; 
+		
+        if(count($arrlimit)>1){ 
+            $g=0; 
+            for($k=0;$k<count($arrlimit);$k++){ 
+                if(trim($arrlimit[$k])!=" " && trim($arrlimit[$k])!="" && $g<2){ 
+                    $firstname .= ucwords(trim($arrlimit[$k]))." "; 
+                    $g++; 
+                } 
+            }         
+             
+        } 
+        else{ 
+            $firstname = ucwords(trim($arrlimit[0])); 
+        } 
+         
+        return $firstname; 
+}
+echo getCandidateName('gopinath_resume.doc');
+  ?>

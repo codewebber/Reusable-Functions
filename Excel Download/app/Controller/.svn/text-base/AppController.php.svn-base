@@ -1,0 +1,93 @@
+<?php
+/**
+ * Application level Controller
+ *
+ * This file is application-wide controller file. You can put all
+ * application-wide controller-related methods here.
+ *
+ * CakePHP(tm) : Rapid Development Framework (http://cakephp.org)
+ * Copyright (c) Cake Software Foundation, Inc. (http://cakefoundation.org)
+ *
+ * Licensed under The MIT License
+ * For full copyright and license information, please see the LICENSE.txt
+ * Redistributions of files must retain the above copyright notice.
+ *
+ * @copyright     Copyright (c) Cake Software Foundation, Inc. (http://cakefoundation.org)
+ * @link          http://cakephp.org CakePHP(tm) Project
+ * @package       app.Controller
+ * @since         CakePHP(tm) v 0.2.9
+ * @license       http://www.opensource.org/licenses/mit-license.php MIT License
+ */
+
+App::uses('Controller', 'Controller');
+
+/**
+ * Application Controller
+ *
+ * Add your application-wide methods in the class below, your controllers
+ * will inherit them.
+ *
+ * @package		app.Controller
+ * @link		http://book.cakephp.org/2.0/en/controllers.html#the-app-controller
+ */
+class AppController extends Controller {
+	
+	public $components = array('Auth','Session','Email');
+    
+    
+     public function beforeFilter() {
+     	
+     	
+     	    $this->Auth->authenticate = array(
+			AuthComponent::ALL => array(
+				'userModel' => 'User',
+				'fields' => array(
+					'username' => 'username',
+					'password' => 'password'
+				),
+			), 'Form' => array(
+			    	'userModel' => 'User',
+			        'scope'=>array('User.active'=>'Y','User.deleted'=>'N')
+			    ),
+		);	
+		
+		
+		 
+			
+  	 }	
+  	 
+  	 function settings(){
+  	 	$file_relative_path='/home/visioncarma/public_html/HRManagement/app/webroot';
+  	 	//$file_relative_path='/home/careers/public_html/app/webroot';
+  	 	return $file_relative_path;
+  	 }
+  	 
+  	 //Lists userid and name of users whose role is HR Asssistant
+  	 function hr_assistants(){
+  	 	$this->loadModel('User');
+		$this->User->recursive = -1;
+		$this->loadModel('Role');
+		$this->Role->recursive = -1;
+		$role_id=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'HR Assistant')));
+		$hr_asssistant=$this->User->find('all',array('conditions'=>array('User.role_id'=>$role_id['Role']['id'],'User.active'=>'Y')));
+		$assistants=null;
+		foreach($hr_asssistant as $hr1=>$hr2){
+			$assistants[$hr2['User']['id']]=$hr2['User']['first_name'].' '.$hr2['User']['last_name'];
+		}
+		return $assistants;
+  	 }
+	 
+	 function reviewers(){
+  	 	$this->loadModel('User');
+		$this->User->recursive = -1;
+		$this->loadModel('Role');
+		$this->Role->recursive = -1;
+		$role_id=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'Employee')));
+		$reviewers=$this->User->find('all',array('conditions'=>array('User.role_id'=>$role_id['Role']['id'],'User.active'=>'Y')));
+		$assistants=null;
+		foreach($reviewers as $hr1=>$hr2){
+			$assistants[$hr2['User']['id']]=$hr2['User']['first_name'].' '.$hr2['User']['last_name'];
+		}
+		return $assistants;
+  	 }
+}

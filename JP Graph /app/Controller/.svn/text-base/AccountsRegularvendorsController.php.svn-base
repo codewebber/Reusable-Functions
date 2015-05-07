@@ -1,0 +1,1573 @@
+<?php
+/*App::uses('AppController', 'Controller');
+CakePlugin::load('Uploader');
+App::import('Vendor', 'Uploader.Uploader');*/
+
+App::uses('AppController', 'Controller');
+CakePlugin::load('Uploader');
+App::import('Vendor', 'Uploader.Uploader');
+
+/**
+ * AccountsRegularvendors Controller
+ *
+ * @property AccountsRegularvendor $AccountsRegularvendor
+ */
+class AccountsRegularvendorsController extends AppController {
+
+/*var $helpers = array('Html', 'Form','Ajax', 'Js','Javascript');
+public $components = array('Email', 'RequestHandler','Session');
+public $actsAs = array('Uploader.Attachment');*/
+
+
+var $helpers = array('Ajax', 'Javascript');
+public $components = array('RequestHandler');
+public $actsAs = array('Uploader.Attachment' => array('fileName' => array('transforms' => array(array('method' => 'scale', 'dbColumn' => 'path_scaled'),array('method' => 'resize', 'width' => 50, 'height' => 50, 'dbColumn' => 'path')))));
+
+	public function beforeFilter(){
+		parent::beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Vendors';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+    }
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	/*
+	function beforeFilter(){ 
+		
+		$this->Auth->autoRedirect = false;
+		$this->Auth->allow('add');
+	}*/
+	
+	public function index() {
+		$this->AccountsRegularvendor->recursive = 0;
+		
+		$this->set('accountsRegularvendors', $this->paginate());
+	}
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function vendor_listing($page=null,$limit=null,$count=null,$flash = null,$search_field=NULL,$search_data=NULL) {	
+		Configure::write('debug',2);
+ 		debug($this->data);
+		$this->AccountsRegularvendor->recursive = -1;
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountsBill');
+		$this->AccountsAccount->recursive = -1;
+		$this->AccountsBill->recursive = -1;
+		debug($this->data);
+		debug($this->data['Search']['vendor']);
+		if(!$page) $page=1; //Initialize the page 
+		if(!$limit) $limit=20; // Initialize the limit 
+		$offset=$this->countPages($count,$limit,$page);//Get Offset value
+		if(!$offset)  $offset=0; //Initialize offset
+        
+        if($this->data['page']) {
+        	$limit=$this->data['page'];
+        }
+		
+		if(!$final = Cache::read('final')) {
+			Cache::write('final', $final, 86400);
+			if(($this->data['Bills']['from']) || ($this->data['Bills']['to'])) {
+				debug("testt");
+				$flag ="no";
+			}
+			debug($final);
+			
+			if(($this->data['Search']['vendor']) && ($this->data['Search']['vendor'] != "-Vendor Name-")) {
+				$finding = $this->AccountsRegularvendor->find('all',array('conditions'=>array('AND'=>array('AccountsRegularvendor.company_name LIKE'=>'%'.$this->data['Search']['vendor'].'%','AccountsRegularvendor.active'=>'Y'))));
+				debug($finding);
+				$flag = "yes";
+				if(empty($finding)) {
+					$finding_acc = $this->AccountsAccount->find('first',array('conditions'=>array('AND'=>array('AccountsAccount.account_name LIKE'=>$this->data['Search']['vendor']))));
+					debug($finding_acc);
+					$flag = "both";
+				}
+			}
+			else
+				$flag = 'no';
+			if($flag == "yes") { 
+				foreach($finding as $finding1) {
+					debug($finding1['AccountsRegularvendor']['id']);
+					$vendors = $this->AccountsRegularvendor->find('all',array('conditions'=>array('AND'=>array('AccountsRegularvendor.id'=>$finding1['AccountsRegularvendor']['id'],'AccountsRegularvendor.active'=>'Y')),'order'=>array('AccountsRegularvendor.company_name ASC')));
+					debug($vendors);
+					$totcount = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AND'=>array('AccountsRegularvendor.id'=>$finding1['AccountsRegularvendor']['id'],'AccountsRegularvendor.active'=>'Y'))));
+					$count = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AND'=>array('AccountsRegularvendor.id'=>$finding1['AccountsRegularvendor']['id'],'AccountsRegularvendor.active'=>'Y'))));
+					debug($totcount);
+				}
+			} elseif($flag=="no") {
+				$vendors = $this->AccountsRegularvendor->find('all',array('limit'=>$limit,'offset'=>$offset,'conditions'=>array('AccountsRegularvendor.active'=>'Y'),'order'=>array('AccountsRegularvendor.company_name ASC')));
+				$count = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.active'=>'Y')));
+				$totcount = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.active'=>'Y')));
+			} elseif($flag=="both") {
+				$vendors = $this->AccountsRegularvendor->find('all',array('limit'=>$limit,'offset'=>$offset,'conditions'=>array('AND'=>array('AccountsRegularvendor.accounts_account_id'=>$finding_acc['AccountsAccount']['id'],'AccountsRegularvendor.active'=>'Y')),'order'=>array('AccountsRegularvendor.company_name ASC')));
+				$totcount = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.accounts_account_id'=>$finding_acc['AccountsAccount']['id'])));
+				$count = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.accounts_account_id'=>$finding_acc['AccountsAccount']['id'])));
+			} elseif($flag=="filter") {
+				$vendors = $this->AccountsRegularvendor->find('all',array('limit'=>$limit,'offset'=>$offset,'conditions'=>array('AND'=>array('AccountsRegularvendor.accounts_account_id'=>$finding_acc['AccountsAccount']['id'],'AccountsRegularvendor.active'=>'Y')),'order'=>array('AccountsRegularvendor.company_name ASC')));
+				$totcount = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.accounts_account_id'=>$finding_acc['AccountsAccount']['id'])));
+				$count = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.accounts_account_id'=>$finding_acc['AccountsAccount']['id'])));
+			}
+			debug($vendors);
+			debug($flag);
+			
+			//Code for global search
+			if (!empty($search_field)) {
+				if ($search_field == 'id') {
+					$vendors = $this->AccountsRegularvendor->find('all',array('limit'=>$limit,'offset'=>$offset,'conditions'=>array('AccountsRegularvendor.id'=>$search_data),'order'=>array('AccountsRegularvendor.company_name ASC')));
+					$totcount = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.id'=>$search_data)));
+					$count = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.id'=>$search_data)));
+				}
+				if ($search_field == 'company_name') {
+					$vendors = $this->AccountsRegularvendor->find('all',array('limit'=>$limit,'offset'=>$offset,'conditions'=>array('AND'=>array('AccountsRegularvendor.company_name LIKE'=>$search_data.'%','AccountsRegularvendor.active'=>'Y')),'order'=>array('AccountsRegularvendor.company_name ASC')));
+					$totcount = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AND'=>array('AccountsRegularvendor.company_name LIKE'=>$search_data.'%','AccountsRegularvendor.active'=>'Y'))));
+					$count = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AND'=>array('AccountsRegularvendor.company_name LIKE'=>$search_data.'%','AccountsRegularvendor.active'=>'Y'))));
+				}
+				if ($search_field == 'account_name') {
+					
+					$account_id = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>$search_data),'fields'=>array('AccountsAccount.id')));
+					$vendors = $this->AccountsRegularvendor->find('all',array('limit'=>$limit,'offset'=>$offset,'conditions'=>array('AND'=>array('AccountsRegularvendor.accounts_account_id'=>$account_id['AccountsAccount']['id'],'AccountsRegularvendor.active'=>'Y')),'order'=>array('AccountsRegularvendor.company_name ASC')));
+					$totcount = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.accounts_account_id'=>$account_id['AccountsAccount']['id'])));
+					$count = $this->AccountsRegularvendor->find('count',array('conditions'=>array('AccountsRegularvendor.accounts_account_id'=>$account_id['AccountsAccount']['id'])));
+				}
+			}
+			//End of global search code
+			
+			foreach($vendors as $vendors1) {
+				
+				$from = date('Y-m-d',strtotime($this->data['Bills']['from']));
+				$to = date('Y-m-d',strtotime($this->data['Bills']['to']));
+				
+				$toggle_bills = $this->AccountsBill->find('all',array('conditions'=>array('AND'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id'] )),'limit' =>15,'order' => array( 'AccountsBill.last_date' => 'desc')));
+				
+				
+				debug($toggle_bills);
+				debug(count($toggle_bills));
+				$final_toggle = null;
+				
+				foreach($toggle_bills as $toggle_bills1) {
+					$final_toggle[$toggle_bills1['AccountsBill']['accounts_regularvendor_id']][$toggle_bills1['AccountsBill']['id']]['company_name'] = $vendors1['AccountsRegularvendor']['company_name'];
+					$final_toggle[$toggle_bills1['AccountsBill']['accounts_regularvendor_id']][$toggle_bills1['AccountsBill']['id']]['invoice_no'] = $toggle_bills1['AccountsBill']['invoice_no'];
+					$final_toggle[$toggle_bills1['AccountsBill']['accounts_regularvendor_id']][$toggle_bills1['AccountsBill']['id']]['voucher_no'] = $toggle_bills1['AccountsBill']['voucher_no'];
+					$final_toggle[$toggle_bills1['AccountsBill']['accounts_regularvendor_id']][$toggle_bills1['AccountsBill']['id']]['amount'] = $toggle_bills1['AccountsBill']['amount'];
+					$final_toggle[$toggle_bills1['AccountsBill']['accounts_regularvendor_id']][$toggle_bills1['AccountsBill']['id']]['bill_recieveddate'] = $toggle_bills1['AccountsBill']['bill_recieveddate'];
+					$final_toggle[$toggle_bills1['AccountsBill']['accounts_regularvendor_id']][$toggle_bills1['AccountsBill']['id']]['last_date'] = $toggle_bills1['AccountsBill']['last_date'];
+					$final_toggle[$toggle_bills1['AccountsBill']['accounts_regularvendor_id']][$toggle_bills1['AccountsBill']['id']]['paid_status'] = $toggle_bills1['AccountsBill']['paid_status'];
+					$final_toggle[$toggle_bills1['AccountsBill']['accounts_regularvendor_id']][$toggle_bills1['AccountsBill']['id']]['bill_no'] = $toggle_bills1['AccountsBill']['id'];
+					$final_toggle[$toggle_bills1['AccountsBill']['accounts_regularvendor_id']][$toggle_bills1['AccountsBill']['id']]['billamount'] = $toggle_bills1['AccountsBill']['billamount'];
+					
+				}
+				if($this->data['Bills']['from'] || $this->data['Bills']['to']) {
+					$open_toggle = $this->AccountsBill->find('all',array('conditions'=>array('AND'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id'],  'AccountsBill.bill_recieveddate between ? and ? '=> array($from,$to)  )),'order' => array( 'AccountsBill.last_date' => 'desc')));
+					
+				} else
+					$open_toggle = $this->AccountsBill->find('all',array('conditions'=>array('AND'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id']/*,'OR'=>array('AccountsBill.paid_status'=>array('N','Due'))*/)),'order' => array( 'AccountsBill.last_date' => 'desc')));
+				debug($open_toggle);
+				foreach($open_toggle as $open_toggle1) {
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['company_name'] = $vendors1['AccountsRegularvendor']['company_name'];
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['company_name'] = $vendors1['AccountsRegularvendor']['company_name'];
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['invoice_no'] = $open_toggle1['AccountsBill']['invoice_no'];
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['voucher_no'] = $open_toggle1['AccountsBill']['voucher_no'];
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['amount'] = $open_toggle1['AccountsBill']['amount'];
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['bill_recieveddate'] = $open_toggle1['AccountsBill']['bill_recieveddate'];
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['last_date'] = $open_toggle1['AccountsBill']['last_date'];
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['paid_status'] = $open_toggle1['AccountsBill']['paid_status'];
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['bill_no'] = $open_toggle1['AccountsBill']['id'];
+					$toggle_open[$open_toggle1['AccountsBill']['accounts_regularvendor_id']][$open_toggle1['AccountsBill']['id']]['billamount'] = $open_toggle1['AccountsBill']['billamount'];
+				}
+				$closed_toggle = $this->AccountsBill->find('all',array('conditions'=>array('AND'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id'],'AccountsBill.paid_status'=>'Y')),'limit' =>15,'order' => array( 'AccountsBill.last_date' => 'desc')));
+				debug($closed_toggle);
+				foreach($closed_toggle as $closed_toggle1) {
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['company_name'] = $vendors1['AccountsRegularvendor']['company_name'];
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['company_name'] = $vendors1['AccountsRegularvendor']['company_name'];
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['invoice_no'] = $closed_toggle1['AccountsBill']['invoice_no'];
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['voucher_no'] = $closed_toggle1['AccountsBill']['voucher_no'];
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['amount'] = $closed_toggle1['AccountsBill']['amount'];
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['bill_recieveddate'] = $closed_toggle1['AccountsBill']['bill_recieveddate'];
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['last_date'] = $closed_toggle1['AccountsBill']['last_date'];
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['paid_status'] = $closed_toggle1['AccountsBill']['paid_status'];
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['bill_no'] = $closed_toggle1['AccountsBill']['id'];
+					$toggle_closed[$closed_toggle1['AccountsBill']['accounts_regularvendor_id']][$closed_toggle1['AccountsBill']['id']]['billamount'] = $closed_toggle1['AccountsBill']['billamount'];
+				}
+				
+					debug($vendors1);
+					debug($vendors1['AccountsRegularvendor']['accounts_account_id']);
+					
+					$final[$vendors1['AccountsRegularvendor']['id']]['id'] = $vendors1['AccountsRegularvendor']['id'];
+					$final[$vendors1['AccountsRegularvendor']['id']]['company_name'] = $vendors1['AccountsRegularvendor']['company_name'];
+					$final[$vendors1['AccountsRegularvendor']['id']]['amount1'] = $vendors1['AccountsRegularvendor']['opening_balance'];
+					$acc_name = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$vendors1['AccountsRegularvendor']['accounts_account_id'])));
+					debug($acc_name);
+					$final[$vendors1['AccountsRegularvendor']['id']]['account_name'] = $acc_name['AccountsAccount']['account_name'];
+					
+					
+					$open =  $this->AccountsBill->find('count',array('conditions'=>array('AND'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id'],'OR'=>array('AccountsBill.paid_status'=>array('N','Due'))))));
+				//	$open =  $this->AccountsBill->find('count',array('conditions'=>array('AND'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id'],'AccountsBill.paid_status'=>'N'))));
+					$open2 =  $this->AccountsBill->find('first',array('conditions'=>array('AND'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id'],'OR'=>array('AccountsBill.paid_status'=>array('N','Due'))))));
+					$final[$vendors1['AccountsRegularvendor']['id']]['bill_id'] = $open2['AccountsBill']['id'];
+					$final[$vendors1['AccountsRegularvendor']['id']]['open']=$open;
+					$closed = $this->AccountsBill->find('count',array('conditions'=>array('AND'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id'],'AccountsBill.paid_status'=>'Y'))));
+					$closed2 = $this->AccountsBill->find('first',array('conditions'=>array('AND'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id'],'AccountsBill.paid_status'=>'Y'))));
+					$final[$vendors1['AccountsRegularvendor']['id']]['bill_id2'] = $closed2['AccountsBill']['id'];
+					debug($closed2);
+					$final[$vendors1['AccountsRegularvendor']['id']]['closed']=$closed;
+					$balance = $this->AccountsBill->find('all',array('conditions'=>array('AccountsBill.accounts_regularvendor_id'=>$vendors1['AccountsRegularvendor']['id']/*,'OR'=>array('AccountsBill.paid_status'=>array('N','Due'))*/)));
+					
+					$final[$vendors1['AccountsRegularvendor']['id']]['accounts_account_id']=$vendors1['AccountsRegularvendor']['accounts_account_id'];
+					debug($balance);
+					foreach($balance as $key=>$val) {
+						debug($val);
+						foreach($val as $v1=>$v2) {
+							debug($v2);
+							debug($v1);
+							$final[$vendors1['AccountsRegularvendor']['id']]['amount']= $final[$vendors1['AccountsRegularvendor']['id']]['amount'] + ($v2['amount'] - $v2['billamount']);
+						}
+					}
+			}
+			debug($final_toggle);
+			debug($toggle_open);
+			//$count = count($final);
+			debug($page);
+			debug($limit);
+			debug($count);
+			if(!$page) $page=1; //Initialize the page 
+			if(!$limit) $limit=20; // Initialize the limit 
+			$offset=$this->countPages($count,$limit,$page);//Get Offset value 
+			if(!$offset)  $offset=0;
+		//	debug($final);
+			
+			function compare456($x, $y) {
+				//To Order company name In Alphabetical Order.
+	      			if ( $x['company_name'] == $y['company_name'] )
+	        			return 0;
+	      			else if ( $x['company_name'] < $y['company_name'] )
+	        			return -1;
+	      			else
+	        			return 1;
+			}
+    	
+	    	uasort($final, 'compare456');
+			debug($final);
+			if(count($final) < 20) $no_pagination = 1;
+			else $no_pagination = 0;
+			if(empty($final)) $empty = 1; else $empty = 0;
+			$this->set(compact('final','final2','empty','totcount','page','limit','flash','final_toggle','final_toggle2','toggle_open','toggle_closed','no_pagination','count'));
+			
+		}
+	}
+
+	
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) 
+	{	
+		//Configure::write('debug',2);
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountsBill');
+		$this->AccountsAccount->recursive = -1;
+		$this->AccountsRegularvendor->id = $id;
+		if (!$this->AccountsRegularvendor->exists()) {
+			throw new NotFoundException(__('Invalid accounts regularvendor'));
+		}
+		$acc = $this->AccountsRegularvendor->read(null, $id);
+		debug($acc);
+		$bills = $this->AccountsBill->find('all',array('conditions'=>array('AccountsBill.accounts_regularvendor_id'=>$id)));
+		foreach($bills as $bills1) {
+			$final_bills[$bills1['AccountsBill']['id']]['amount'] = $bills1['AccountsBill']['amount'];
+			$final_bills[$bills1['AccountsBill']['id']]['billamount'] = $bills1['AccountsBill']['billamount'];
+			$final_bills[$bills1['AccountsBill']['id']]['last_date'] = $bills1['AccountsBill']['last_date'];
+			$final_bills[$bills1['AccountsBill']['id']]['paid_status'] = $bills1['AccountsBill']['paid_status'];	
+		}
+		debug($final_bills);
+		$photo = $acc['AccountsRegularvendor']['photo'];
+		$photo_url = $acc['AccountsRegularvendor']['photo_url'];
+		$photo2 = $photo_url.'/'.$photo;
+		$agreement_copy = $acc['AccountsRegularvendor']['agreement_copy'];
+		$agreement_copy_url = $acc['AccountsRegularvendor']['agreement_copy_url'];
+		$acc_name = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$acc['AccountsRegularvendor']['accounts_account_id'])));
+		$acc_name2 = $acc_name['AccountsAccount']['account_name'];
+		$this->set(compact('acc_name2','id','agreement_copy','agreement_copy_url','photo2','final_bills'));
+		$this->set('accountsRegularvendor', $this->AccountsRegularvendor->read(null, $id));
+		
+	}
+
+
+	
+	public function add() 
+	{
+		//Configure::write('debug',2);	
+		debug($this->data);
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsAccount');
+		
+		if($this->data)
+		{
+			if( ( ($this->data['AccountsRegularvendor']['company_name'] && $this->data['selectParentAcct']) && (is_numeric($this->data['AccountsRegularvendor']['opening_balance1']))))
+			{
+				if($this->request->is('post'))
+				{
+					//save + redirect
+					$save->data = null;
+					$this->AccountsRegularvendor->create();
+					if ($this->AccountsRegularvendor->save($save->data)) 
+					{
+						$save->data['AccountsRegularvendor']['accounts_account_id'] = $this->data['selectParentAcct'];
+						$save->data['AccountsRegularvendor']['company_name'] = $this->data['AccountsRegularvendor']['company_name'];
+						$save->data['AccountsRegularvendor']['description'] = $this->data['AccountsRegularvendor']['description'];
+						$save->data['AccountsRegularvendor']['contact_person'] = $this->data['AccountsRegularvendor']['contact_person'];
+						$save->data['AccountsRegularvendor']['address'] = $this->data['AccountsRegularvendor']['address'];
+						$save->data['AccountsRegularvendor']['contact_numbers'] = $this->data['AccountsRegularvendor']['contact_numbers'];
+						$save->data['AccountsRegularvendor']['vendor_since'] = date('Y-m-d',strtotime($this->data['AccountsRegularvendor']['vs']));
+						$save->data['AccountsRegularvendor']['active'] = 'Y';
+						$save->data['AccountsRegularvendor']['email_address'] = $this->data['AccountsRegularvendor']['email_address'];
+						$save->data['AccountsRegularvendor']['billing_terms'] = $this->data['AccountsRegularvendor']['billing_terms'];
+						$save->data['AccountsRegularvendor']['valid_till'] =  date('Y-m-d',strtotime($this->data['AccountsRegularvendor']['vt']));
+						$save->data['AccountsRegularvendor']['opening_balance'] = $this->data['AccountsRegularvendor']['opening_balance1'];
+						$save->data['AccountsRegularvendor']['expense_type'] = $this->data['AccountsRegularvendor']['expense_type'];
+					//	$save->data['AccountsRegularvendor']['photo'] =  'files/uploads/vendors'.'/'.$this->data['AccountsRegularvendor']['photo']['name'];
+					
+						
+						$this->Uploader = new Uploader(); 
+						$this->Uploader = new Uploader(array('tempDir' => TMP));
+						if(($this->data['AccountsRegularvendor']['fileName1']) || ($this->data['AccountsRegularvendor']['fileName2']))
+						{
+							
+							if($this->data['AccountsRegularvendor']['fileName1'])
+							{
+								
+								$this->Uploader->uploadDir = 'files/uploads/vendors';
+								$data1 = $this->Uploader->uploadAll(array('fileName1'));
+								debug($data1);
+								if($data1)
+								{
+									$save->data['AccountsRegularvendor']['photo'] = $data1['fileName1']['name'];
+									$save->data['AccountsRegularvendor']['photo_url'] = 'files/uploads/vendors';
+								}
+								
+							}
+							if($this->data['AccountsRegularvendor']['fileName2'])
+							{
+								$this->Uploader->uploadDir = 'files/uploads/vendors';
+								$data2 = $this->Uploader->uploadAll(array('fileName2'));
+								debug($data2);
+								if($data2)
+								{
+									$save->data['AccountsRegularvendor']['agreement_copy'] = $data2['fileName2']['name'];
+									$save->data['AccountsRegularvendor']['agreement_copy_url'] = 'files/uploads/vendors';
+								}
+							}	
+						}
+						debug($save->data);
+						
+						debug($save->data);
+						debug($this->request->data);
+						$this->AccountsRegularvendor->save($save->data);
+						$this->Session->setFlash(__('<div class="flashMessageSuccess">Vendor has been added</div>'));
+						$yes = 1;
+						$this->redirect(array('action' => 'vendor_listing',0,0,0,1));
+					}
+						
+				}
+			}
+			
+			else
+			{
+				//list + error
+				
+				if(!$this->data['AccountsRegularvendor']['company_name'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the company name</div>'));
+				}
+				elseif(!$this->data['selectParentAcct'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any account</div>'));
+				}
+				
+				elseif(!is_numeric($this->data['AccountsRegularvendor']['opening_balance1']))
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter opening balance</div>'));
+				}
+				
+				/*
+				elseif(!$this->data['AccountsRegularvendor']['contact_person'])
+								{	
+									$this->Session->setFlash(__('<div class="flashMessageError">Please enter the contact person name</div>'));
+								}
+				
+				elseif(!$this->data['AccountsRegularvendor']['contact_numbers'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter any contact number</div>'));
+				}
+				elseif(!$this->data['AccountsRegularvendor']['email_address'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter any email address</div>'));
+				}*/
+				
+				$expense_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name LIKE'=>'Expenses')));
+				debug($expense_type);
+				$expense_id = $expense_type['AccountType']['id'];
+				$accountnames =  $this->AccountsAccount->find('list', array('fields' => array('AccountsAccount.id','AccountsAccount.account_name'),'conditions'=>array('AccountsAccount.account_type_id'=>$expense_id)));
+				$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AND'=>array('AccountsAccount.active'=>'Y','AccountsAccount.account_type_id'=>$expense_id))));
+				debug($accounts);
+				$i=$j=$k=$l=0;
+				/**
+				 * Foreach to seperate accounts in levelwise.
+				 * */
+				foreach($accounts as $accounts)
+				{
+					switch($accounts['AccountsAccount']['level'])
+					{
+						case 1:
+							$level1[$i]=$accounts;
+							$i++;
+							break;
+							
+						case 2:
+							$level2[$j]=$accounts;
+							$j++;
+							break;
+							
+						case 3:
+							$level3[$k]=$accounts;
+							$k++;
+							break;
+						case 4:
+							$level4[$l]=$accounts;
+							$l++;
+							break;
+					}
+				}
+				
+				if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+				if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+				if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+				if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+		
+				/**
+				 * To get all accounts in a tree structure.
+				 * It is used to set parent_id for a new account.
+				 * */
+				 $a=0;
+				foreach($level1 as $level11){
+					$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'" class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+					$a++; 
+					if($level2){
+						foreach($level2 as $level22){
+							if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+								$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'" class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+								if($level3){$w=1;
+									foreach($level3 as $level33){
+										if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+											$final_account/*[$level33['AccountsAccount']['id']]*/.= '<option value="'.$level33['AccountsAccount']['id'].'" class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+											if($level4){
+												foreach($level4 as $level44){
+													if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+														$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				
+				
+				
+				
+				debug($final_account);
+				$this->set(compact('final_account'));
+			}
+		}
+		
+		else
+		{
+			//list
+			$expense_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name LIKE'=>'Expenses')));
+				debug($expense_type);
+				$expense_id = $expense_type['AccountType']['id'];
+				$accountnames =  $this->AccountsAccount->find('list', array('fields' => array('AccountsAccount.id','AccountsAccount.account_name'),'conditions'=>array('AccountsAccount.account_type_id'=>$expense_id)));
+				$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AND'=>array('AccountsAccount.active'=>'Y','AccountsAccount.account_type_id'=>$expense_id))));
+				debug($accounts);
+				$i=$j=$k=$l=0;
+				/**
+				 * Foreach to seperate accounts in levelwise.
+				 * */
+				foreach($accounts as $accounts)
+				{
+					switch($accounts['AccountsAccount']['level'])
+					{
+						case 1:
+							$level1[$i]=$accounts;
+							$i++;
+							break;
+							
+						case 2:
+							$level2[$j]=$accounts;
+							$j++;
+							break;
+							
+						case 3:
+							$level3[$k]=$accounts;
+							$k++;
+							break;
+						case 4:
+							$level4[$l]=$accounts;
+							$l++;
+							break;
+					}
+				}
+				
+				if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+				if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+				if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+				if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+		
+				/**
+				 * To get all accounts in a tree structure.
+				 * It is used to set parent_id for a new account.
+				 * */
+				 $a=0;
+				foreach($level1 as $level11){
+					$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'" class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+					$a++; 
+					if($level2){
+						foreach($level2 as $level22){
+							if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+								$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'" class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+								if($level3){$w=1;
+									foreach($level3 as $level33){
+										if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+											$final_account/*[$level33['AccountsAccount']['id']]*/.= '<option value="'.$level33['AccountsAccount']['id'].'" class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+											if($level4){
+												foreach($level4 as $level44){
+													if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+														$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				
+				
+				
+				
+				debug($final_account);
+				$this->set(compact('final_account'));
+		}
+	}
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function addold() 
+	{
+
+		//Configure::write('debug',2);	
+		debug($this->data);
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsAccount');
+		
+		$expense_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name LIKE'=>'Expenses')));
+		debug($expense_type);
+		$expense_id = $expense_type['AccountType']['id'];
+		$accountnames =  $this->AccountsAccount->find('list', array('fields' => array('AccountsAccount.id','AccountsAccount.account_name'),'conditions'=>array('AccountsAccount.account_type_id'=>$expense_id)));
+		$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AND'=>array('AccountsAccount.active'=>'Y','AccountsAccount.account_type_id'=>$expense_id))));
+		debug($accounts);
+		$i=$j=$k=$l=0;
+		/**
+		 * Foreach to seperate accounts in levelwise.
+		 * */
+		foreach($accounts as $accounts)
+		{
+			switch($accounts['AccountsAccount']['level'])
+			{
+				case 1:
+					$level1[$i]=$accounts;
+					$i++;
+					break;
+					
+				case 2:
+					$level2[$j]=$accounts;
+					$j++;
+					break;
+					
+				case 3:
+					$level3[$k]=$accounts;
+					$k++;
+					break;
+				case 4:
+					$level4[$l]=$accounts;
+					$l++;
+					break;
+			}
+		}
+		
+		if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+		if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+		if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+		if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+
+		/**
+		 * To get all accounts in a tree structure.
+		 * It is used to set parent_id for a new account.
+		 * */
+		 $a=0;
+		foreach($level1 as $level11){
+			$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'" class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+			$a++; 
+			if($level2){
+				foreach($level2 as $level22){
+					if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+						$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'" class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+						if($level3){$w=1;
+							foreach($level3 as $level33){
+								if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+									$final_account/*[$level33['AccountsAccount']['id']]*/.= '<option value="'.$level33['AccountsAccount']['id'].'" class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+									if($level4){
+										foreach($level4 as $level44){
+											if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+												$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		
+		
+		
+		debug($final_account);
+		$this->set(compact('final_account'));
+		if ($this->request->is('post')) 
+		{
+			if(!empty($this->data)){
+				debug($this->data);
+			$save->data = null;
+			$this->AccountsRegularvendor->create();
+			if ($this->AccountsRegularvendor->save($save->data)) 
+			{
+				$save->data['AccountsRegularvendor']['accounts_account_id'] = $this->data['selectParentAcct'];
+				$save->data['AccountsRegularvendor']['company_name'] = $this->data['AccountsRegularvendor']['company_name'];
+				$save->data['AccountsRegularvendor']['description'] = $this->data['AccountsRegularvendor']['description'];
+				$save->data['AccountsRegularvendor']['contact_person'] = $this->data['AccountsRegularvendor']['contact_person'];
+				$save->data['AccountsRegularvendor']['address'] = $this->data['AccountsRegularvendor']['address'];
+				$save->data['AccountsRegularvendor']['contact_numbers'] = $this->data['AccountsRegularvendor']['contact_numbers'];
+				$save->data['AccountsRegularvendor']['vendor_since'] = date('Y-m-d',strtotime($this->data['AccountsRegularvendor']['vs']));
+				$save->data['AccountsRegularvendor']['active'] = 'Y';
+				$save->data['AccountsRegularvendor']['email_address'] = $this->data['AccountsRegularvendor']['email_address'];
+				$save->data['AccountsRegularvendor']['billing_terms'] = $this->data['AccountsRegularvendor']['billing_terms'];
+				$save->data['AccountsRegularvendor']['valid_till'] =  date('Y-m-d',strtotime($this->data['AccountsRegularvendor']['vt']));
+				$save->data['AccountsRegularvendor']['opening_balance'] = $this->data['AccountsRegularvendor']['opening_balance1'];
+				$save->data['AccountsRegularvendor']['expense_type'] = $this->data['AccountsRegularvendor']['expense_type'];
+			//	$save->data['AccountsRegularvendor']['photo'] =  'files/uploads/vendors'.'/'.$this->data['AccountsRegularvendor']['photo']['name'];
+			
+				
+				$this->Uploader = new Uploader(); 
+				$this->Uploader = new Uploader(array('tempDir' => TMP));
+				if(($this->data['AccountsRegularvendor']['fileName1']) || ($this->data['AccountsRegularvendor']['fileName2']))
+				{
+					
+					if($this->data['AccountsRegularvendor']['fileName1'])
+					{
+						
+						$this->Uploader->uploadDir = 'files/uploads/vendors';
+						$data1 = $this->Uploader->uploadAll(array('fileName1'));
+						debug($data1);
+						if($data1)
+						{
+							$save->data['AccountsRegularvendor']['photo'] = $data1['fileName1']['name'];
+							$save->data['AccountsRegularvendor']['photo_url'] = 'files/uploads/vendors';
+						}
+						
+					}
+					if($this->data['AccountsRegularvendor']['fileName2'])
+					{
+						$this->Uploader->uploadDir = 'files/uploads/vendors';
+						$data2 = $this->Uploader->uploadAll(array('fileName2'));
+						debug($data2);
+						if($data2)
+						{
+							$save->data['AccountsRegularvendor']['agreement_copy'] = $data2['fileName2']['name'];
+							$save->data['AccountsRegularvendor']['agreement_copy_url'] = 'files/uploads/vendors';
+						}
+					}	
+				}
+				debug($save->data);
+				
+				debug($save->data);
+				debug($this->request->data);
+				$this->AccountsRegularvendor->save($save->data);
+				$this->Session->setFlash(__('Vendor has been added'));
+				$yes = 1;
+				$this->redirect(array('action' => 'vendor_listing',0,0,0,1));
+			} 
+			else 
+			{
+				
+				$this->Session->setFlash(__('The Accounts Regular Vendor could not be saved. Please, try again. '));
+			}
+			}
+		}
+		$accountsAccounts = $this->AccountsRegularvendor->AccountsAccount->find('list');
+		$this->set(compact('accountsAccounts'));
+	}
+
+
+
+	public function company_namecheck($flagfromedit = null)
+	{
+		//Configure::write('debug',2);
+		debug(strlen($this->data['AccountsRegularvendor']['company_name']));
+		if(strlen($this->data['AccountsRegularvendor']['company_name']) > 30)
+		{
+			$validatecount = 1;
+		}
+		
+		$details = $this->AccountsRegularvendor->find('first',array('conditions'=>array('AND'=>array('AccountsRegularvendor.active'=>'Y','AccountsRegularvendor.company_name LIKE'=>$this->data['AccountsRegularvendor']['company_name']))));
+		if($flagfromedit == 0)
+		{
+			if($details)
+			{
+				
+				$validate = 2;
+			}
+		}
+		if($flagfromedit == 1)
+		{
+			$validate = 0;
+		}
+		$this->set(compact('validate','validatecount','flagfromedit'));
+	}
+
+	public function opening_balancecheck()
+	{
+		
+		if($this->data['AccountsRegularvendor']['opening_balance1'] < 0 || !is_numeric($this->data['AccountsRegularvendor']['opening_balance1']))
+		{
+			$validate = 1;
+			
+		}
+			$this->set(compact('validate'));
+	}
+	public function opening_balancecheckedit($opening_balance = null)
+	{
+		if($this->data['AccountsRegularvendor']['opening_balance'] < 0 || !is_numeric($this->data['AccountsRegularvendor']['opening_balance']))
+		{
+			$validate = 1;
+			
+		}
+			$this->set(compact('validate','opening_balance'));
+	}
+	public function contact_numberscheck()
+	{
+		
+		if(   ($this->data['AccountsRegularvendor']['contact_numbers'] < 0 || !is_numeric($this->data['AccountsRegularvendor']['contact_numbers'])) ||  (strlen($this->data['AccountsRegularvendor']['contact_numbers']) > 10)    )
+		{
+			$validate = 1;
+			
+		}
+		else
+		{
+			$validate = 0;
+		}
+			$this->set(compact('validate'));
+	}
+	
+	public function contact_numberscheckedit($contact_numbers = null)
+	{
+		
+		if(   ($this->data['AccountsRegularvendor']['contact_numbers'] <= 0 || !is_numeric($this->data['AccountsRegularvendor']['contact_numbers'])) ||  (strlen($this->data['AccountsRegularvendor']['contact_numbers']) > 10)    )
+		{
+			$validate = 1;
+			
+		}
+			$this->set(compact('validate','contact_numbers'));
+	}
+	
+	
+	public function email_addresscheck()
+	{
+		//Configure::write('debug',2);
+		
+		$email = $this->data['AccountsRegularvendor']['email_address'];
+		if (!preg_match("/^([a-zA-Z0-9])+([\.a-zA-Z0-9_-])*@([a-zA-Z0-9_-])+(\.[a-zA-Z0-9_-]+)*\.([a-zA-Z]{2,6})$/", $email))
+		{
+			debug('Yes');
+			$validate = 1;
+		}
+		
+		else
+		{
+			debug('NO');
+			$validate = 0;
+		}
+	
+		$this->set(compact('validate'));
+		
+	}
+
+	public function email_addresscheckedit($email_address = null)
+	{
+		//Configure::write('debug',2);
+		
+		$email = $this->data['AccountsRegularvendor']['email_address'];
+		if (!preg_match("/^([a-zA-Z0-9])+([\.a-zA-Z0-9_-])*@([a-zA-Z0-9_-])+(\.[a-zA-Z0-9_-]+)*\.([a-zA-Z]{2,6})$/", $email))
+		{
+			debug('Yes');
+			$validate = 1;
+		}
+		
+		else
+		{
+			debug('NO');
+			$validate = 0;
+		}
+	
+		$this->set(compact('validate','email_address'));
+		
+	}
+
+	public function validtill_check()
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		if(!$this->data['AccountsRegularvendor']['vs']) 
+		{
+			$this->data['AccountsRegularvendor']['vs'] = date('d-M-Y');
+		}
+		
+		if($this->data['AccountsRegularvendor']['vt'] < $this->data['AccountsRegularvendor']['vs'])
+		{
+			$validate = 1;
+		}
+		/*
+		else
+		{
+			debug('No');
+		}*/
+		
+		$this->set(compact('validate'));
+	}
+	
+	
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+ 
+ 
+ 
+ 	public function edit($id = null)
+ 	{
+ 	//	Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsAccount');
+		if($this->data)
+		{	
+			debug($this->data);
+			if( ( ($this->data['AccountsRegularvendor']['company_name'] && $this->data['selectParentAcct']) && (is_numeric($this->data['AccountsRegularvendor']['opening_balance']) ) )   )
+			{
+				debug($this->data);
+				$save->data = null;
+				
+				if($this->request->is('post') || $this->request->is('put'))
+				{
+					//save + redirect
+					debug($this->data);
+					
+					$this->AccountsRegularvendor->create();
+					$save->data['AccountsRegularvendor']['id'] = $id;
+					$save->data['AccountsRegularvendor']['company_name'] = $this->data['AccountsRegularvendor']['company_name'];
+					$save->data['AccountsRegularvendor']['description'] = $this->data['AccountsRegularvendor']['description'];
+					$save->data['AccountsRegularvendor']['opening_balance'] = $this->data['AccountsRegularvendor']['opening_balance'];
+					$save->data['AccountsRegularvendor']['contact_person'] = $this->data['AccountsRegularvendor']['contact_person'];
+					$save->data['AccountsRegularvendor']['address'] = $this->data['AccountsRegularvendor']['address'];
+					$save->data['AccountsRegularvendor']['contact_numbers'] = $this->data['AccountsRegularvendor']['contact_numbers'];
+					$save->data['AccountsRegularvendor']['email_address'] = $this->data['AccountsRegularvendor']['email_address'];
+					$save->data['AccountsRegularvendor']['billing_terms'] = $this->data['AccountsRegularvendor']['billing_terms'];
+					
+					$save->data['AccountsRegularvendor']['accounts_account_id'] = $this->data['selectParentAcct'];
+					$save->data['AccountsRegularvendor']['vendor_since'] = date('Y-m-d',strtotime($this->data['AccountsRegularvendor']['vs']));
+					$save->data['AccountsRegularvendor']['valid_till'] = date('Y-m-d',strtotime($this->data['AccountsRegularvendor']['vt']));
+					$save->data['AccountsRegularvendor']['expense_type'] = $this->data['AccountsRegularvendor']['expense_type'];
+					
+					$this->Uploader = new Uploader(); 
+					$this->Uploader = new Uploader(array('tempDir' => TMP));
+					$this->Uploader->setup(array('tempDir' => TMP));
+					if(($this->data['AccountsRegularvendor']['fileName1']) || ($this->data['AccountsRegularvendor']['fileName2']))
+					{
+						
+						if($this->data['AccountsRegularvendor']['fileName1'])
+						{
+							
+							$this->Uploader->uploadDir = 'files/uploads/vendors';
+							$data1 = $this->Uploader->uploadAll(array('fileName1'));
+							debug($data1);
+							if($data1)
+							{
+								$save->data['AccountsRegularvendor']['photo'] = $data1['fileName1']['name'];
+								$save->data['AccountsRegularvendor']['photo_url'] = 'files/uploads/vendors';
+							}
+							
+						}
+						if($this->data['AccountsRegularvendor']['fileName2'])
+						{
+							$this->Uploader->uploadDir = 'files/uploads/vendors';
+							$data2 = $this->Uploader->uploadAll(array('fileName2'));
+							debug($data2);
+							if($data2)
+							{
+								$save->data['AccountsRegularvendor']['agreement_copy'] = $data2['fileName2']['name'];
+								$save->data['AccountsRegularvendor']['agreement_copy_url'] = 'files/uploads/vendors';
+							}
+						}	
+					}
+					debug($save->data);
+					$this->AccountsRegularvendor->save($save->data);
+					
+					$yes = 1;
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">Vendor has been saved</div>'));
+					$this->redirect(array('action' => 'vendor_listing',0,0,0));
+				}
+			}
+			
+			else
+			{
+				//list + error
+				debug($this->data);
+				if(!$this->data['AccountsRegularvendor']['company_name'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the company name</div>'));
+				}
+				elseif(!$this->data['selectParentAcct'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any account</div>'));
+				}
+				
+				elseif(!is_numeric($this->data['AccountsRegularvendor']['opening_balance']))
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the opening balance!</div>'));
+				}
+				
+				/*
+				elseif(!$this->data['AccountsRegularvendor']['contact_person'])
+								{	
+									$this->Session->setFlash(__('<div class="flashMessageError">Please enter the contact person name</div>'));
+								}
+								elseif(!$this->data['AccountsRegularvendor']['contact_numbers'])
+								{	
+									$this->Session->setFlash(__('<div class="flashMessageError">Please enter any contact number</div>'));
+								}
+								elseif(!$this->data['AccountsRegularvendor']['email_address'])
+								{	
+									$this->Session->setFlash(__('<div class="flashMessageError">Please enter any email address</div>'));
+								}
+								*/
+				
+				$accountnames =  $this->AccountsAccount->find('list', array('fields' => array('AccountsAccount.id','AccountsAccount.account_name')));
+				$this->set(compact('accountnames'));
+				
+				$this->AccountsRegularvendor->id = $id;
+				$details = $this->AccountsRegularvendor->find('first',array('conditions'=>array('AccountsRegularvendor.id'=>$id)));
+				$opening_balance = $details['AccountsRegularvendor']['opening_balance'];
+				$contact_numbers = $details['AccountsRegularvendor']['contact_numbers'];
+				$email_address = $details['AccountsRegularvendor']['email_address'];
+				$defaultacc_name2 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$details['AccountsRegularvendor']['accounts_account_id'])));
+				$defaultacc_name =  $defaultacc_name2['AccountsAccount']['account_name'];
+				$vendor_since = date('d-M-Y',strtotime($details['AccountsRegularvendor']['vendor_since']));
+				debug($vendor_since);
+				//$vendor_since = $details['AccountsRegularvendor']['vendor_since'];
+				$valid_till= date('d-M-Y',strtotime($details['AccountsRegularvendor']['valid_till']));
+				$expense_type = $details['AccountsRegularvendor']['expense_type'];
+				$photo = $details['AccountsRegularvendor']['photo_url'].'/'.$details['AccountsRegularvendor']['photo'];
+				$agreement_copy = $details['AccountsRegularvendor']['agreement_copy'];
+				$agreement_copyurl = $details['AccountsRegularvendor']['agreement_copy_url'];
+				debug($details);
+				$this->set(compact('email_address','contact_numbers','opening_balance','vendor_since','valid_till','photo','agreement_copy','agreement_copyurl','defaultacc_name','expense_type'));
+				$expense_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name LIKE'=>'Expenses')));
+				debug($expense_type);
+				$expense_id = $expense_type['AccountType']['id'];
+				$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AND'=>array('AccountsAccount.active'=>'Y','AccountsAccount.account_type_id'=>$expense_id))));
+				debug($accounts);
+				$i=$j=$k=$l=0;
+				/**
+				 * Foreach to seperate accounts in levelwise.
+				 * */
+				foreach($accounts as $accounts)
+				{
+					switch($accounts['AccountsAccount']['level'])
+					{
+						case 1:
+							$level1[$i]=$accounts;
+							$i++;
+							break;
+							
+						case 2:
+							$level2[$j]=$accounts;
+							$j++;
+							break;
+							
+						case 3:
+							$level3[$k]=$accounts;
+							$k++;
+							break;
+						case 4:
+							$level4[$l]=$accounts;
+							$l++;
+							break;
+					}
+				}
+				
+				if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+				if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+				if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+				if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+		
+				/**
+				 * To get all accounts in a tree structure.
+				 * It is used to set parent_id for a new account.
+				 * */
+				 $account = $this->AccountsAccount->findById($details['AccountsRegularvendor']['accounts_account_id']);
+				debug($account);
+					$selected='';
+				foreach($level1 as $level11){
+					if($level11['AccountsAccount']['id'] == $account['AccountsAccount']['id']){
+						$selected='selected';
+						$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'"' .$selected." ". 'class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+					}else{
+						$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'" class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+					}
+					if($level2){
+						foreach($level2 as $level22){
+							if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+								if($level22['AccountsAccount']['id'] == $account['AccountsAccount']['id']){
+									$selected='selected';
+									$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'"'.$selected." ".' class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+								}else{
+									$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'" class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+								}
+								if($level3){
+									foreach($level3 as $level33){
+										if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+											if($level33['AccountsAccount']['id'] == $account['AccountsAccount']['id']){
+												$selected='selected';
+												$final_account.= '<option value="'.$level33['AccountsAccount']['id'].'"'.$selected." ". 'class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+											}else{
+												$final_account.= '<option value="'.$level33['AccountsAccount']['id'].'" class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+											}
+											
+											if($level4){
+												foreach($level4 as $level44){
+													if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+														$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				
+				
+				debug($final_account);
+			
+				
+				
+				
+				$this->set(compact('final_account'));
+				$this->request->data = $this->AccountsRegularvendor->read(null, $id);	
+				$accountsAccounts = $this->AccountsRegularvendor->AccountsAccount->find('list');
+				$this->set(compact('accountsAccounts','id'));
+				
+			}
+			
+		}
+		
+		else
+		{
+			//list
+			$accountnames =  $this->AccountsAccount->find('list', array('fields' => array('AccountsAccount.id','AccountsAccount.account_name')));
+			$this->set(compact('accountnames'));
+			$this->AccountsRegularvendor->id = $id;
+			$details = $this->AccountsRegularvendor->find('first',array('conditions'=>array('AccountsRegularvendor.id'=>$id)));
+			$opening_balance = $details['AccountsRegularvendor']['opening_balance'];
+			$contact_numbers = $details['AccountsRegularvendor']['contact_numbers'];
+			$email_address = $details['AccountsRegularvendor']['email_address'];
+			$defaultacc_name2 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$details['AccountsRegularvendor']['accounts_account_id'])));
+			$defaultacc_name =  $defaultacc_name2['AccountsAccount']['account_name'];
+			$vendor_since = date('d-M-Y',strtotime($details['AccountsRegularvendor']['vendor_since']));
+			debug($vendor_since);
+			//$vendor_since = $details['AccountsRegularvendor']['vendor_since'];
+			$valid_till= date('d-M-Y',strtotime($details['AccountsRegularvendor']['valid_till']));
+			$expense_type = $details['AccountsRegularvendor']['expense_type'];
+			$photo = $details['AccountsRegularvendor']['photo_url'].'/'.$details['AccountsRegularvendor']['photo'];
+			$agreement_copy = $details['AccountsRegularvendor']['agreement_copy'];
+			$agreement_copyurl = $details['AccountsRegularvendor']['agreement_copy_url'];
+			debug($details);
+			$this->set(compact('email_address','contact_numbers','opening_balance','vendor_since','valid_till','photo','agreement_copy','agreement_copyurl','defaultacc_name','expense_type'));
+			$expense_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name LIKE'=>'Expenses')));
+			debug($expense_type);
+			$expense_id = $expense_type['AccountType']['id'];
+			$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AND'=>array('AccountsAccount.active'=>'Y','AccountsAccount.account_type_id'=>$expense_id))));
+			debug($accounts);
+			$i=$j=$k=$l=0;
+			/**
+			 * Foreach to seperate accounts in levelwise.
+			 * */
+			foreach($accounts as $accounts)
+			{
+				switch($accounts['AccountsAccount']['level'])
+				{
+					case 1:
+						$level1[$i]=$accounts;
+						$i++;
+						break;
+						
+					case 2:
+						$level2[$j]=$accounts;
+						$j++;
+						break;
+						
+					case 3:
+						$level3[$k]=$accounts;
+						$k++;
+						break;
+					case 4:
+						$level4[$l]=$accounts;
+						$l++;
+						break;
+				}
+			}
+			
+			if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+			if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+			if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+			if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+	
+			/**
+			 * To get all accounts in a tree structure.
+			 * It is used to set parent_id for a new account.
+			 * */
+			 $account = $this->AccountsAccount->findById($details['AccountsRegularvendor']['accounts_account_id']);
+			debug($account);
+				$selected='';
+			foreach($level1 as $level11){
+				if($level11['AccountsAccount']['id'] == $account['AccountsAccount']['id']){
+					$selected='selected';
+					$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'"' .$selected." ". 'class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+				}else{
+					$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'" class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+				}
+				if($level2){
+					foreach($level2 as $level22){
+						if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+							if($level22['AccountsAccount']['id'] == $account['AccountsAccount']['id']){
+								$selected='selected';
+								$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'"'.$selected." ".' class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+							}else{
+								$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'" class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+							}
+							if($level3){
+								foreach($level3 as $level33){
+									if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+										if($level33['AccountsAccount']['id'] == $account['AccountsAccount']['id']){
+											$selected='selected';
+											$final_account.= '<option value="'.$level33['AccountsAccount']['id'].'"'.$selected." ". 'class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+										}else{
+											$final_account.= '<option value="'.$level33['AccountsAccount']['id'].'" class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+										}
+										
+										if($level4){
+											foreach($level4 as $level44){
+												if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+													$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			
+			
+			debug($final_account);
+		
+			
+			
+			
+			$this->set(compact('final_account'));
+			$this->request->data = $this->AccountsRegularvendor->read(null, $id);	
+			$accountsAccounts = $this->AccountsRegularvendor->AccountsAccount->find('list');
+			$this->set(compact('accountsAccounts','id'));
+			
+		}
+ 	}
+ 
+ 	
+	public function editold($id = null) 
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsAccount');
+		$accountnames =  $this->AccountsAccount->find('list', array('fields' => array('AccountsAccount.id','AccountsAccount.account_name')));
+		$this->set(compact('accountnames'));
+		
+		$this->AccountsRegularvendor->id = $id;
+		$details = $this->AccountsRegularvendor->find('first',array('conditions'=>array('AccountsRegularvendor.id'=>$id)));
+		$opening_balance = $details['AccountsRegularvendor']['opening_balance'];
+		$contact_numbers = $details['AccountsRegularvendor']['contact_numbers'];
+		$email_address = $details['AccountsRegularvendor']['email_address'];
+		$defaultacc_name2 = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$details['AccountsRegularvendor']['accounts_account_id'])));
+		$defaultacc_name =  $defaultacc_name2['AccountsAccount']['account_name'];
+		$vendor_since = date('d-M-Y',strtotime($details['AccountsRegularvendor']['vendor_since']));
+		debug($vendor_since);
+		//$vendor_since = $details['AccountsRegularvendor']['vendor_since'];
+		$valid_till= date('d-M-Y',strtotime($details['AccountsRegularvendor']['valid_till']));
+		$expense_type = $details['AccountsRegularvendor']['expense_type'];
+		$photo = $details['AccountsRegularvendor']['photo_url'].'/'.$details['AccountsRegularvendor']['photo'];
+		$agreement_copy = $details['AccountsRegularvendor']['agreement_copy'];
+		$agreement_copyurl = $details['AccountsRegularvendor']['agreement_copy_url'];
+		debug($details);
+		$this->set(compact('email_address','contact_numbers','opening_balance','vendor_since','valid_till','photo','agreement_copy','agreement_copyurl','defaultacc_name','expense_type'));
+		if (!$this->AccountsRegularvendor->exists()) 
+		{
+			throw new NotFoundException(__('Invalid accounts regularvendor'));
+		}
+		
+		
+		$expense_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name LIKE'=>'Expenses')));
+		debug($expense_type);
+		$expense_id = $expense_type['AccountType']['id'];
+		$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AND'=>array('AccountsAccount.active'=>'Y','AccountsAccount.account_type_id'=>$expense_id))));
+		debug($accounts);
+		$i=$j=$k=$l=0;
+		/**
+		 * Foreach to seperate accounts in levelwise.
+		 * */
+		foreach($accounts as $accounts)
+		{
+			switch($accounts['AccountsAccount']['level'])
+			{
+				case 1:
+					$level1[$i]=$accounts;
+					$i++;
+					break;
+					
+				case 2:
+					$level2[$j]=$accounts;
+					$j++;
+					break;
+					
+				case 3:
+					$level3[$k]=$accounts;
+					$k++;
+					break;
+				case 4:
+					$level4[$l]=$accounts;
+					$l++;
+					break;
+			}
+		}
+		
+		if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+		if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+		if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+		if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+
+		/**
+		 * To get all accounts in a tree structure.
+		 * It is used to set parent_id for a new account.
+		 * */
+		 $account = $this->AccountsAccount->findById($details['AccountsRegularvendor']['accounts_account_id']);
+		debug($account);
+			$selected='';
+		foreach($level1 as $level11){
+			if($level11['AccountsAccount']['id'] == $account['AccountsAccount']['parent_id']){
+				$selected='selected';
+				$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'"' .$selected." ". 'class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+			}else{
+				$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'" class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+			}
+			if($level2){
+				foreach($level2 as $level22){
+					if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+						if($level22['AccountsAccount']['id'] == $account['AccountsAccount']['parent_id']){
+							$selected='selected';
+							$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'"'.$selected." ".' class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+						}else{
+							$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'" class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+						}
+						if($level3){
+							foreach($level3 as $level33){
+								if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+									if($level33['AccountsAccount']['id'] == $account['AccountsAccount']['parent_id']){
+										$selected='selected';
+										$final_account.= '<option value="'.$level33['AccountsAccount']['id'].'"'.$selected." ". 'class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+									}else{
+										$final_account.= '<option value="'.$level33['AccountsAccount']['id'].'" class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+									}
+									
+									if($level4){
+										foreach($level4 as $level44){
+											if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+												$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		
+		debug($final_account);
+	
+		
+		
+		
+		$this->set(compact('final_account'));
+				
+		
+		
+		
+		if ($this->request->is('post') || $this->request->is('put')) 
+		{
+			if(!empty($this->data))
+			{
+				$save->data = null;
+				if (/*$this->AccountsRegularvendor->save($this->request->data)*/1) 
+				{
+					debug($this->data);
+					$save->data['AccountsRegularvendor']['accounts_account_id'] = $this->data['selectParentAcct'];
+					$save->data['AccountsRegularvendor']['vendor_since'] = date('Y-m-d',strtotime($this->data['AccountsRegularvendor']['vs']));
+					$save->data['AccountsRegularvendor']['valid_till'] = date('Y-m-d',strtotime($this->data['AccountsRegularvendor']['vt']));
+					$save->data['AccountsRegularvendor']['opening_balance'] = $this->data['AccountsRegularvendor']['opening_balance'];
+					$save->data['AccountsRegularvendor']['expense_type'] = $this->data['AccountsRegularvendor']['expense_type'];
+					
+					
+					$this->Uploader = new Uploader(); 
+				$this->Uploader = new Uploader(array('tempDir' => TMP));
+				if(($this->data['AccountsRegularvendor']['fileName1']) || ($this->data['AccountsRegularvendor']['fileName2']))
+				{
+					
+					if($this->data['AccountsRegularvendor']['fileName1'])
+					{
+						
+						$this->Uploader->uploadDir = 'files/uploads/vendors';
+						$data1 = $this->Uploader->uploadAll(array('fileName1'));
+						debug($data1);
+						if($data1)
+						{
+							$save->data['AccountsRegularvendor']['photo'] = $data1['fileName1']['name'];
+							$save->data['AccountsRegularvendor']['photo_url'] = 'files/uploads/vendors';
+						}
+						
+					}
+					if($this->data['AccountsRegularvendor']['fileName2'])
+					{
+						$this->Uploader->uploadDir = 'files/uploads/vendors';
+						$data2 = $this->Uploader->uploadAll(array('fileName2'));
+						debug($data2);
+						if($data2)
+						{
+							$save->data['AccountsRegularvendor']['agreement_copy'] = $data2['fileName2']['name'];
+							$save->data['AccountsRegularvendor']['agreement_copy_url'] = 'files/uploads/vendors';
+						}
+					}	
+				}
+				debug($save->data);
+				
+					
+				
+					$yes = 1;
+					$this->Session->setFlash(__('Vendor has been saved'));
+					$this->redirect(array('action' => 'vendor_listing',0,0,0,1));
+				} 
+				else 
+				{
+				$this->Session->setFlash(__('<font color = "red">The Accounts Regular Vendor could not be saved. Please, try again.</font>'));
+				}
+			}
+		}
+		else 
+		{
+			$this->request->data = $this->AccountsRegularvendor->read(null, $id);
+		}
+		$accountsAccounts = $this->AccountsRegularvendor->AccountsAccount->find('list');
+		$this->set(compact('accountsAccounts','id'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+ 
+ 	public function delete2($id = null)
+ 	{
+ 	//	Configure::write('debug',2);
+ 		$this->loadModel('AccountsAccount');
+ 		debug($this->params);
+ 		if($id)
+ 		{
+ 		foreach($this->params['pass'] as $k=>$v)
+ 		{
+ 			$save->data = null;
+ 			$save2->data = null;
+ 			$vend = $this->AccountsRegularvendor->find('first',array('conditions'=>array('AccountsRegularvendor.id'=>$id)));
+ 			$ac = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$vend['AccountsRegularvendor']['accounts_account_id'])));
+ 			debug($ac);
+ 			$this->AccountsAccount->create();
+ 			$this->AccountsRegularvendor->create();
+ 			$save2->data['AccountsAccount']['id'] = $ac['AccountsAccount']['id'];
+ 			$save2->data['AccountsAccount']['active'] = 'N'; 
+ 			
+ 			
+			$save->data['AccountsRegularvendor']['id'] = $v;
+			$save->data['AccountsRegularvendor']['active'] = 'N';
+			
+ 		}
+ 		debug($save2->data);
+ 		$this->AccountsRegularvendor->save($save->data);
+ 		$this->AccountsAccount->save($save2->data);
+ 		
+ 		$this->Session->setFlash(__('Vendor made inactive'));
+ 		$this->redirect(array('action'=>'vendor_listing',0,0,0,1));
+ 		}
+ 		else
+ 		{
+ 			$this->Session->setFlash(__('Invalid Id'));
+ 		$this->redirect(array('action'=>'vendor_listing'));
+ 		}
+ 	}
+ 	public function deletemultiple() 
+ 	{
+ 		//Configure::write('debug',2);
+ 		debug($this->data);
+ 		$this->loadModel('AccountsAccount');
+ 		foreach($this->data['Delete'] as $k => $v)
+ 		{
+ 			if($v == 1)
+ 			{
+ 				$save->data = null;
+ 				$save_acc->data = null;
+ 				$vend = $this->AccountsRegularvendor->find('all',array('conditions'=>array('AccountsRegularvendor.id'=>$k)));
+ 				debug($vend);
+ 				$ac = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$vend[0]['AccountsRegularvendor']['accounts_account_id'])));
+ 				debug($ac);
+ 				$this->AccountsAccount->create();
+ 				$this->AccountsRegularvendor->create();
+ 				$save_acc->data['AccountsAccount']['id'] = $ac['AccountsAccount']['id'];
+ 				$save_acc->data['AccountsAccount']['active'] = 'N'; 
+ 			
+ 			
+				$save->data['AccountsRegularvendor']['id'] = $k;
+				$save->data['AccountsRegularvendor']['active'] = 'N';
+				$this->AccountsRegularvendor->save($save->data);
+ 			//	$this->AccountsAccount->save($save_acc->data);
+ 		
+ 				
+ 			
+ 			}
+ 		}
+ 		$this->Session->setFlash(__('<div class="flashMessageSuccess">Vendors made inactive</div>'));
+ 		$this->redirect(array('action'=>'vendor_listing',0,0,0,1));
+ 	}
+ 
+	public function delete($id = null) 
+	{
+		if (!$this->request->is('post')) 
+		{
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsRegularvendor->id = $id;
+		if (!$this->AccountsRegularvendor->exists()) 
+		{
+			throw new NotFoundException(__('<font color = "red">Invalid accounts regularvendor</font>'));
+		}
+		if ($this->AccountsRegularvendor->delete()) {
+			$this->Session->setFlash(__('<font color = "#74B511">Accounts regularvendor made inactive</font>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('<font color = "red">Accounts regularvendor was not deleted</font>'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+		
+	function countPages($numHits, $limit, $page)
+	{
+		$numHits  = (int) $numHits;
+		$limit    = max((int) $limit, 1);
+		$page     = (int) $page;
+		$numPages = ceil($numHits / $limit);
+
+		$page = max($page, 1);
+		$page = min($page, $numPages);
+
+		if($numHits == 0) {
+			$offset = 0;
+		} else 	$offset = ($page - 1) * $limit;
+
+		return $offset;
+	}	
+	
+}

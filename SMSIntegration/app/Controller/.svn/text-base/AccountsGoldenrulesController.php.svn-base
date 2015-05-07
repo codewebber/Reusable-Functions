@@ -1,0 +1,163 @@
+<?php
+/**
+ * Module  : Accounts Golden Rules 
+ * 
+ * Pages   : index,add,edit,delete
+ * 
+ * @Ganesh 
+ * 
+ * @Carmatec Accounts
+ * 
+ * @Copyright©2012-2013 carmatec.com
+ **/
+App::uses('AppController', 'Controller');
+/**
+ * AccountsGoldenrules Controller
+ *
+ * @property AccountsGoldenrule $AccountsGoldenrule
+ */
+class AccountsGoldenrulesController extends AppController {
+
+var $helpers = array('Html','Javascript','Ajax');
+var $components = array('Session','RequestHandler');
+
+	public function beforeFilter(){
+		parent::beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Golden Rules';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+    }
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		
+		if(!$accountsGoldenrules = Cache::read('accountsGoldenrules')){
+			Cache::write('accountsGoldenrules', $accountsGoldenrules, 86400);
+			$this->AccountsGoldenrule->recursive = 0;
+			$this->set('accountsGoldenrules', $this->paginate());
+		}
+		/**This query is for search option in the index page*/
+		if(!empty($this->data)){
+			$filter = $this->AccountsGoldenrule->find('all',array('conditions'=>array('OR'=>array('AccountsGoldenrule.id LIKE'=>'%'.$this->data['Search']['rule'].'%','AccountsGoldenrule.type_name LIKE'=>'%'.$this->data['Search']['rule'].'%','AccountsGoldenrule.increase LIKE'=>'%'.$this->data['Search']['rule'].'%','AccountsGoldenrule.decrease LIKE'=>'%'.$this->data['Search']['rule'].'%'))));
+			$this->set('accountsGoldenrules',$filter);
+		}
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsGoldenrule->id = $id;
+		if (!$this->AccountsGoldenrule->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid accounts golden rule</div>'));
+		}
+		$this->set('accountsGoldenrule', $this->AccountsGoldenrule->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			
+			if($this->request->data['AccountsGoldenrule']['increase'] == $this->request->data['AccountsGoldenrule']['decrease']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Increase and decrease shouldnot be same. Please, try again.</div>'));
+				return;
+			}
+			
+			$this->AccountsGoldenrule->create();
+			if ($this->AccountsGoldenrule->save($this->request->data)) {
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The accounts golden rule has been saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The accounts golden rule could not be saved. Please, try again.</div>'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$accountsGoldenrules = $this->AccountsGoldenrule->findById($id);
+		$this->set(compact('accountsGoldenrules'));
+		$this->AccountsGoldenrule->id = $id;
+		if (!$this->AccountsGoldenrule->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid accounts golden rule</div>'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			
+			if($this->request->data['AccountsGoldenrule']['increase'] == $this->request->data['AccountsGoldenrule']['decrease']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Increase and decrease shouldnot be same. Please, try again.</div>'));
+				return;
+			}
+			
+			if ($this->AccountsGoldenrule->save($this->request->data)) {
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The golden rule has been saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The golden rule could not be saved. Please, try again.</div>'));
+			}
+		} else {
+			$this->request->data = $this->AccountsGoldenrule->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		/*if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}*/
+		$this->AccountsGoldenrule->id = $id;
+		if (!$this->AccountsGoldenrule->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid accounts golden rule</div>'));
+		}
+		$protected = $this->AccountsGoldenrule->findById($id);
+		if($protected['AccountsGoldenrule']['protected']=='Yes'){
+			$this->Session->setFlash(__('<div class="flashMessageError">The account golden rule is protected, cannot be deleted!</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		elseif ($this->AccountsGoldenrule->delete()) {
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Accounts golden rule deleted</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+	}
+}

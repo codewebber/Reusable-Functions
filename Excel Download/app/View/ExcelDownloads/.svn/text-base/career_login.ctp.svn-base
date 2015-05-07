@@ -1,0 +1,392 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="https://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href='<?php echo $this->webroot; ?>favicon.ico' rel='shortcut icon' type='image/x-icon'/>
+<title><?php echo "HR Management"; ?></title>
+	<?php 
+	      echo $this->Html->css('hrstyles.css'); 
+	      echo $this->Html->css('selectbox.css'); 
+	      echo $this->Html->css('jquery.ui.core.css'); 
+	      echo $this->Html->css('jquery.ui.theme.css'); 
+	      //echo $this->Html->css('jquery-ui.css');
+	      echo $this->Html->css('jquery.ui.datepicker.css');
+		  
+	?>
+	<?php  
+	        
+          echo $this->Html->script('modernizr.custom.25107.js');  
+          echo $this->Html->script('jquery.js');  
+		  echo $this->Html->script('jRespond.min.js');
+	      echo $this->Html->script('jquery.custom_radio_checkbox.js'); 
+	      echo $this->Html->script('jquerySelectbox.js');  
+		  echo $this->Html->script('jquery.ui.core.js');  
+		  echo $this->Html->script('jquery.ui.datepicker.js');  
+		  //echo $this->Html->script('jquery-ui-1.8.21.custom.js');  
+		  echo $this->Html->script('jquery.datepicker.js'); 
+		  echo $this->Html->script('popupscript.js'); 
+		  echo $this->Html->script('scriptHr.js'); 
+		  echo $this->Html->script('jquery.validate.js');  
+		  echo $this->Html->script('ready.js'); 
+		  echo $this->Html->script('jquery.tools_tooltip.min.js');
+		  echo $this->Html->script('jquery.cssmenu.js');  
+		  
+		  
+		 
+	 ?>
+	 
+	 <?php echo $this->Html->css('style_vc.css'); 
+		      echo $this->Html->css('selectbox.css'); 
+		      echo $this->Html->css('jquery.ui.datepicker.css'); 
+		      //echo $this->Html->css('jquery-ui-1.8.21.custom.css'); 
+		      
+		      echo $this->Html->css('calendar.css'); 
+		      echo $this->Html->css('fullcalendar.css'); 
+		     // echo $this->Html->css('form.css'); 
+		      echo $this->Html->css('jquerycssmenu.css'); 
+		      echo $this->Html->css('application.css'); 
+		      echo $this->Html->css('rating_simple.css');
+		      echo $this->Html->css('custom_jquery_scrollbar.css');
+		      echo $this->Html->css('jquery.mCustomScrollbar.css');
+		?>
+		
+
+	   <?php 
+		   	  echo $this->Html->script('jquery.js');  
+	          echo $this->Html->script('fullcalendar.js');  
+	          echo $this->Html->script('jquery-ui.min.js');
+		      echo $this->Html->script('jquerySelectbox.js'); 
+	        //echo $this->Html->script('jquerySelectboxnewuser.js'); 
+	          echo $this->Html->script('jquery.custom_radio_checkbox.js');  
+		      echo $this->Html->script('jquery.raty.js');  
+			  echo $this->Html->script('Vcscript.js');  
+			  echo $this->Html->script('jquery-ui-1.8.21.custom.js');  
+		      echo $this->Html->script('jquery.datepicker.js'); 
+			  echo $this->Html->script('/js/ckeditor/ckeditor'); 
+			  echo $this->Html->script('calendar.jquery');  
+			  //echo $this->Html->script('jquery.validate.js');  
+			  echo $this->Html->script('ready.js'); 
+			  echo $this->Html->script('jquery.tools_tooltip.min.js');  
+			  echo $this->Html->script('jquery.cssmenu.js');  
+			  echo $this->Html->script('rating_simple.js');  
+			  echo $this->Html->script('jquery-ui-1.9.2.custom_slider.js');
+			  echo $this->Html->script('jquery.jscrollpane.min.js');
+			  echo $this->Html->script('jquery.mCustomScrollbar.js');
+		      echo $this->Html->script('jquery.mousewheel.js');
+			  echo $this->Html->script('jquery.editinplace.js');
+			  echo $this->Html->script('demo.js');
+		      echo $this->Html->script('jscolor.js'); 
+?>
+<!--<meta name="viewport" content="width=device-width">
+<link rel="stylesheet" href="common/style/hrstyles.css" />
+<link rel="stylesheet" href="common/style/selectbox.css" />
+<link rel="stylesheet" href="common/style/jquery.ui.core.css" />
+<link rel="stylesheet" href="common/style/jquery.ui.theme.css" />
+<link rel="stylesheet" href="common/style/jquery-ui.css" />
+<link rel="stylesheet" href="common/style/jquery.ui.datepicker.css" />-->
+<link rel="stylesheet" media="only screen and (max-width: 768px)" href="<?php echo $this->webroot?>css/hrstyles_768.css" />
+<link rel="stylesheet" media="only screen and (max-width: 480px)" href="<?php echo $this->webroot?>css/hrstyles_480.css" /> 
+
+<!--<script type="text/javascript" src="common/script/jquery.js"></script> 
+<script src="common/script/jRespond.min.js"></script> 
+<script type="text/javascript" src="common/script/jquery.custom_radio_checkbox.js"></script> 
+<script type="text/javascript" src="common/script/jquerySelectbox.js"></script> 
+<script src="common/script/datepicker/jquery.ui.core.js"></script> 
+<script src="common/script/datepicker/jquery.ui.datepicker.js"></script> 
+<script src="common/script/popupscript.js"></script>--> 
+<script type="text/javascript" src="<?php echo $this->webroot?>js/jquery.validate.js"></script>
+
+
+
+<!--[if IE 7]>
+		<link rel="stylesheet" type="text/css" href="common/style/ie7.css" />		
+<![endif]-->
+<!--[if IE 8]>
+		<link rel="stylesheet" type="text/css" href="common/style/ie8.css" />		
+<![endif]-->
+<!--[if gte IE 9]>
+  <style type="text/css">
+    .gradient {
+       filter: none;
+    }
+  </style>
+<![endif]-->
+<!--<script src="common/script/modernizr.custom.25107.js"></script>-->
+</head>
+<body>
+<?php echo $this->Session->flash(); ?>
+<div class="main-wrapper">
+	<div class="header" >
+	  <div class="header-center" >
+	    <div class="logo" ><a href="#" ><img src="<?php echo $this->webroot?>img/logo_career.png" alt="logo" title="Hr Management"/></a> </div>
+	    
+	    <div class="clear" > </div>
+	  </div>
+ 	</div>
+    
+    <?php echo $this->Form->create('User',array('id'=>'loginform','url'=>array('controller'=>'users','action'=>'career_login'))); ?>
+    <div id="pageContent" class="main-wrapper-center for_img_bckgnd">
+    	<div style="width: 100%; float: left;"> 
+    	    <div class="login_main_div">
+    	    	<div style="width: 100%;float: left;">
+    	    		<div style="float: left; margin-top: 0%; margin-left: 25%; margin-bottom: 1%;">
+	    	    		<a href="#" ><img src="<?php echo $this->webroot?>img/logo_codewebber.png" alt="logo"/></a>
+	    	    	</div>
+    	    	</div>
+    	    	
+    	    	<div style="float: left; width: 100%;">
+    	    		<div style="width: 45%; float: left;">
+    	    			<div style="border-bottom: 1px solid rgb(187, 197, 191); width: 84%; margin-left: 6%; margin-top: 2%;"></div>
+    	    		</div>
+    	    		<div style="color: rgb(187, 32, 50); font-family: verdana; font-size: 16pt; float: left;width: 14%;">
+    	    			Sign In
+    	    		</div>
+    	    		<div style="width: 40%; float: left;">
+    	    			<div style="border-bottom: 1px solid rgb(187, 197, 191); width: 90%; margin-left: 5%; margin-top: 3%;"></div>
+    	    		</div>
+    	    	</div>
+    	    	
+    	    	<div style="width: 100%;float: left;">
+    	    		<div class="login-row" style="margin-bottom: -3px;">
+						<?php 
+						      echo $this->Form->input('User.username',array('id'=>"username"/*,'class'=>"login-input"*/,'label'=>false)); 
+						 ?>
+						<div class="error_conatiner2" > </div>
+					</div>
+    	    		<div class="login-row" >
+						<?php 
+						      echo $this->Form->input('User.password',array('id'=>"password"/*,'class'=>"login-input"*/,'label'=>false)); 
+						?>
+						<?php if($error_msg){  ?>
+							<div class="error_conatiner2" >
+									Invalid Username or Password
+							</div>
+						 <?php }?>
+					</div>
+				</div>
+				
+				<div style="width: 100%;float: left;">
+					<div style="width: 20%;float: left;">
+						&nbsp;
+					</div>
+					<div style="float: left; width: 44%;">
+						<input type="checkbox" name="keep_me_logged_in">Keep me logged in
+					</div>
+					<div>
+						<?php echo $this->Html->link('Forgot Password?',array('controller'=>'users','action' =>'forgotpassword'),array('class'=>'cantacess'));?>
+					</div>
+					
+				</div>
+    	    	
+    	    	<div style="width: 100%;float: left; margin-top: 3%;">
+					<div style="width: 21%;float: left;">
+						&nbsp;
+					</div>
+					
+					<div style="float: left; width: 45%;">
+						<div style="float: left; width: 100%; margin-bottom: 1%;">
+							New User? <?php echo $this->Html->link('SIGN UP',array('controller'=>'users','action' =>'apply'),array('class'=>'cantacess','style'=>'float: none;color: rgb(187, 32, 50);'));?> 
+						</div>
+						
+						<div style="float: left;">
+							Employee? <?php echo $this->Html->link('SIGN UP',array('controller'=>'users','action' =>'add'),array('class'=>'cantacess','style'=>'float: none;color: rgb(187, 32, 50);'));?> 
+						</div>
+					</div>
+					
+					<div style="float: left;">
+						<!--<input type="submit" class="greenButton" style="float:left;margin-left:8px;" value="Sign In"  />-->
+						<?php echo $this->Form->submit('Submit',array('url'=>array('action'=>'career_login'),'class'=>'greenButton','div' => false)); ?>
+					</div>
+				</div>
+				
+				<div style="width: 100%;float: left;  margin-top: 4%;">
+					<div style="width: 43%;float: left;">
+						&nbsp;
+					</div>
+					
+    	    		<div style="float: left; width: 40%;">
+	    	    		<a href="#" ><img src="<?php echo $this->webroot?>img/icon-facebook.png" alt="logo"/></a>
+	    	    		<a href="#" ><img src="<?php echo $this->webroot?>img/icon-twitter.png" alt="logo"/></a>
+	    	    		<a href="#" ><img src="<?php echo $this->webroot?>img/icon_google.png" alt="logo"/></a>
+	    	    		<a href="#" ><img src="<?php echo $this->webroot?>img/icon_linked.png" alt="logo"/></a>
+	    	    	</div>
+    	    	</div>
+				
+    	    </div>	
+    	</div>
+    </div>
+    <div class="footer" >
+      <div class="footer-wrapper-center">
+      	<span class="copyright">&copy; <?php echo date('Y');?>, Carmatec IT Solutions. All rights reserved.</span>
+      </div>
+    </div>
+</div>
+
+<style type="text/css">
+
+.cantacess {
+    color: #000000;
+    font-family: arial;
+    margin-top: 1%;
+    
+}
+.greenButton{
+	background: -moz-linear-gradient(center top , rgb(160, 3, 10), rgb(160, 3, 10)) repeat scroll 0 0 rgb(160, 3, 10);
+	font-weight: bold;
+	border-radius: 6px;
+	padding: 7px;
+}
+
+.login-row {
+    text-align: center;
+}
+
+.login-input {
+    width: 60%;
+    margin-left: 21%;
+}
+
+.login_main_div {
+    background-color: rgb(241, 241, 241);
+    float: left;
+    height: 320px;
+    margin-left: 27%;
+    margin-top: 8%;
+    width: 44%;
+	border: 3px solid rgb(205, 205, 205);
+    border-radius: 6px;
+    
+}
+     
+.header-right {
+    width: 77%;
+}
+.for_img_bckgnd {
+    background-image: url("../img/recruitment_signin_bg.jpg");
+    background-size: cover;
+    height: 812px;
+    width: 100%;
+}
+.main-menu {
+    width: 69%;
+}
+
+.logo {
+   padding: 0;
+   margin: 0.5% 42%;
+}
+
+.header {
+   background: none repeat scroll 0 0 rgba(0, 0, 0, 0);
+}
+.copyright {
+     color: white;
+    height: auto;
+    width: auto;
+}
+.footer-wrapper-center {
+    padding-top: 0;
+    width: auto;
+}
+
+.header-center {
+    height: auto;
+    margin: auto;
+    width: 100%;
+}
+
+
+.footer {
+    background: none repeat scroll 0 0 rgba(0, 0, 0, 0);
+    float: left;
+    margin-top: -27px;
+    padding: 0;
+    text-align: center;
+    width: 100%;
+}
+</style>
+<!--main-wrapperEndss--> 
+<script type="text/javascript">
+		$(function () {
+			$(".custom_select").selectbox();
+		});
+		 $(document).click(function(event) {
+			if ( !$(event.target).hasClass('sbHolder') && !$(event.target).parents().hasClass('sbHolder')) {
+				   $(".custom_select").selectbox('close'); 
+			    }
+		});
+		$(document).ready(function(){
+				$(".radio_custom").dgStyle();
+				$(".checkbox_custom").dgStyle();
+	      
+			
+	     });
+    </script>
+<script language="javascript" type="text/javascript">
+
+	
+	   
+	
+	    try
+			{
+				  var getCanvas = document.getElementsByClassName('myCanvas');
+					var getCanvasGreen = document.getElementsByClassName('myCanvasgreen');
+					
+					for(i = 0 ; i < getCanvas.length ; i++)
+					{
+						var canvas = document.getElementsByClassName('myCanvas')[i];
+						var context = canvas.getContext('2d');
+						context.beginPath();
+						context.moveTo(26,0);
+						context.lineTo(0,20);
+						context.lineTo(26,20);
+						context.strokeStyle = "#efefef" ;
+						context.stroke();
+						context.fillStyle = "#ffffff";
+						context.fill();
+						context.beginPath();
+						context.moveTo(26,20);
+						context.lineTo(26,0);
+						context.strokeStyle = "#ffffff" ;
+						context.stroke();
+					}
+					
+					for(i = 0 ; i < getCanvasGreen.length ; i++)
+					{
+						var canvasG = document.getElementsByClassName('myCanvasgreen')[i];
+						var contextG = canvasG.getContext('2d');
+						contextG.beginPath();
+						contextG.moveTo(0,0);
+						contextG.lineTo(26,20);
+						contextG.lineTo(0,26);
+						contextG.strokeStyle = "#E5E7DC" ;
+						contextG.stroke();
+						contextG.fillStyle = "#f0f2e7";
+						contextG.fill();
+						contextG.beginPath();
+						contextG.moveTo(26,20);
+						contextG.lineTo(0,0);
+						contextG.strokeStyle = "#f0f2e7" ;
+						contextG.stroke();
+					}
+      
+			}
+		  catch(err)
+		  {
+				
+		  alert("Your browser won't support html5 , Please use latest browser")
+			
+		  }
+			
+			
+    </script>
+    <style>
+    	body {
+	    background: none repeat scroll 0 0 #ffffff;
+	    
+	}
+    	
+    </style>
+</body>
+</html>    

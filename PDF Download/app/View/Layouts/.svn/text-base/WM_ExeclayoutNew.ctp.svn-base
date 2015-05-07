@@ -1,0 +1,372 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<title>
+			WORK MANAGER
+		</title>
+		<?php
+		echo $this->Html-> meta('icon');
+		echo $this->Html->css('style_WM.css');
+		echo $this->Html->css('style_vc.css');
+		echo $this->Html->css('selectbox');
+		echo $this->Html->css('style_slide');
+		echo $this->Html->css('popupcss');
+		echo $this->Html->script('jquery');
+		/*echo $this->Html->script('jquery_1.7.1.js');*/
+		echo $this->Html->script('jquery.validate.js');
+		echo $this->Html->script('jquery-ui.min.js');
+		/*echo $this->Html->script('jquery-ui-1.7.2.custom.min.js');*/
+		echo $this->Html->script('jquery.custom_radio_checkbox.js');
+		echo $this->Html->script('jquerySelectbox.js');
+		echo $this->Html->script('tabs.js');
+		echo $this->Html->script('slidetounlock.js');
+		echo $this->Html->script('popupscript.js');
+		
+		echo $this->Html->css('jquery.ui.datepicker');
+		echo $this->Html->css('style_slide');
+	    echo $this->Html->script('fullcalendar.js'); 
+	    echo $this->Html->css('jquery-ui-1.8.21.custom.css'); 
+		 echo $this->Html->css('jquery-ui.css'); 
+
+		
+		
+		?> 
+		<!-- Submit Script-->
+
+		<script type="text/javascript">
+			$(function(){
+			// Attach a submit handler to the form
+				$( "#mywish" ).submit(function( event ) {   
+				event.preventDefault();   
+				var $form = $( this ),term = $form.find( "input[name='data[ShiftCurrentstatuslog][shift]']" ).val(),term1 = $form.find( "input[name='data[ShiftCurrentstatuslog][details]']" ).val(),url = $form.attr( "action" );
+				var checkdet=$('#stepdetails').val();
+				var checkdet1 = $('#stepdetails1').val();
+				var firstval = 'data[ShiftCurrentstatuslog][details]';
+				var secval = 'data[ShiftCurrentstatuslog][shift]';
+				var posting = $.post( url, { 'data[ShiftCurrentstatuslog][details]':checkdet , 'data[ShiftCurrentstatuslog][shift]':checkdet1 } ); 
+				posting.done(function( data ) {    var content = $( data );
+				$( "#stepout" ).empty().append( content ); 
+				 });
+				});
+				});
+		</script>	
+		<!-- Submit Script-->
+	</head>
+	<body>
+		
+		<div class="WM_layout" id="bodyMainDiv">
+		     <div class="WM_header_layout">
+		        <div class="WM_header_container">
+			        	<div class="WM_header_bg_left">
+			       		</div>
+			        	<div class="WM_header_bg_mid">
+			        			
+			            	    <div class="WM_logo">
+										<?php echo $this -> Html -> image('logo_wm.png'); ?>
+			            		</div>
+			            	
+				                <div class="WM_line">
+				                </div>
+			               
+				                <div class="WM_mainlinks">
+						                	<?php echo $this -> Html -> link($this -> Html -> image('ticket_overview.png', array('border' => '0')) . '<h2> Shift Monitoring </h2>', "../work_ticketdetails/exec_interface", array('update' => '#pageContent', 'escape' => false)); ?>
+						        </div>
+			              	    <div class="WM_line"></div>
+			                    <div class="WM_mainlinks">
+					                	<?php echo $this -> Html -> link($this -> Html -> image('ticket_overview.png', array('border' => '0')) . '<h2> Task Overview </h2>', "../workdelegation_tasks/task_interface_exec_new/LogActivity", array('update' => '#pageContent', 'escape' => false)); ?>
+					          	</div>
+					            <div class="WM_line"></div>
+			               
+			                    <div class="WM_mainlinks">
+					            	 <?php echo $this -> Html -> link($this -> Html -> image('daily_report.png', array('border' => '0')) . '<h2>Daily Report</h2>', "../work_entrylogs/wmDailyReportNew/", array('escape' => false)); ?>
+					            </div>
+			                    <div class="WM_line"></div>
+			               
+			               
+			                    <div class="WM_mainlinks">
+					                 <?php echo $this -> Html -> link($this -> Html -> image('client_update.png', array('border' => '0')) . '<h2> Client/Server Update </h2>', "../client_updates/index", array('update' => '#pageContent', 'escape' => false)); ?>
+					            </div>
+					      
+			                    <div class="WM_line"></div>
+			              
+			               	    <div class="client_interface Team_drop">
+					                 <h2>Welcome <?php echo $this -> Session -> read('User.username'); ?></h2>
+					                 <h2><span class="leftFloated_span" style ="padding-top :7px;">Team : </span>
+					                     <span class="leftFloated_span">
+					                           <?php echo $this->element('exec_teamselect');?>
+					                     </span>
+					                 </h2> 
+					            </div>
+				            
+				                <div class="client_interface_slide">
+				               	     <?php echo $this -> Html -> image('slide.jpg'); ?>
+				                           <div id="page-wrap">
+						                        <div id="well">
+							                        <h2><strong id="slider"></strong> <span></span></h2>
+					   		                    </div>
+					                       </div>
+				                </div>
+			                     
+			                     
+			                   <div class="power_mode">
+			                		<span><a href="#" class="power_resume"><?php echo $this -> Html -> link($this -> Html -> image('cdb_icon.png', array('alt' => 'logout')), '../client_updates/clientdb_homepage', array('escape' => FALSE,'title'=>'Client Db','target' => '_blank')); ?></a></span> 
+			                 		<span> <?php echo $this -> Html -> image('header_line_ico.jpg'); ?></span>      
+			                  		<span><a href="#" class="power_resume"><?php //echo $this -> Html -> link($this -> Html -> image('wm_newicon.png', array('alt' => 'Switch to VC')), '../workdelegation_categories/index/', array('escape' => FALSE,'title'=>'Switch to VC')); 
+			                  					echo $this -> Html -> link($this -> Html -> image('wm_newicon.png', array('alt' => 'Switch to VC')), '../visioncarma_newscategories/exec_dashboard/', array('escape' => FALSE,'title'=>'Switch to VC'));
+			                  			?></a></span>           
+			               	        <span> <?php echo $this -> Html -> image('header_line_ico.jpg'); ?></span>      
+			               	        <span><a href="#" class="power_off"><?php echo $this -> Html -> link($this -> Html -> image('poweroff.png', array('alt' => 'logout')), '../users/logout', array('escape' => FALSE,'title'=>'Logout')); ?></a></span>
+			               	      
+			               	   </div>
+			            
+			        	</div>
+		        	<div class="WM_header_bg_right">
+		        	</div>
+		        	
+		        	
+		        	
+		          </div><!--WM_header_container--> 
+      
+      </div>  
+    
+
+	
+		    <div class="Monitoring_wrappertop">	
+			     <div id="flashdiv">
+		     		  <?php echo $this->Session->flash(); ?>
+			     </div>
+				 <div id="top_div">
+		     		  <?php echo $this->element('execticketdetails'); ?>     		      
+		     	 </div>
+		 	</div>	
+			New
+			<div class="WM_layout_inner">
+				<div class="WM_middle_containerH">
+					<?php echo $this->Html->image('VC-preloader.gif', array('id' => 'loading_div','align'=>'middle', 'style'=>'display:none; position: relative;right: -388px;margin-top: -82px;')); ?>
+					<div id="pageContent">
+						<?php echo $this -> fetch('content'); ?>
+					</div>
+				</div>
+				<div class="copyrights">
+			      	<p>&copy;<?php echo date('Y');?>, VisionCarma. All rights reserved.</p>
+			    </div>
+			</div>
+  </div>
+		
+		
+		
+		<div id="inactive-state" ></div>
+		
+    <div class="step_out simple_overlay" id="stepout" style="display:none;width: 539px;">
+        	<?php echo $this->Form->create('ShiftCurrentstatuslog',array('id'=>'mywish','url'=>array('controller'=>'Users','action'=>'updateStatus')));?>
+			<?php $statuses = $this->Session->read('User.breakOptions');?>
+			
+			<div class="step_out_timimgDetails">
+				<h2>Please Select the break option</h2>
+			</div>
+			<div class="step_out_timimgDetails">
+				<div class="Reason_updates">
+			    	<?php echo $this->Form->input('shift',array('options'=>array($statuses),'div'=>FALSE,'label'=>FALSE,'id'=>'stepdetails1'));?>
+				</div>
+			</div>
+			<div class="step_out_Comments">
+				<?php echo $this->Form->textarea('details',array('div'=>FALSE,'label'=>FALSE,'id'=>'stepdetails','class'=>'step_outReason','cols'=>'','rows'=>''));?>
+				<!--<textarea name="" cols="" rows="" class="step_outReason"  value="" onblur="if (this.value == '') this.value = 'Reason';" onfocus="if (this.value == 'Reason') this.value = '';">Reason</textarea>-->
+			</div>
+			<div class="Btn_func">
+				<div class="Btn_func_layout">
+			    	<span class="btn_left"></span>
+		 <span style="padding:1px 5px 0 5px;">
+        		<input type="submit" value="Submit" class="btn_mid" />
+        	</span>
+			        <span class="btn_right"></span>
+			        
+			       
+			        
+				</div>                   
+			</div> 
+		<?php echo $this->Form->end();?> 
+	 </div>
+
+
+<style type="text/css">
+	.WM_header_container {
+	    width: 100%;
+	}
+	
+	.WM_header_bg_left {
+	    width: 2%;
+	}
+	
+	.WM_header_bg_mid {
+	    width: 96%;
+	}
+	.WM_header_bg_right {
+	    width: 2%;
+	}
+	.tech_monitoring {
+	    margin-left: 2%;
+	    width: 96%;
+	}
+	.last_serverupdate {
+	    margin-left: 2%;
+	    width: 96%;
+	}
+	.Monitoring_wrappertop {
+	    width: 100%;
+	}
+	.tech_tickets {
+	    margin-right: 64px;
+	}
+	.WM_layout_inner{
+		width: 100%;
+	}
+	.WM_middle_containerH {
+		width: 100%;
+	}
+	.WM_middle_ticketprocess {
+	    margin-left: 2%;
+	    width: 31%;
+	}
+	.WM_middle_rightContainer {
+	    width: 64%;
+	}
+	.client_ticketdetails {
+	    width: 98%;
+	}
+	
+	.tabs_container {
+	    width: 100%;
+	}
+	
+	.cloud_panes{
+		width: 100%;
+	}
+	
+	.tabs {
+	    width: 100%;
+	}
+	
+	.ticket_progress {
+		margin-left: 21px;
+		width: 90%;
+	}
+	
+	.ticket_hr_line {
+		margin-left: 22px;
+		width: 90%;
+	}
+	
+	.Search_dropdown {
+		margin-bottom: 8px;
+		margin-left: 21px;
+	}
+	.customeSelectDrop .sbHolder {
+	    margin-right: 10px;
+	}
+	
+	
+	.ticket_container {
+	    float: left;
+	    height: 610px;
+	    overflow-y: auto;
+	    width: 100%;
+	}
+	
+	.ticket_task {
+	  margin-left:22px;
+	  margin-top:2px;
+	  width:90%;
+	}
+	
+	.TicketNew_id {
+	    clear: both;
+	    max-width: 77%;
+	    width: auto;
+	}
+	
+	.ticket_customcheck {
+	    margin-left: -14px;
+	}
+	
+	.TicketNew_clientName {
+	    margin-left: 10px;
+	}
+	
+	.tickets_Buttons_blue {
+	    border-radius: 5px;
+	    margin-bottom: 10px;
+	    margin-right: 9px;
+	}
+	
+	.TicketNew_time{
+		margin: 7px 18px 0 0;
+	}
+	
+	.tickets_Buttons_green {
+	    border-radius: 5px;
+	    margin-bottom: 10px;
+	    margin-right: 9px;
+	}
+	
+	
+	.Client_task_details_top a {
+	    padding: 7px 10px;
+	}
+	
+	.WM_middle_ticketprocess {
+	    margin-right: 16px;
+	}
+	
+	.client_ticketdetails {
+	    margin-top: -4px;
+	    width : 100%;
+	}
+	
+	.Client_task_details_top {
+	    margin-top: 21px;
+	}
+	
+	.cloud_panes_ticket {
+	    min-height: 675px;
+	}
+	
+	.ticket_tabs_top li{
+		background-color: #EAEAEA;
+	}
+	
+	.ticket_tabs_top li a{
+		color: #333333;
+	}
+	
+	.ticket_tabs_top li.selected_tab a {
+	    color: #1E93C5;
+	}
+	
+	.Client_task_details_top li.selected_tab a {
+	    color: #1E93C5;
+	}
+	
+	.Client_task_details_top li.selected_tab {
+	    background: none repeat scroll 0 0 #FFFFFF !important;
+	}
+</style>
+
+<script type="text/javascript">		   		
+setInterval(function() {
+					$.ajax({
+					url: '<?php echo $this -> webroot;?>work_entrylogs/wmInactivityLog',
+				    dataType :'html',
+					success: function(data) {
+					$("#inactive-state").html(data);
+					}
+					});
+					},330000);
+	</script>
+
+	      
+	<?php echo $this->Js->writeBuffer();?>
+</div>	
+	</body>
+</html>

@@ -1,0 +1,3645 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * Clients Controller
+ *
+ * @property Client $Client
+ * @property RequestHandlerComponent $RequestHandler
+ */
+class ClientsController extends AppController {
+	
+var $helpers = array('Html','Javascript','Ajax');
+var $components = array('Session','RequestHandler');
+public $paginate = array('conditions'=>array('Client.status'=>'Y'));
+
+	public function beforeFilter(){
+		parent::beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Clients';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+    }
+
+	public function index($flagcomp=null,$search_field=NULL,$search_data=NULL) {
+		/*configure::write('debug',2);
+		debug($this->data);*/
+		$page=$this->params['named']['page'];
+		$this->set(compact('page'));
+		$this->loadModel('Brand');
+		$this->loadModel('Company');
+		$this->loadModel('AccountsClientpaymentdetail');
+		$this->loadModel('ClientCreditnote');
+		$this->loadModel('Currency');
+		$this->Client->recursive =-1;
+		if($this->data)
+		{
+			
+			if($this->data['Search']['disp'])
+				{
+					debug($this->data['Search']['disp']);
+					if($this->data['Search']['search_by']=='company')
+						{
+							//$client=$this->Client->find('all',array('conditions'=>array('Client.client_companyname LIKE'=>$this->data['Search']['disp'].'%')));
+							$client=$this->paginate(array('Client.client_companyname LIKE'=>$this->data['Search']['disp'].'%','Client.status'=>'Y'));
+							$this->paginate=$client;
+							if($client)
+								{
+									foreach($client as $client)
+										{
+											$currency_index=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$client['Client']['currency_id'])));
+											$symbol[$client['Client']['id']]=$currency_index['Currency']['symbol'];
+											$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+											$creditnotes=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+											$unusedCredit[$client['Client']['id']]=$creditnotes['ClientCreditnote']['amount'];
+											$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+											$paydue=null;
+											foreach($paymenthistory_array as $kpay=>$vpay)
+												{
+													$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+													$paymenthistory[$client['Client']['id']]=$paydue;
+												}
+										}
+								}
+							else
+								{
+									debug('xyz');
+									$client=$this->paginate(array('Client.status'=>'Y'));
+									$this->paginate=$client;
+									debug($client);
+									foreach($client as $client)
+										{
+											$currency_index=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$client['Client']['currency_id'])));
+											$symbol[$client['Client']['id']]=$currency_index['Currency']['symbol'];
+											$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+											$creditnotes=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+											$unusedCredit[$client['Client']['id']]=$creditnotes['ClientCreditnote']['amount'];
+											$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+											$paydue=null;
+											foreach($paymenthistory_array as $kpay=>$vpay)
+													{
+														$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+														$paymenthistory[$client['Client']['id']]=$paydue;
+													}
+										}
+									$this->Session->setFlash(__('<div class="flashMessageError">No Information Found</div>'));
+									
+								}
+						}
+					elseif($this->data['Search']['search_by']=='clientname')
+						{
+							$client=$this->paginate(array('Client.first_name LIKE'=>$this->data['Search']['disp'].'%','Client.status'=>'Y'));
+							$this->paginate=$client;
+							if($client)
+								{
+									foreach($client as $client)
+										{
+											$currency_index=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$client['Client']['currency_id'])));
+											$symbol[$client['Client']['id']]=$currency_index['Currency']['symbol'];
+											$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+											$creditnotes=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+											$unusedCredit[$client['Client']['id']]=$creditnotes['ClientCreditnote']['amount'];
+											$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+											$paydue=null;
+											foreach($paymenthistory_array as $kpay=>$vpay)
+												{
+													$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+													$paymenthistory[$client['Client']['id']]=$paydue;
+												}
+										}
+								}
+							else
+								{
+									debug('xyz');
+									$client=$this->paginate(array('Client.status'=>'Y'));
+									$this->paginate=$client;
+									debug($client);
+									foreach($client as $client)
+										{
+											$currency_index=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$client['Client']['currency_id'])));
+											$symbol[$client['Client']['id']]=$currency_index['Currency']['symbol'];
+											$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+											$creditnotes=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+											$unusedCredit[$client['Client']['id']]=$creditnotes['ClientCreditnote']['amount'];
+											$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+											$paydue=null;
+											foreach($paymenthistory_array as $kpay=>$vpay)
+													{
+														$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+														$paymenthistory[$client['Client']['id']]=$paydue;
+													}
+										}
+									$this->Session->setFlash(__('<div class="flashMessageError">No Information Found</div>'));
+									
+								}
+						}
+					elseif($this->data['Search']['search_by']=='brand')
+						{	
+							$brandlist=$this->Brand->find('first',array('conditions'=>array('Brand.brandname LIKE'=>$this->data['Search']['disp'].'%')));
+							$brandid=$brandlist['Brand']['id'];
+							/*$clientDetailsBrandSearch = $this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.brand_id'=>$brandid),'fields'=>array('ClientDetail.client_id')));
+							foreach($clientDetailsBrandSearch as $clientDetailsBrandSearchKey => $clientDetailsBrandSearchVal){
+								
+							}*/
+							$client=$this->paginate(array('Client.brand_id'=>$brandid,'Client.status'=>'Y'));
+							$this->paginate=$client;
+							if($client)
+								{
+									foreach($client as $client)
+										{
+											$currency_index=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$client['Client']['currency_id'])));
+											$symbol[$client['Client']['id']]=$currency_index['Currency']['symbol'];
+											$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+											$creditnotes=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+											$unusedCredit[$client['Client']['id']]=$creditnotes['ClientCreditnote']['amount'];
+											$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+											$paydue=null;
+											foreach($paymenthistory_array as $kpay=>$vpay)
+												{
+													$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+													$paymenthistory[$client['Client']['id']]=$paydue;
+												}
+										}
+								}
+							else
+								{
+									$client=$this->paginate(array('Client.status'=>'Y'));
+									$this->paginate=$client;
+									foreach($client as $client)
+										{
+											$currency_index=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$client['Client']['currency_id'])));
+											$symbol[$client['Client']['id']]=$currency_index['Currency']['symbol'];
+											$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+											$creditnotes=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+											$unusedCredit[$client['Client']['id']]=$creditnotes['ClientCreditnote']['amount'];
+											$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+											$paydue=null;
+											foreach($paymenthistory_array as $kpay=>$vpay)
+													{
+														$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+														$paymenthistory[$client['Client']['id']]=$paydue;
+													}
+										}
+									$this->Session->setFlash(__('<div class="flashMessageError">No Information Found</div>'));
+									
+								}
+						}
+					else
+						{
+							debug('xyz');
+							$client=$this->paginate(array('Client.status'=>'Y'));
+							$this->paginate=$client;
+							debug($client);
+							foreach($client as $client)
+								{
+									$currency_index=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$client['Client']['currency_id'])));
+									$symbol[$client['Client']['id']]=$currency_index['Currency']['symbol'];
+									$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+									$creditnotes=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+									$unusedCredit[$client['Client']['id']]=$creditnotes['ClientCreditnote']['amount'];
+									$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+									$paydue=null;
+									foreach($paymenthistory_array as $kpay=>$vpay)
+											{
+												$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+												$paymenthistory[$client['Client']['id']]=$paydue;
+											}
+								}
+							$this->Session->setFlash(__('<div class="flashMessageError">No Information Found</div>'));
+							
+						}
+				}
+			
+				
+				
+			
+			if($this->data['Client'])
+			{
+				//$this->paginate=array('conditions'=>array('Client.start_datetime between ? and ?'=>array($this->data['Client']['from'],$this->data['Client']['to'])));
+					$client=$this->Client->find(array('conditions'=>array('Client.start_datetime between ? and ?'=>array($this->data['Client']['from'],$this->data['Client']['to'],'Client.status'=>'Y'))));
+					$this->paginate=$client;
+					foreach($client as $client)
+					{
+						$currency_index=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$client['Client']['currency_id'])));
+						$symbol[$client['Client']['id']]=$currency_index['Currency']['symbol'];
+						$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+						$creditnotes=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+						$unusedCredit[$client['Client']['id']]=$creditnotes['ClientCreditnote']['amount'];
+						$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+						$paydue=null;
+							foreach($paymenthistory_array as $kpay=>$vpay)
+								{
+									$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+									$paymenthistory[$client['Client']['id']]=$paydue;
+								}
+					}
+				
+				debug($brand);
+			}
+			
+		}
+		else
+		{
+			debug('xyz');
+			if(empty($this->data))
+				{
+					//Code for the global search
+					if (!empty($search_field)) {
+						if ($search_field == 'client_name') {
+							$this->paginate = array('conditions'=>array('OR'=>array('Client.first_name LIKE'=>$search_data.'%','Client.last_name LIKE'=>$search_data.'%')));
+							$client = $this->paginate();
+						}
+						if ($search_field == 'company') {
+							$this->paginate = array('conditions'=>array('Client.client_companyname LIKE'=>$search_data.'%'));
+							$client = $this->paginate();
+						}
+					} //End of global search
+					else {
+						$client=$this->paginate();
+					}
+					
+					
+					$this->paginate=$client;
+					debug($client);
+					foreach($client as $client)
+						{
+							$currency_index=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$client['Client']['currency_id'])));
+							$symbol[$client['Client']['id']]=$currency_index['Currency']['symbol'];
+							$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+							$creditnotes=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+							$unusedCredit[$client['Client']['id']]=$creditnotes['ClientCreditnote']['amount'];
+							$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+							$paydue=null;
+								foreach($paymenthistory_array as $kpay=>$vpay)
+									{
+										$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+										$paymenthistory[$client['Client']['id']]=$paydue;
+									}
+						}
+				}
+		}
+		debug($this->pagainate);
+		
+		$this->set(compact('brand','paymenthistory','unusedCredit','symbol'));
+		$this->set('clients', $this->paginate);
+	}
+	
+	
+	public function inactive($flagcomp=null)
+		{
+			/*configure::write('debug',2);
+			debug($this->data);*/
+			$page=$this->params['named']['page'];
+			$this->set(compact('page'));
+			$this->loadModel('Brand');
+			$this->loadModel('Company');
+			$this->loadModel('AccountsClientpaymentdetail');
+			$this->loadModel('ClientCreditnote');
+			$this->Client->recursive =-1;
+			$this->paginate = array('conditions'=>array('Client.status'=>'N'));
+			if($this->data)
+				{
+					
+					if($this->data['Search']['disp'])
+						{
+							debug($this->data['Search']['disp']);
+							if($this->data['Search']['search_by']=='company')
+								{
+									//$client=$this->Client->find('all',array('conditions'=>array('Client.client_companyname LIKE'=>$this->data['Search']['disp'].'%')));
+									$client=$this->paginate(array('Client.client_companyname LIKE'=>$this->data['Search']['disp'].'%','Client.status'=>'N'));
+									$this->paginate=$client;
+									if($client)
+										{
+											foreach($client as $client)
+												{
+													$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+													$refundDetails=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+													foreach($refundDetails as $kv=>$vv)
+														{
+															$refund[$client['Client']['id']]=$refund+$vv['ClientCreditnote']['amount'];
+														}
+													$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+													$paydue=null;
+													foreach($paymenthistory_array as $kpay=>$vpay)
+														{
+															$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+															$paymenthistory[$client['Client']['id']]=$paydue;
+														}
+												}
+										}
+									else
+										{
+											debug('xyz');
+											$client=$this->paginate(array('Client.status'=>'N'));
+											$this->paginate=$client;
+											debug($client);
+											foreach($client as $client)
+												{
+													$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+													$refundDetails=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+													foreach($refundDetails as $kv=>$vv)
+														{
+															$refund[$client['Client']['id']]=$refund+$vv['ClientCreditnote']['amount'];
+														}
+													$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+													$paydue=null;
+													foreach($paymenthistory_array as $kpay=>$vpay)
+															{
+																$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+																$paymenthistory[$client['Client']['id']]=$paydue;
+															}
+												}
+											$this->Session->setFlash(__('<div class="flashMessageError">No Information Found</div>'));
+									
+										}
+								}
+							elseif($this->data['Search']['search_by']=='clientname')
+								{
+									$client=$this->paginate(array('Client.first_name LIKE'=>$this->data['Search']['disp'].'%','Client.status'=>'N'));
+									$this->paginate=$client;
+									if($client)
+										{
+											foreach($client as $client)
+												{
+													$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+													$refundDetails=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+													foreach($refundDetails as $kv=>$vv)
+														{
+															$refund[$client['Client']['id']]=$refund+$vv['ClientCreditnote']['amount'];
+														}
+													$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+													$paydue=null;
+													foreach($paymenthistory_array as $kpay=>$vpay)
+														{
+															$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+															$paymenthistory[$client['Client']['id']]=$paydue;
+														}
+												}
+										}
+									else
+										{
+											debug('xyz');
+											$client=$this->paginate(array('Client.status'=>'N'));
+											$this->paginate=$client;
+											debug($client);
+											foreach($client as $client)
+												{
+													$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+													$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+													$refundDetails=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+													foreach($refundDetails as $kv=>$vv)
+														{
+															$refund[$client['Client']['id']]=$refund+$vv['ClientCreditnote']['amount'];
+														}
+													$paydue=null;
+													foreach($paymenthistory_array as $kpay=>$vpay)
+															{
+																$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+																$paymenthistory[$client['Client']['id']]=$paydue;
+															}
+												}
+											$this->Session->setFlash(__('<div class="flashMessageError">No Information Found</div>'));
+									
+										}
+								}
+							elseif($this->data['Search']['search_by']=='brand')
+								{	
+									$brandlist=$this->Brand->find('first',array('conditions'=>array('Brand.brandname LIKE'=>$this->data['Search']['disp'].'%')));
+									$brandid=$brandlist['Brand']['id'];
+									$client=$this->paginate(array('Client.brand_id'=>$brandid,'Client.status'=>'N'));
+									$this->paginate=$client;
+									if($client)
+										{
+											foreach($client as $client)
+												{
+													$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+													$refundDetails=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+													foreach($refundDetails as $kv=>$vv)
+														{
+															$refund[$client['Client']['id']]=$refund+$vv['ClientCreditnote']['amount'];
+														}
+													$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+													$paydue=null;
+													foreach($paymenthistory_array as $kpay=>$vpay)
+														{
+															$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+															$paymenthistory[$client['Client']['id']]=$paydue;
+														}
+												}
+										}
+									else
+										{
+											debug('xyz');
+											$client=$this->paginate(array('Client.status'=>'N'));
+											$this->paginate=$client;
+											debug($client);
+											foreach($client as $client)
+												{
+													$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+													$refundDetails=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+													foreach($refundDetails as $kv=>$vv)
+														{
+															$refund[$client['Client']['id']]=$refund+$vv['ClientCreditnote']['amount'];
+														}
+													$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+													$paydue=null;
+													foreach($paymenthistory_array as $kpay=>$vpay)
+															{
+																$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+																$paymenthistory[$client['Client']['id']]=$paydue;
+															}
+												}
+											$this->Session->setFlash(__('<div class="flashMessageError">No Information Found</div>'));
+									
+										}
+								}
+							else
+								{
+									debug('xyz');
+									$client=$this->paginate(array('Client.status'=>'N'));
+									$this->paginate=$client;
+									debug($client);
+									foreach($client as $client)
+										{
+											$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+											$refundDetails=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+											foreach($refundDetails as $kv=>$vv)
+												{
+													$refund[$client['Client']['id']]=$refund+$vv['ClientCreditnote']['amount'];
+												}
+											$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+											$paydue=null;
+											foreach($paymenthistory_array as $kpay=>$vpay)
+													{
+														$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+														$paymenthistory[$client['Client']['id']]=$paydue;
+													}
+										}
+									$this->Session->setFlash(__('<div class="flashMessageError">No Information Found</div>'));
+							
+								}
+						}
+			
+				if($this->data['Client'])
+					{
+						//$this->paginate=array('conditions'=>array('Client.start_datetime between ? and ?'=>array($this->data['Client']['from'],$this->data['Client']['to'])));
+							$client=$this->Client->find(array('conditions'=>array('Client.start_datetime between ? and ?'=>array($this->data['Client']['from'],$this->data['Client']['to'],'Client.status'=>'Y'))));
+							$this->paginate=$client;
+							foreach($client as $client)
+								{
+									$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+									$refundDetails=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+									foreach($refundDetails as $kv=>$vv)
+										{
+											$refund[$client['Client']['id']]=$refund+$vv['ClientCreditnote']['amount'];
+										}
+									$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+									$paydue=null;
+									foreach($paymenthistory_array as $kpay=>$vpay)
+										{
+											$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+											$paymenthistory[$client['Client']['id']]=$paydue;
+										}
+					}
+				
+				debug($brand);
+			}
+				}
+			else
+				{
+					if(empty($this->data))
+						{
+							$client=$this->paginate();
+							$this->paginate=$client;
+							foreach($client as $client)
+								{
+									$brand[$client['Client']['id']]=$this->Brand->find('all',array('conditions'=>array('Brand.id'=>$client['Client']['brand_id'])));
+									$refundDetails=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$client['Client']['id'])));
+									foreach($refundDetails as $kv=>$vv)
+										{
+											$refund[$client['Client']['id']]=$refund+$vv['ClientCreditnote']['amount'];
+										}
+									$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$client['Client']['id'])));
+									$paydue=null;
+									foreach($paymenthistory_array as $kpay=>$vpay)
+										{
+											$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+											$paymenthistory[$client['Client']['id']]=$paydue;
+										}
+								}
+						}
+				}
+			$this->set(compact('brand','paymenthistory','refund'));
+			$this->set('clients', $this->paginate);
+		}
+	
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null,$controller=null,$action=null,$flag=null) {
+		$this->loadModel('Brand');
+		$this->loadModel('ClientContact');
+		$this->loadModel('AccountsClientpaymentdetail');
+		$this->loadModel('ClientDetail');		
+		//added 25 sep
+		$this->loadModel('AccountsClientinvoice');
+		$this->loadModel('ClientsEmailhistory');
+		$this->AccountsClientpaymentdetail->recursive = 0;
+		$this->Client->id = $id;
+		
+		if (!$this->Client->exists()) {
+			throw new NotFoundException(__('Invalid client'));
+		}
+		$clientBrandid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id)));
+		$branddetail=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$clientBrandid['Client']['brand_id'])));
+		$paymenthistory_array=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$id)));
+		$paydue=null;
+		foreach($paymenthistory_array as $kpay=>$vpay)
+			{
+				$paydue=$paydue+$vpay['AccountsClientpaymentdetail']['due'];
+				$paymenthistory[$id]=$paydue;
+			}
+		if(!$controller && !$action)
+		{
+			$controller='clients';
+			$action='index';
+		}
+		$clientContacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+		$clientdetails_view = $this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+		foreach($clientdetails_view as $k_view=>$v_view)
+			{              
+				if($v_view['ClientDetail']['brand_id'])
+					{
+						$branddetails=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$v_view['ClientDetail']['brand_id']),'fields'=>array('Brand.brandname')));
+						$brand[$v_view['ClientDetail']['brand_id']]['name'] = $branddetails['Brand']['brandname'];
+						$brand[$v_view['ClientDetail']['brand_id']]['descr'] = $v_view['ClientDetail']['service_desc'];
+					}				
+			}
+		 if($flag==1)
+	     {		
+			$this->loadModel('BrandsEstimate');
+			$estimates = $this->BrandsEstimate->find('all',array('conditions'=>array('BrandsEstimate.client_id'=>$id)));
+			$this->set(compact('estimates','flag'));
+	     }	
+	     if($flag==2)
+	     {		
+			$this->loadModel('ClientEmailtype');
+			$this->loadModel('ClientsEmailhistory');
+			$this->loadModel('Staff');
+			$emailrecords=$this->ClientsEmailhistory->find('all',array('conditions'=>array('ClientsEmailhistory.client_id'=>$id)));
+			foreach($emailrecords as $ke=>$ve)
+			{
+				$staffdetails=$this->Staff->find('first',array('conditions'=>array('Staff.id'=>$ve['ClientsEmailhistory']['staff_id'])));
+				$staffemail[$ve['ClientsEmailhistory']['id']]=$staffdetails['Staff']['email1'];
+				$emailtype=$this->ClientEmailtype->find('first',array('conditions'=>array('ClientEmailtype.id'=>$ve['ClientsEmailhistory']['client_emailtype_id'])));
+				$emailtypes[$ve['ClientsEmailhistory']['id']]=$emailtype['ClientEmailtype']['email_type'];
+				$date=explode(' ',$ve['ClientsEmailhistory']['date'] );
+				$date[$ve['ClientsEmailhistory']['id']]=AppModel::dateFormat($date[0]);
+			}
+			$this->set(compact('emailrecords','staffemail','emailtypes','date','flag'));
+	      }
+		$this->set(compact('clientContacts','clientdetails_view','controller','action','paymenthistory','brand','flag','paymenthistory_array'));
+		$this->set('client', $this->Client->read(null, $id));
+		
+	}
+	
+	
+	public function add_popupestimate()
+	{
+		//configure::write('debug',2);
+		debug($this->data);
+		if($this->data)
+		{
+			if( (($this->data['Client']['client_companyname'] && $this->data['Client']['first_name']) &&  ($this->data['Client']['email1'] && $this->data['Client']['phone'])) && ($this->data['Client']['company_id'])  )
+			
+		//	if($this->data['Client']['company_name'] && $this->data['Client']['email'] && $this->data['Client']['phone'] && $this->data['Client']['company_id'] && $this->data['Client']['person'])
+			{
+				if ($this->request->is('post')) 
+				{
+					//save
+					$save->data=null;
+					$this->Client->create();
+					$save->data['Client']['client_companyname'] = $this->data['Client']['client_companyname'];
+					$save->data['Client']['first_name']=$this->data['Client']['first_name'];
+					$save->data['Client']['last_name']=$this->data['Client']['person_lastname'];
+					$save->data['Client']['email1']=$this->data['Client']['email1'];
+					$save->data['Client']['phone']=$this->data['Client']['phone'];
+					$save->data['Client']['start_datetime']=date('Y-m-d',strtotime($this->data['Client']['vs']));
+					$save->data['Client']['company_id']=$this->data['Client']['company_id'];
+					$save->data['Client']['brand_id']=$this->data['Client']['brand'];
+					
+					debug("yes");
+					debug($save->data);
+					$this->Client->save($save->data);
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">Success! The client has been saved</div>'));
+					
+					$this->redirect(array('controller'=>'brands_estimates','action' => 'add'));
+					
+				}
+			}
+			
+			else
+			{
+				//error
+				if(!$this->data['Client']['client_companyname'])
+				{
+					$this->Session->setFlash(__('<div class="flashMessageError">Could not be saved. Please enter the company name in the Add New Client popup and try again</div>'));
+					
+					$this->redirect(array('controller'=>'brands_estimates','action' => 'add'));
+				}
+				elseif(!$this->data['Client']['first_name'])
+				{
+					$this->Session->setFlash(__('<div class="flashMessageError">Could not be saved. Please enter the first name in the Add New Client popup and try again</div>'));
+					
+					$this->redirect(array('controller'=>'brands_estimates','action' => 'add'));
+				}
+				elseif(!$this->data['Client']['email1'])
+				{
+					$this->Session->setFlash(__('<div class="flashMessageError">Could not be saved. Please enter the email and try again</div>'));
+					
+					$this->redirect(array('controller'=>'brands_estimates','action' => 'add'));
+				}
+				
+				elseif(!$this->data['Client']['phone'])
+				{
+					$this->Session->setFlash(__('<div class="flashMessageError">Could not be saved. Please enter the contact number and try again</div>'));
+					
+					$this->redirect(array('controller'=>'brands_estimates','action' => 'add'));
+				}
+				elseif(!$this->data['Client']['company_id'])
+				{
+					$this->Session->setFlash(__('<div class="flashMessageError">Could not be saved. Please select atleast company and try again</div>'));
+					
+					$this->redirect(array('controller'=>'brands_estimates','action' => 'add'));
+				}
+				
+				
+				
+			}
+		}
+	}
+	
+	
+	
+	
+	
+	
+	
+	public function add_popup($edit_flag = null,$id,$invoice_flag=null,$controller=null,$action=null)
+	{
+		configure::write('debug',2);
+		debug($this->data);
+		
+		if($this->data['Client']['client_companyname'] && $this->data['Client']['email1'] && $this->data['Client']['phone'] && $this->data['Client']['phone'] && $this->data['Client']['first_name'])
+		{
+			if ($this->request->is('post')) 
+				{
+					$save->data=null;
+					$this->Client->create();
+					$save->data['Client']['client_companyname'] = $this->data['Client']['client_companyname'];
+					$save->data['Client']['first_name']=$this->data['Client']['first_name'];
+					$save->data['Client']['last_name']=$this->data['Client']['person_lastname'];
+					$save->data['Client']['email1']=$this->data['Client']['email1'];
+					$save->data['Client']['phone']=$this->data['Client']['phone'];
+					$save->data['Client']['start_datetime']=date('Y-m-d',strtotime($this->data['Client']['vs']));
+					$save->data['Client']['company_id']=$this->data['Client']['company_id'];
+					$save->data['Client']['brand_id']=$this->data['Client']['brand'];
+					
+					debug("yes");
+					debug($save->data);
+					$this->Client->save($save->data);
+					if ($this->Client->save($save->data)) 
+					{
+						$this->Session->setFlash(__('The client has been saved'));
+						if($edit_flag == 0 && $invoice_flag==0)
+						$this->redirect(array('controller'=>'brands_estimates','action' => 'add'));
+						elseif($edit_flag == 1 && $invoice_flag==0)
+						$this->redirect(array('controller'=>'brands_estimates','action' => 'edit',$id));
+						elseif($edit_flag == 0 && $invoice_flag==1)
+						{
+							$this->redirect(array('controller'=>'accounts_clientinvoices','action' => 'add'));
+						}
+					} 
+					else {
+						$this->Session->setFlash(__('The client could not be saved. Please, try again.'));
+					}
+				}
+		}
+		else
+		{
+			
+			$error=1;
+			$this->set(compact('error'));
+			$this->Session->setFlash(__('<div class="flashMessageError">The client could not be saved. Please, try again.</div>'));
+			$this->redirect(array('controller'=>$controller,'action' => $action));
+		}
+		
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add($estimate_flag=null) {
+		$this->loadModel('Currency');
+		$this->LoadModel('ClientContact');
+		$this->LoadModel('ClientDetail');
+		if($this->data)
+			{
+				if(($this->data['brand']['1']) || ($this->data['brand']['2']))
+					{
+						if($this->data['Client']['person'])
+					 		{
+					 				if($this->data['Client']['client_name'])
+					 					{
+					 						if(filter_var($this->data['Client']['email'],FILTER_VALIDATE_EMAIL) && ($this->data['Client']['email']))
+					 							{
+					 								$savearray->data=null;
+													$savearray->data['Client']['first_name']=$this->data['Client']['person'];
+													$savearray->data['Client']['last_name']=$this->data['Client']['last_name'];
+													$savearray->data['Client']['salutation']=$this->data['Client']['salutaion'];
+													$savearray->data['Client']['client_companyname']=$this->data['Client']['client_name'];
+													$savearray->data['Client']['start_datetime']=date('Y-m-d',strtotime($this->data['Client']['vs']));
+													$savearray->data['Client']['address']=$this->data['Client']['billing_add'];
+													$savearray->data['Client']['city']=$this->data['Client']['city'];
+													$savearray->data['Client']['state']=$this->data['Client']['state'];
+													$savearray->data['Client']['zip']=$this->data['Client']['zip'];
+													$savearray->data['Client']['country']=$this->data['Client']['country'];
+													$savearray->data['Client']['fax']=$this->data['Client']['fax'];
+													$savearray->data['Client']['company_id']=$this->data['Client']['company_name'];
+													$savearray->data['Client']['phone']=$this->data['Client']['phone_contact'];
+													$savearray->data['Client']['designation']=$this->data['Client']['designation'];
+													$savearray->data['Client']['skypeid']=$this->data['Client']['skype'];
+													$savearray->data['Client']['email1']=$this->data['Client']['email'];
+													$savearray->data['Client']['currency_id']=$this->data['Client']['currency'];
+													$savearray->data['Client']['ship_bill']=$this->data['Client']['ship_add'];
+													if(!$this->data['Client']['ship_add']) {
+														$savearray->data['Client']['ship_address']=$this->data['Client']['billing_add'];
+														$savearray->data['Client']['ship_city']=$this->data['Client']['city'];
+														$savearray->data['Client']['ship_state']=$this->data['Client']['state'];
+														$savearray->data['Client']['ship_zip']=$this->data['Client']['zip'];
+														$savearray->data['Client']['ship_country']=$this->data['Client']['country'];
+														$savearray->data['Client']['ship_fax']=$this->data['Client']['fax'];
+													}else {
+														$savearray->data['Client']['ship_address']=$this->data['shipping_add'];
+														$savearray->data['Client']['ship_city']=$this->data['city'];
+														$savearray->data['Client']['ship_state']=$this->data['state1'];
+														$savearray->data['Client']['ship_zip']=$this->data['zip'];
+														$savearray->data['Client']['ship_country']=$this->data['country1'];
+														$savearray->data['Client']['ship_fax']=$this->data['fax'];
+													}																				
+													$this->Client->create();
+													$this->Client->save($savearray->data);
+													if ($this->Client->save($savearray->data))
+														{
+															$last1=$this->Client->getLastInsertID();
+															$this->loadModel('ClientDetail');
+															foreach($this->data['brand'] as $kb=>$vb)
+																{
+																	$this->ClientDetail->create();
+																	$savearray1->data=null;	
+																	$savearray1->data['ClientDetail']['brand_id']=$vb;
+																	$savearray1->data['ClientDetail']['service_desc']=$this->data['brand_description'][$kb];
+																	$savearray1->data['ClientDetail']['client_id']=$last1;																												
+																	$this->ClientDetail->save($savearray1->data);
+																}
+															if($this->data['Client']['person_name'])
+																{
+																	$contact->data=null;
+																	$this->ClientContact->create();
+																	$contact->data['ClientContact']['client_id']=$last1;
+																	$contact->data['ClientContact']['salutation']=$this->data['Client']['salutation'];
+																	$contact->data['ClientContact']['person_name']=$this->data['Client']['person_name'];
+																	$contact->data['ClientContact']['last_name']=$this->data['Client']['last_name'];
+																	$contact->data['ClientContact']['phone']=$this->data['Client']['phone_contact'];
+																	$contact->data['ClientContact']['email_contact']=$this->data['Client']['email_emergency'];
+																	$contact->data['ClientContact']['designation']=$this->data['Client']['desig'];
+																	$contact->data['ClientContact']['skypeid']=$this->data['Client']['skypeid'];
+																	$this->ClientContact->save($contact->data);
+																}
+															if($this->data['person'])
+																{
+																	$this->LoadModel('ClientContact');
+																	foreach($this->data['person'] as $k1=>$v1)
+																		{
+																			$contact->data=null;
+																			$this->ClientContact->create();
+																			$contact->data['ClientContact']['client_id']=$last1;
+																			$contact->data['ClientContact']['salutation']=$this->data['salutation'][$k1];
+																			$contact->data['ClientContact']['person_name']=$v1;
+																			$contact->data['ClientContact']['last_name']=$this->data['last_name'][$k1];
+																			$contact->data['ClientContact']['phone']=$this->data['phone'][$k1];
+																			$contact->data['ClientContact']['email_contact']=$this->data['email_emergency'][$k1];
+																			$contact->data['ClientContact']['designation']=$this->data['desig'][$k1];
+																			$contact->data['ClientContact']['skypeid']=$this->data['skypeid'][$k1];
+																			$this->ClientContact->save($contact->data);
+																		}
+																}
+															$this->Session->setFlash('<div class="flashMessageSuccess">The client has been saved</div>');
+																									
+															if($estimate_flag == 1) {$this->redirect(array('controller'=>'brands_estimates','action' => 'add'));}
+															else 
+															{$this->redirect(array('action' => 'view',$last1));}
+														}
+														else
+															{
+																$this->Session->setFlash('<div class="flashMessageError">The client could not be saved. Please, try again.</div>',true);
+					 											return;
+															}
+					 						
+					 							}
+					 						else
+					 							{
+					 								$error=1;
+									 				debug($error);
+									 				$this->set(compact('error'));
+									 				$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+													$currency=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+													foreach($currency as $key=>$val)
+														{
+															$currencylist[$val['Currency']['id']]=$val['Currency']['name'];
+														}
+													$this->set(compact('companies','currencylist'));
+									 				$this->Session->setFlash('<div class="flashMessageError">Enter A Valid Email Id</div>',true);
+									 				return;
+									 				$this->redirect(array('action' => 'add'));
+					 							}
+					 					}
+					 				else
+					 					{
+					 						$error=1;
+							 				debug($error);
+							 				$this->set(compact('error'));
+							 				$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+											$currency=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+											foreach($currency as $key=>$val)
+												{
+													$currencylist[$val['Currency']['id']]=$val['Currency']['name'];
+												}
+											$this->set(compact('companies','currencylist'));
+							 				$this->Session->setFlash('<div class="flashMessageError">Client Company Name Missing</div>',true);
+							 				return;
+							 				$this->redirect(array('action' => 'add'));
+					 					}
+					 		}
+					 	else
+					 		{
+					 			$error=1;
+							 	debug($error);
+							 	$this->set(compact('error'));
+							 	$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+								$currency=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+								foreach($currency as $key=>$val)
+									{
+										$currencylist[$val['Currency']['id']]=$val['Currency']['name'];
+									}
+								$this->set(compact('companies','currencylist'));
+							 	$this->Session->setFlash('<div class="flashMessageError">Client Name Missing</div>',true);
+							 	return;
+							 	$this->redirect(array('action' => 'add'));
+					 		}
+					}
+				else
+					{
+						$error=1;
+		 				$this->set(compact('error'));
+		 				$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+						$currency=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+						foreach($currency as $key=>$val)
+								{
+										$currencylist[$val['Currency']['id']]=$val['Currency']['name'];
+								}
+						$this->set(compact('companies','currencylist'));
+		 				$this->Session->setFlash('<div class="flashMessageError">Client should be associated with atleast one brand.</div>',true);
+		 				return;
+		 				//$this->redirect(array('action' => 'add'));
+					}
+			
+				
+			
+			}
+		
+		$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+		$currency=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+		foreach($currency as $key=>$val)
+		{
+			$currencylist[$val['Currency']['id']]=$val['Currency']['name'];
+		}
+		$this->set(compact('companies','currencylist'));
+	}
+
+
+	
+	public function add_old_25sep() {
+		/*
+		Configure::write('debug',2);	
+		debug($this->data);*/
+		$this->loadModel('Currency');
+		if($this->data)
+		{
+				if ($this->data['Client']['person'])
+		 			{
+		 				debug('xyz');
+		 				if($this->data['Client']['client_name'])
+		 					{
+		 							if($this->data['Client']['billing_add'])
+		 								{
+		 										if($this->data['Client']['city'])
+		 											{
+		 													if($this->data['Client']['company_name'])
+		 														{
+		 																if(filter_var($this->data['Client']['email'],FILTER_VALIDATE_EMAIL) && ($this->data['Client']['email']))
+		 																	{
+		 																			if(ctype_digit($this->data['Client']['phone']) && $this->data['Client']['phone'])
+		 																				{
+		 																						$savearray->data=null;
+																								$savearray->data['Client']['first_name']=$this->data['Client']['person'];
+																								$savearray->data['Client']['client_companyname']=$this->data['Client']['client_name'];
+																								$savearray->data['Client']['start_datetime']=date('Y-m-d',strtotime($this->data['Client']['vs']));
+																								$savearray->data['Client']['address']=$this->data['Client']['billing_add'];
+																								$savearray->data['Client']['city']=$this->data['Client']['city'];
+																								$savearray->data['Client']['state']=$this->data['Client']['state'];
+																								$savearray->data['Client']['zip']=$this->data['Client']['zip'];
+																								$savearray->data['Client']['country']=$this->data['Client']['country'];
+																								$savearray->data['Client']['fax']=$this->data['Client']['fax'];
+																								$savearray->data['Client']['brand_id']=$this->data['brand'];
+																								$savearray->data['Client']['company_id']=$this->data['Client']['company_name'];
+																								$savearray->data['Client']['phone']=$this->data['Client']['phone'];
+																								$savearray->data['Client']['designation']=$this->data['Client']['designation'];
+																								$savearray->data['Client']['skypeid']=$this->data['Client']['skype'];
+																								$savearray->data['Client']['email1']=$this->data['Client']['email'];
+																								
+																								$savearray->data['Client']['currency_id']=$this->data['Client']['currency'];
+																								$this->Client->create();
+																								$this->Client->save($savearray->data);
+																								if ($this->Client->save($savearray->data))
+																									 {
+																										$last1=$this->Client->getLastInsertID();
+																										$this->loadModel('ClientDetail');
+																										$this->ClientDetail->create();
+																										$savearray1->data=null;
+																										if($this->data['Client']['unit']==1 && $this->data['Client']['service']==1 && $this->data['Client']['package']==1)
+																											{
+																												foreach($this->data['unit_name'] as $k=>$v)
+																													{
+																														$exp=explode('-',$v);
+																														if($exp[1]=='p')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['brands_package_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_package']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_package']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']='<pre>'.$this->data['Client']['billing_add'].' '.$this->data['Client']['city'].' '.$this->data['Client']['state'].' '.$this->data['Client']['country'].'<pre>';
+																																$savearray1->data['ClientDetail']['shipping_address']='<pre>'.$this->data['billing_add'].' '.$this->data['city'].' '.$this->data['Client']['state'].' '.$this->data['Client']['country'].'</pre>';
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														if($exp[1]=='u' || $exp[1]=='su')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['billing_unit_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_unit']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_unit']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														if($exp[1]=='s')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['brands_service_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_service']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_service']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														//$savearray1->data['ClientDetail']['quantity']=$this->data['quantity_unit'][$k];
+																														//$savearray1->data['ClientDetail']['totalcost']=$this->data['quantity_unit'][$k]*$this->data['price_unit'][$k.$k];
+																													}
+																												/*$this->ClientDetail->save($savearray1->data);*/
+																											}
+																										if($this->data['Client']['unit']==1 && $this->data['Client']['service']==0 && $this->data['Client']['package']==0)
+																											{
+																												foreach($this->data['unit_name'] as $k=>$v)
+																													{
+																														$savearray1->data=null;
+																														$this->ClientDetail->create();
+																														$savearray1->data['ClientDetail']['client_id']= $last1;
+																														$savearray1->data['ClientDetail']['billing_unit_id']=$v;
+																														$savearray1->data['ClientDetail']['quantity_unit']=$this->data['quantity_unit'][$k];
+																														$savearray1->data['ClientDetail']['totalcost_unit']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																														$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																														$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																														$this->ClientDetail->save($savearray1->data);
+																														//$savearray1->data['ClientDetail']['quantity']=$this->data['quantity_unit'][$k];
+																														//$savearray1->data['ClientDetail']['totalcost']=$this->data['quantity_unit'][$k]*$this->data['price_unit'][$k.$k];
+																													}
+																											}
+																										if($this->data['Client']['unit']==0 && $this->data['Client']['service']==1 && $this->data['Client']['package']==0)
+																											{
+																												foreach($this->data['unit_name'] as $k=>$v)
+																													{
+																														$savearray1->data=null;
+																														$this->ClientDetail->create();
+																														$savearray1->data['ClientDetail']['client_id']= $last1;
+																														$savearray1->data['ClientDetail']['brands_service_id']=$v;
+																														$savearray1->data['ClientDetail']['quantity_service']=$this->data['quantity_unit'][$k];
+																														$savearray1->data['ClientDetail']['totalcost_service']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																														$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																														$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																														$this->ClientDetail->save($savearray1->data);
+																														//$savearray1->data['ClientDetail']['quantity']=$this->data['quantity_unit'][$k];
+																														//$savearray1->data['ClientDetail']['totalcost']=$this->data['quantity_unit'][$k]*$this->data['price_unit'][$k.$k];
+																													}
+																											}
+																										if($this->data['Client']['unit']==0 && $this->data['Client']['service']==0 && $this->data['Client']['package']==1)
+																											{
+																												foreach($this->data['unit_name'] as $k=>$v)
+																													{
+																														$savearray1->data=null;
+																														$this->ClientDetail->create();
+																														$savearray1->data['ClientDetail']['client_id']= $last1;
+																														$savearray1->data['ClientDetail']['brands_package_id']=$v;
+																														$savearray1->data['ClientDetail']['quantity_package']=$this->data['quantity_unit'][$k];
+																														$savearray1->data['ClientDetail']['totalcost_package']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																														$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																														$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																														$this->ClientDetail->save($savearray1->data);
+																														//$savearray1->data['ClientDetail']['quantity']=$this->data['quantity_unit'][$k];
+																														//$savearray1->data['ClientDetail']['totalcost']=$this->data['quantity_unit'][$k]*$this->data['price_unit'][$k.$k];
+																													}
+																										
+																											}
+																										if($this->data['Client']['unit']==1 && $this->data['Client']['service']==0 && $this->data['Client']['package']==1)
+																											{
+																												foreach($this->data['unit_name'] as $k=>$v)
+																													{
+																														$exp=explode('-',$v);
+																														if($exp[1]=='p')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['brands_package_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_package']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_package']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														if($exp[1]=='u' || $exp[1]=='su')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['billing_unit_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_unit']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_unit']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														if($exp[1]=='s')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['brands_service_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_service']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_service']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														//$savearray1->data['ClientDetail']['quantity']=$this->data['quantity_unit'][$k];
+																														//$savearray1->data['ClientDetail']['totalcost']=$this->data['quantity_unit'][$k]*$this->data['price_unit'][$k.$k];
+																													}
+																												/*$this->ClientDetail->save($savearray1->data);*/
+																											}
+																										if($this->data['Client']['unit']==1 && $this->data['Client']['service']==1 && $this->data['Client']['package']==0)
+																											{
+																												foreach($this->data['unit_name'] as $k=>$v)
+																													{
+																														$exp=explode('-',$v);
+																														if($exp[1]=='p')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['brands_package_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_package']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_package']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														if($exp[1]=='u' || $exp[1]=='su')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['billing_unit_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_unit']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_unit']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														if($exp[1]=='s')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['brands_service_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_service']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_service']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														//$savearray1->data['ClientDetail']['quantity']=$this->data['quantity_unit'][$k];
+																														//$savearray1->data['ClientDetail']['totalcost']=$this->data['quantity_unit'][$k]*$this->data['price_unit'][$k.$k];
+																													}
+																												/*$this->ClientDetail->save($savearray1->data);*/
+																											}
+																										if($this->data['Client']['unit']==0 && $this->data['Client']['service']==1 && $this->data['Client']['package']==1)
+																											{
+																												foreach($this->data['unit_name'] as $k=>$v)
+																													{
+																														$exp=explode('-',$v);
+																														if($exp[1]=='p')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['brands_package_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_package']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_package']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														if($exp[1]=='u' || $exp[1]=='su')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['billing_unit_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_unit']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_unit']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														if($exp[1]=='s')
+																															{
+																																$savearray1->data=null;
+																																$this->ClientDetail->create();
+																																$savearray1->data['ClientDetail']['client_id']= $last1;
+																																$savearray1->data['ClientDetail']['brands_service_id']=$exp[0];
+																																$savearray1->data['ClientDetail']['quantity_service']=$this->data['quantity_unit'][$k];
+																																$savearray1->data['ClientDetail']['totalcost_service']=$this->data['quantity_unit'][$k]*$this->numberconversion($this->data['price_unit'][$k.$k]);
+																																$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'].'-'.$this->data['Client']['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$savearray1->data['ClientDetail']['shipping_address']=$this->data['billing_add'].'-'.$this->data['city'].'-'.$this->data['Client']['state'].'-'.$this->data['Client']['country'];
+																																$this->ClientDetail->save($savearray1->data);
+																															}
+																														//$savearray1->data['ClientDetail']['quantity']=$this->data['quantity_unit'][$k];
+																														//$savearray1->data['ClientDetail']['totalcost']=$this->data['quantity_unit'][$k]*$this->data['price_unit'][$k.$k];
+																													}
+																												/*$this->ClientDetail->save($savearray1->data);*/
+																										 }
+																									 if($this->data['person'])
+																										{
+																											$this->LoadModel('ClientContact');
+																											foreach($this->data['person'] as $k1=>$v1)
+																												{
+																													$contact->data=null;
+																													$this->ClientContact->create();
+																													$contact->data['ClientContact']['client_id']=$last1;
+																													$contact->data['ClientContact']['person_name']=$v1;
+																													$contact->data['ClientContact']['phone']=$this->data['phone'][$k1];
+																													//$contact->data['ClientContact']['email_contact']=$this->data['']
+																													$contact->data['ClientContact']['designation']=$this->data['desig'][$k1];
+																													$contact->data['ClientContact']['skypeid']=$this->data['skypeid'][$k1];
+																													$this->ClientContact->save($contact->data);
+																												}
+																										}
+																										$this->Session->setFlash('<div class="flashMessageSuccess">The client has been saved</div>');
+																										/*if($estimate_flag == 1) $this->redirect(array('controller'=>'brands_estimates','action' => 'add'));
+																									 	else*/ 
+																									 	$this->redirect(array('action' => 'index'));
+																									}
+																								else
+																								    {
+																								    	$this->Session->setFlash('<div class="flashMessageError">The client could not be saved. Please, try again.</div>',true);
+		 																								return;
+																										
+																									}
+		 																				}
+		 																			
+		 																			else
+		 																				{
+		 																					$error=1;
+		 																					$this->set(compact('error'));
+		 																					$this->Session->setFlash('<div class="flashMessageError">Specify  a phone number</div>',true);
+		 																					return;
+		 																					/*$this->redirect(array('action' => 'add'));*/
+		 																				}
+		 																			
+		 																	}
+		 																
+		 																
+		 														}
+		 													else
+		 														{
+		 															$error=1;
+		 															$this->set(compact('error'));
+		 															$this->Session->setFlash('<div class="flashMessageError">Specify  an email id</div>',true);
+		 															return;
+		 															/*$this->redirect(array('action' => 'add'));*/
+		 														}
+		 																
+		 													
+		 											}
+		 										else
+		 											{
+		 												$error=1;
+		 												$this->set(compact('error'));
+		 												$this->Session->setFlash('<div class="flashMessageError">Specify  Company Name</div>',true);
+		 												return;
+		 												/*$this->redirect(array('action' => 'add'));*/
+		 											}
+		 										
+		 								}
+		 							else
+		 								{
+		 									$error=1;
+		 									$this->set(compact('error'));
+		 									$this->Session->setFlash('<div class="flashMessageError">Specify a City</div>',true);
+		 									return;
+		 									/*$this->redirect(array('action' => 'add'));*/
+		 								}
+		 							
+		 					}
+		 				else
+		 					{
+		 						$error=1;
+		 						$this->set(compact('error'));
+		 						$this->Session->setFlash('<div class="flashMessageError">Specify a billing Address</div>',true);
+		 						return;
+		 						/*$this->redirect(array('action' => 'add'));*/
+		 									
+		 					}
+		 							
+		 				
+						
+				  }
+				else
+		 			{
+		 				$error=1;
+		 				debug($error);
+		 				$this->set(compact('error'));
+		 				$this->Session->setFlash('<div class="flashMessageError">Client Name Missing</div>',true);
+		 				return;
+		 				/*$this->redirect(array('action' => 'add'));*/
+		 						
+		 			}
+		}
+		$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+		$currency=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+		foreach($currency as $key=>$val)
+		{
+			$currencylist[$val['Currency']['id']]=$val['Currency']['name'].'('.$val['Currency']['symbol'].')';
+		}
+		$this->set(compact('companies','currencylist'));
+	}
+	
+	
+ 		
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id=null)
+		{
+			
+		/*configure::write('debug',2);
+		debug($this->data);*/
+		$this->loadModel('Brand');
+		$this->loadModel('ClientDetail');
+		$this->loadModel('BillingUnit');
+		$this->loadModel('BrandsService');
+		$this->loadModel('BrandsPackage');
+		$this->loadModel('ClientContact');
+		$this->loadModel('Currency');
+		$this->Client->id = $id;
+		if (!$this->Client->exists())
+		 	{
+				throw new NotFoundException(__('Invalid client'));
+			}
+		if ($this->request->is('post') || $this->request->is('put'))
+			 {
+			 	if((!empty($this->data['Client']['brand'])) || (!empty($this->data['brand'])))
+			 		{
+			 			if($this->data['Client']['company_name'])
+					 		{
+					 			if($this->data['Client']['client_name'])
+					 				{
+					 					if($this->data['Client']['currency'])
+					 						{
+					 																	if($this->data['Client']['person_contact'])
+					 																		{
+					 																					if($this->data['Client']['email_contact'])
+					 																						{
+					 																							/*if($this->data['Client']['person'])
+					 																								{*/
+					 																									
+					 																												 	$editarray->data['Client']['id']=$id;
+					 																												 	$editarray->data['Client']['salutation']=$this->data['Client']['salutation_contact'];
+					 																												 	$editarray->data['Client']['last_name']=$this->data['Client']['last_name_contact'];
+					 																												 	$editarray->data['Client']['start_datetime']=date('Y-m-d',strtotime($this->data['Client']['vs']));
+																																	 	$editarray->data['Client']['state']=$this->data['Client']['state'];
+																																	 	$editarray->data['Client']['country']=$this->data['Client']['country'];
+																																	 	$editarray->data['Client']['client_companyname']=$this->data['Client']['client_name'];
+																																	 	$editarray->data['Client']['company_id']=$this->data['Client']['company_name'];
+																																	 	$editarray->data['Client']['currency_id']=$this->data['Client']['currency'];
+																																	 	$editarray->data['Client']['phone']=$this->data['Client']['phone_contact'];
+																																	 	$editarray->data['Client']['address']=$this->data['Client']['billing_add'];
+																																	 	$editarray->data['Client']['city']=$this->data['Client']['city'];
+																																	 	$editarray->data['Client']['zip']=$this->data['Client']['zip'];
+																																	 	$editarray->data['Client']['fax']=$this->data['Client']['fax'];
+																																	 	$editarray->data['Client']['first_name']=$this->data['Client']['person_contact'];
+																																	 	$editarray->data['Client']['email1']=$this->data['Client']['email_contact'];
+																																	 	$editarray->data['Client']['skypeid']=$this->data['Client']['skype_contact'];
+																																	 	$editarray->data['Client']['ship_bill']=$this->data['Client']['ship_add'];
+																																	 	debug($this->data['Client']['ship_add']);
+																																		if(!$this->data['Client']['ship_add']) {
+																																			$editarray->data['Client']['ship_address']=$this->data['Client']['billing_add'];
+																																			$editarray->data['Client']['ship_city']=$this->data['Client']['city'];
+																																			$editarray->data['Client']['ship_state']=$this->data['state'];
+																																			$editarray->data['Client']['ship_zip']=$this->data['Client']['zip'];
+																																			$editarray->data['Client']['ship_country']=$this->data['country'];
+																																			$editarray->data['Client']['ship_fax']=$this->data['Client']['fax'];
+																																		}else {
+																																			$editarray->data['Client']['ship_address']=$this->data['Client']['shipping_add'];
+																																		    $editarray->data['Client']['ship_city']=$this->data['Client']['ship_city'];
+																																		    $editarray->data['Client']['ship_state']=$this->data['Client']['state1'];
+																																		    $editarray->data['Client']['ship_zip']=$this->data['Client']['ship_zip'];
+																																		    $editarray->data['Client']['ship_country']=$this->data['Client']['country1'];
+																																		    $editarray->data['Client']['ship_fax']=$this->data['Client']['ship_fax'];
+																																		}																
+																																	 	
+																																	 	//$editarray->data['Client']['designation']=$this->data['Client']['desig'];
+																																	 	
+																																	 	
+																																		if ($this->Client->save($editarray->data))
+																																			 {
+																																			 	foreach($this->data['Client']['detailid'] as $k1=>$v1)
+																																			 	{
+																																							$savearray1->data=null;	
+																																							$savearray1->data['ClientDetail']['id']=$v1;
+																																							$savearray1->data['ClientDetail']['brand_id']=$this->data['Client']['brand'][$k1];
+																																							$savearray1->data['ClientDetail']['service_desc']=$this->data['Client']['brand_description'][$k1];
+																																							$savearray1->data['ClientDetail']['client_id']=$id;																												
+																																							$this->ClientDetail->save($savearray1->data);																																	 				
+																																			 	}
+																																			 if($this->data['Client']['person'])
+																																						{
+																																							$this->LoadModel('ClientContact');
+																																							foreach($this->data['Client']['emergencycontact'] as $k1=>$v1)
+																																								{
+																																									$contact->data=null;	
+																																									$contact->data['ClientContact']['id']=$v1;
+																																									$contact->data['ClientContact']['salutation']=$this->data['Client']['salutation'][$k1];																																																																										
+																																									$contact->data['ClientContact']['person_name']=$this->data['Client']['person'][$k1];
+																																									$contact->data['ClientContact']['last_name']=$this->data['Client']['last_name'][$k1];
+																																									$contact->data['ClientContact']['client_id']=$id;																																																																													$contact->data['ClientContact']['phone']=$this->data['Client']['phone'][$k1];
+																																									$contact->data['ClientContact']['phone']=$this->data['Client']['phone_emergency'][$k1];
+																																									$contact->data['ClientContact']['email_contact']=$this->data['Client']['email_emergency'][$k1];
+																																									$contact->data['ClientContact']['designation']=$this->data['Client']['desig'][$k1];
+																																									$this->ClientContact->save($contact->data);
+																																								}
+																																						}
+																																			 if(!empty($this->data['brand']))
+																																			 			{
+																																			 				foreach($this->data['brand'] as $kadd=>$vadd)
+																																			 					{
+																																			 						
+																																									$newadd->data=null;
+																																									$this->ClientDetail->create();
+																																									$newadd->data['ClientDetail']['client_id']=$id;
+																																									$newadd->data['ClientDetail']['brand_id']=$vadd;
+																																									$newadd->data['ClientDetail']['service_desc']=$this->data['brand_description'][$kadd];
+																																									$this->ClientDetail->save($newadd->data);
+																																					 			}
+																																			 			}
+																																			 	
+																																			 	
+																																			 	if(!empty($this->data['person']))
+																																			 			{
+																																			 				foreach($this->data['person'] as $kadd=>$vadd)
+																																			 					{
+																																			 						
+																																									$newadd->data=null;
+																																									$this->ClientContact->create();
+																																									$newadd->data['ClientContact']['client_id']=$id;
+																																									$newadd->data['ClientContact']['salutation']=$this->data['salutation'][$kadd];
+																																									$newadd->data['ClientContact']['person_name']=$vadd;
+																																									$newadd->data['ClientContact']['last_name']=$this->data['last_name'][$kadd];
+																																									$newadd->data['ClientContact']['phone']=$this->data['phone'][$kadd];
+																																									$newadd->data['ClientContact']['email_contact']=$this->data['email_emergency'][$kadd];
+																																									$newadd->data['ClientContact']['designation']=$this->data['desig'][$kadd];
+																																									$this->ClientContact->save($newadd->data);
+																																					 			}
+																																			 			}
+																																			 		$this->Session->setFlash('<div class="flashMessageSuccess">The client has been saved</div>',true);
+																																					
+																																					$this->redirect(array('action' => 'view',$id));
+																																			 }
+																																	    else
+																																	    	 {
+																																	    	 		$this->Session->setFlash('<div class="flashMessageError">The client could not be saved. Please, try again.</div>',true);
+				 																																	return;
+																																			 }
+					 																									
+					 																							/*	}
+					 																							else
+					 																								{
+					 																									$companyid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id),'fields'=>array('Client.company_id','Client.first_name','Client.brand_id','Client.client_companyname','Client.paymentdue_term','Client.currency_id','Client.email1','Client.phone')));
+																														$currency_list=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+																														foreach($currency_list as $currency_key=>$currency_val)
+																															{
+																																$currency_drop[$currency_val['Currency']['id']]=$currency_val['Currency']['name'];
+																															}
+																														$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+																														$brands=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+																														$client_contacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+																														$clientdetails=$this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+																														$this->set(compact('client_contacts','currency_drop','id','companies','companyid','brands','clientdetails','unitlist','servicelist','packagelist'));
+					 																									$this->Session->setFlash('<div class="flashMessageError">Emergency Contact Person Name</div>',true);
+				 																										return;
+					 																								}*/
+					 																						}
+					 																					else
+					 																						{
+					 																							$companyid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id)/*,'fields'=>array('Client.company_id','Client.first_name','Client.brand_id','Client.client_companyname','Client.paymentdue_term','Client.currency_id','Client.email1','Client.phone')*/));
+																												$currency_list=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+																												foreach($currency_list as $currency_key=>$currency_val)
+																													{
+																														$currency_drop[$currency_val['Currency']['id']]=$currency_val['Currency']['name'];
+																													}
+																												$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+																												$brands=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+																												$client_contacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+																												$clientdetails=$this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+																												$this->set(compact('client_contacts','currency_drop','id','companies','companyid','brands','clientdetails','unitlist','servicelist','packagelist'));
+					 																							$this->Session->setFlash('<div class="flashMessageError">Enter Email Id</div>',true);
+				 																								return;
+					 																						}
+					 																				
+					 																			
+					 																		}
+					 																	else
+					 																		{
+					 																			$companyid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id)/*,'fields'=>array('Client.company_id','Client.first_name','Client.brand_id','Client.client_companyname','Client.paymentdue_term','Client.currency_id','Client.email1','Client.phone')*/));
+																								$currency_list=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+																								foreach($currency_list as $currency_key=>$currency_val)
+																									{
+																										$currency_drop[$currency_val['Currency']['id']]=$currency_val['Currency']['name'];
+																									}
+																								$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+																								$brands=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+																								$client_contacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+																								$clientdetails=$this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+																								$this->set(compact('client_contacts','currency_drop','id','companies','companyid','brands','clientdetails','unitlist','servicelist','packagelist'));
+					 																			$this->Session->setFlash('<div class="flashMessageError">Enter Contact Person Name</div>',true);
+				 																				return;
+					 																		}
+					 																
+					 															
+					 														
+					 													
+					 												
+					 											
+					 										
+					 									
+					 								
+					 							
+					 						}
+					 					else
+					 						{
+					 							$companyid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id)/*,'fields'=>array('Client.company_id','Client.first_name','Client.brand_id','Client.client_companyname','Client.paymentdue_term','Client.currency_id','Client.email1','Client.phone')*/));
+												$currency_list=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+												foreach($currency_list as $currency_key=>$currency_val)
+													{
+														$currency_drop[$currency_val['Currency']['id']]=$currency_val['Currency']['name'];
+													}
+												$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+												$brands=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+												$client_contacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+												$clientdetails=$this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+												$this->set(compact('client_contacts','currency_drop','id','companies','companyid','brands','clientdetails','unitlist','servicelist','packagelist'));
+					 							$this->Session->setFlash('<div class="flashMessageError">Select  A currency</div>',true);
+				 								return;
+					 						}
+					 				}
+					 			else
+					 				{
+					 					$companyid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id)/*,'fields'=>array('Client.company_id','Client.first_name','Client.brand_id','Client.client_companyname','Client.paymentdue_term','Client.currency_id','Client.email1','Client.phone')*/));
+										$currency_list=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+										foreach($currency_list as $currency_key=>$currency_val)
+											{
+												$currency_drop[$currency_val['Currency']['id']]=$currency_val['Currency']['name'];
+											}
+										$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+										$brands=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+										$client_contacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+										$clientdetails=$this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+										$this->set(compact('client_contacts','currency_drop','id','companies','companyid','brands','clientdetails','unitlist','servicelist','packagelist'));
+					 					$this->Session->setFlash('<div class="flashMessageError">Enter Company Name</div>',true);
+				 						return;
+					 				}
+					 		}
+					 	else
+					 		{
+					 			$companyid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id)/*,'fields'=>array('Client.company_id','Client.first_name','Client.brand_id','Client.client_companyname','Client.paymentdue_term','Client.currency_id','Client.email1','Client.phone')*/));
+								$currency_list=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+								foreach($currency_list as $currency_key=>$currency_val)
+									{
+										$currency_drop[$currency_val['Currency']['id']]=$currency_val['Currency']['name'];
+									}
+								$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+								$brands=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+								$client_contacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+								$clientdetails=$this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+								$this->set(compact('client_contacts','currency_drop','id','companies','companyid','brands','clientdetails','unitlist','servicelist','packagelist'));
+					 			$this->Session->setFlash('<div class="flashMessageError">Select a company</div>',true);
+				 				return;
+					 		}
+			 		}
+			 	else
+			 		{
+			 			$companyid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id)/*,'fields'=>array('Client.company_id','Client.first_name','Client.brand_id','Client.client_companyname','Client.paymentdue_term','Client.currency_id','Client.email1','Client.phone')*/));
+						$currency_list=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+						foreach($currency_list as $currency_key=>$currency_val)
+							{
+								$currency_drop[$currency_val['Currency']['id']]=$currency_val['Currency']['name'];
+							}
+						$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+						$brands=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+						$client_contacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+						$clientdetails=$this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+						$this->set(compact('client_contacts','currency_drop','id','companies','companyid','brands','clientdetails','unitlist','servicelist','packagelist'));
+					 	$this->Session->setFlash('<div class="flashMessageError">Client should be associated with atleast one brand.</div>',true);
+				 		return;
+			 		}
+			 	//debug($this->data);
+			 	
+			 	/*$editarray->data=null;*/
+		
+			 }
+	   else
+	   		 {
+	   		 	
+					$this->request->data = $this->Client->read(null, $id);
+			 }
+		$companyid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id)/*,'fields'=>array('Client.company_id','Client.first_name','Client.brand_id','Client.client_companyname','Client.paymentdue_term','Client.currency_id','Client.email1','Client.phone')*/));
+		$currency_list=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+		foreach($currency_list as $currency_key=>$currency_val)
+			{
+				$currency_drop[$currency_val['Currency']['id']]=$currency_val['Currency']['name'];
+			}
+		$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+		$brands=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+		
+		
+		
+		$client_contacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+		$clientdetails=$this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+		
+		
+		$this->set(compact('client_contacts','currency_drop','id','companies','companyid','brands','clientdetails','unitlist','servicelist','packagelist'));
+	
+		}
+	
+	
+	
+	public function edit_old($id = null) {
+		
+		/*configure::write('debug',2);
+		debug($this->data);*/
+		$this->loadModel('Brand');
+		$this->loadModel('ClientDetail');
+		$this->loadModel('BillingUnit');
+		$this->loadModel('BrandsService');
+		$this->loadModel('BrandsPackage');
+		$this->loadModel('ClientContact');
+		$this->Client->id = $id;
+		if (!$this->Client->exists())
+		 	{
+				throw new NotFoundException(__('Invalid client'));
+			}
+		if ($this->request->is('post') || $this->request->is('put'))
+			 {
+			 	debug($this->data);
+			 	if($this->data['Client']['company_name'])
+			 		{
+			 			if($this->data['Client']['client_name'])
+			 				{
+			 					if($this->data['Client']['currency'])
+			 						{
+			 							if($this->data['Client']['billing_add'])
+			 								{
+			 									if($this->data['Client']['city'])
+			 										{
+			 											if($this->data['country'])
+			 												{
+			 													if($this->data['state'])
+			 														{
+			 															if($this->data['Client']['zip'])
+			 																{
+			 																	if($this->data['Client']['person_contact'])
+			 																		{
+			 																			if($this->data['Client']['phone_contact'])
+			 																				{
+			 																					if($this->data['Client']['email_contact'])
+			 																						{
+			 																							if($this->data['Client']['person'])
+			 																								{
+			 																									if($this->data['Client']['phone'])
+			 																										{
+			 																												 	$editarray->data['Client']['id']=$id;
+																															 	$editarray->data['Client']['state']=$this->data['state'];
+																															 	$editarray->data['Client']['country']=$this->data['country'];
+																															 	$editarray->data['Client']['client_companyname']=$this->data['Client']['client_name'];
+																															 	$editarray->data['Client']['company_id']=$this->data['Client']['company_name'];
+																															 	$editarray->data['Client']['currency_id']=$this->data['Client']['currency'];
+																															 	
+																															 	if($this->data['Client']['brand'])
+																															 		{
+																															 			$editarray->data['Client']['brand_id']=$this->data['Client']['brand'];
+																															 		}
+																															 	else
+																															 		{
+																															 			$editarray->data['Client']['brand_id']=$this->data['brand'];
+																															 		}
+																															 	
+																															 	$editarray->data['Client']['city']=$this->data['Client']['city'];
+																															 	$editarray->data['Client']['city']=$this->data['Client']['skype_contact'];
+																															 	$editarray->data['Client']['zip']=$this->data['Client']['zip'];
+																															 	$editarray->data['Client']['fax']=$this->data['Client']['fax'];
+																															 	$editarray->data['Client']['first_name']=$this->data['Client']['person_contact'];
+																															 	$editarray->data['Client']['email1']=$this->data['Client']['email_contact'];
+																															 	$editarray->data['Client']['designation']=$this->data['Client']['desig'];
+																															 	
+																																if ($this->Client->save($editarray->data))
+																																	 {
+																																	 	$editdetail->data=null;
+																																	 	foreach($this->data['Client']['detailid'] as $k1=>$v1)
+																																	 	{
+																																	 		$editdetail->data['ClientDetail']['id']=$v1;
+																																	 		if($this->data['Client']['default_unit_name'][$k1])
+																																	 			{
+																																	 				
+																																	 				$editdetail->data['ClientDetail']['billing_unit_id']=$this->data['Client']['default_unit_name'][$k1];
+																																	 				$editdetail->data['ClientDetail']['brands_service_id']='0';
+																																	 				$editdetail->data['ClientDetail']['brands_package_id']='0';
+																																	 				$editdetail->data['ClientDetail']['quantity_unit']=$this->data['Client']['default_quantity_unit'][$k1];
+																																	 				if($this->data['Client']['default_price_unit'][$k1])
+																																	 					{
+																																	 						$editdetail->data['ClientDetail']['totalcost_unit']=$this->data['Client']['default_quantity_unit'][$k1]*$this->numberconversion($this->data['Client']['default_price_unit'][$k1]);
+																																	 					}
+																																	 				else
+																																	 					{
+																																	 						$editdetail->data['ClientDetail']['totalcost_unit']=$this->data['Client']['default_quantity_unit'][$k1]*$this->numberconversion($this->data['price_unit'][$k1.$k1]);
+																																	 					}
+																																	 				
+																																	 				
+																																	 			}
+																																	 		if($this->data['Client']['defaultservice_name'][$k1])
+																																	 			{
+																																	 				
+																																	 				$editdetail->data['ClientDetail']['brands_service_id']=$this->data['Client']['defaultservice_name'][$k1];
+																																	 				$editdetail->data['ClientDetail']['billing_unit_id']='0';
+																																	 				$editdetail->data['ClientDetail']['brands_package_id']='0';
+																																	 				$editdetail->data['ClientDetail']['quantity_service']=$this->data['Client']['defaultservice_quantity_unit'][$k1];
+																																	 				if($this->data['Client']['service_price_unit'][$k1])
+																																	 					{
+																																	 						$editdetail->data['ClientDetail']['totalcost_service']=$this->data['Client']['defaultservice_quantity_unit'][$k1]*$this->numberconversion($this->data['Client']['service_price_unit'][$k1]);
+																																	 					}
+																																	 				else
+																																	 					{
+																																	 						$editdetail->data['ClientDetail']['totalcost_service']=$this->data['Client']['defaultservice_quantity_unit'][$k1]*$this->numberconversion($this->data['price_unit'][$k1.$k1]);
+																																	 					}
+																																	 				
+																																	 			}
+																																	 		if($this->data['Client']['default_package_name'][$k1])
+																																	 			{
+																																	 				
+																																	 				$editdetail->data['ClientDetail']['brands_package_id']=$this->data['Client']['default_package_name'][$k1];
+																																	 				$editdetail->data['ClientDetail']['brands_service_id']='0';
+																																	 				$editdetail->data['ClientDetail']['billing_unit_id']='0';
+																																	 				$editdetail->data['ClientDetail']['quantity_package']=$this->data['Client']['default_package_quantity_unit'][$k1];
+																																	 				if($this->data['Client']['default_package_price_unit'][$k1])
+																																	 					{
+																																	 						debug('abc');
+																																	 						$editdetail->data['ClientDetail']['totalcost_package']=$this->data['Client']['default_package_quantity_unit'][$k1]*$this->numberconversion($this->data['Client']['default_package_price_unit'][$k1]);
+																																	 					}
+																																	 				else
+																																	 					{
+																																	 						$editdetail->data['ClientDetail']['totalcost_package']=$this->data['Client']['default_package_quantity_unit'][$k1]*$this->numberconversion($this->data['add_price_unit'][$k1.$k1]);
+																																	 					}
+																																	 			}
+																																	 				if($this->data['Client']['billing_add'])
+																																	 					{
+																																	 						$editdetail->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'];
+																																	 					}
+																																	 				else
+																																	 					{
+																																	 						$editdetail->data['ClientDetail']['billing_address']='<pre>'.$this->data['billing_add'].'</pre>';
+																																	 					}
+																																	 		
+																																	 				if($this->data['Client']['shipping_add'])
+																																	 					{
+																																			 				$editdetail->data['ClientDetail']['shipping_address']=$this->data['Client']['shipping_add'];
+																																			 			}
+																																	 				else
+																																	 					{
+																																	 						$editdetail->data['ClientDetail']['shipping_address']='<pre>'.$this->data['shipping_add'].'</pre>';
+																																	 					}
+																																	 		
+																																	 		$editdetail->data['ClientDetail']['client_id']=$id;
+																																	 		
+																																	 		if($this->ClientDetail->save($editdetail->data))
+																																	 			{
+																																	 				if($this->data['Client']['person'])
+																																							{
+																																								$this->LoadModel('ClientContact');
+																																								debug($this->data['Client']['contactid']);
+																																								foreach($this->data['Client']['contactid'] as $k1=>$v1)
+																																									{
+																																										debug($k1);
+																																										debug($v1);
+																																										debug($id);
+																																										debug($this->data['Client']['desig'][$k1]);
+																																										$contact->data=null;
+																																										$contact->data['ClientContact']['id']=$v1;
+																																										$contact->data['ClientContact']['client_id']=$id;
+																																										$contact->data['ClientContact']['person_name']=$this->data['Client']['person'][$k1];
+																																										$contact->data['ClientContact']['phone']=$this->data['Client']['phone'][$k1];
+																																										$contact->data['ClientContact']['email_contact']=$this->data['Client']['email_emergency'][$k1];
+																																										$contact->data['ClientContact']['designation']=$this->data['Client']['desig_emergency'][$k1];
+																																										$contact->data['ClientContact']['skypeid']=$this->data['Client']['skypeid'][$k1];
+																																										$this->ClientContact->save($contact->data);
+																																									}
+																																							}
+																																	 				
+																																	 			}
+																																	 		
+																																	 	}
+																																	 if(!empty($this->data['package_name']))
+																																	 	{
+																																	 		foreach($this->data['package_name'] as $kpack=>$vpack)
+																																	 			{
+																																	 				$savearray1->data=null;
+																																					$this->ClientDetail->create();
+																																					$savearray1->data['ClientDetail']['client_id']= $id;
+																																					$savearray1->data['ClientDetail']['brands_package_id']=$vpack;
+																																					$savearray1->data['ClientDetail']['quantity_package']=$this->data['package_quantity_unit'][$kpack];
+																																					$savearray1->data['ClientDetail']['totalcost_package']=$this->data['package_quantity_unit'][$kpack]*$this->numberconversion($this->data['add_price_unit'][$kpack.$kpack]);
+																																									
+																																					if($this->data['Client']['billing_add'])
+																																					 		{
+																																					 			$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'];
+																																					 		}
+																																					 else
+																																					 		{
+																																					 			$savearray1->data['ClientDetail']['billing_address']='<pre>'.$this->data['billing_add'].'</pre>';
+																																					 		}
+																																					 		
+																																					 if($this->data['Client']['shipping_add'])
+																																					 		{
+																																							 	$savearray1->data['ClientDetail']['shipping_address']=$this->data['Client']['shipping_add'];
+																																							}
+																																					 else
+																																					 		{
+																																					 			$savearray1->data['ClientDetail']['shipping_address']='<pre>'.$this->data['shipping_add'].'</pre>';
+																																					 		}
+																																					$this->ClientDetail->save($savearray1->data);
+																																	 			}
+																																	 	}
+																																	 if(!empty($this->data['service_unit_name']))
+																																	 	{
+																																	 		foreach($this->data['service_unit_name'] as $kserv=>$vserv)
+																																	 			{
+																																	 				$savearray1->data=null;
+																																					$this->ClientDetail->create();
+																																					$savearray1->data['ClientDetail']['client_id']= $id;
+																																					$savearray1->data['ClientDetail']['brands_service_id']=$vserv;
+																																					$savearray1->data['ClientDetail']['quantity_service']=$this->data['service_quantity_unit'][$kserv];
+																																					$savearray1->data['ClientDetail']['totalcost_service']=$this->data['service_quantity_unit'][$kserv]*$this->numberconversion($this->data['price_unit'][$kserv.$kserv]);
+																																					if($this->data['Client']['billing_add'])
+																																					 		{
+																																					 			$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'];
+																																					 		}
+																																					 else
+																																					 		{
+																																					 			$savearray1->data['ClientDetail']['billing_address']='<pre>'.$this->data['billing_add'].'</pre>';
+																																					 		}
+																																					 if($this->data['Client']['shipping_add'])
+																																					 		{
+																																							 	$savearray1->data['ClientDetail']['shipping_address']=$this->data['Client']['shipping_add'];
+																																							}
+																																					 else
+																																					 		{
+																																					 			$savearray1->data['ClientDetail']['shipping_address']='<pre>'.$this->data['shipping_add'].'</pre>';
+																																					 		}
+																																					$this->ClientDetail->save($savearray1->data);
+																																	 			}
+																																	 	}
+																																	 if(!empty($this->data['unit_name']))
+																																	 			{
+																																	 				foreach($this->data['unit_name'] as $kadd=>$vadd)
+																																	 					{
+																																	 						
+																																							$explode=explode('-',$vadd);
+																																							debug($explode);
+																																							if($explode[1]=='p')
+																																								{
+																																									$savearray1->data=null;
+																																									$this->ClientDetail->create();
+																																									$savearray1->data['ClientDetail']['client_id']= $id;
+																																									$savearray1->data['ClientDetail']['brands_package_id']=$explode[0];
+																																									$savearray1->data['ClientDetail']['quantity_package']=$this->data['quantity_unit'][$kadd];
+																																									$savearray1->data['ClientDetail']['totalcost_package']=$this->data['quantity_unit'][$kadd]*$this->numberconversion($this->data['price_unit'][$kadd.$kadd]);
+																																									
+																																									if($this->data['Client']['billing_add'])
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'];
+																																					 					}
+																																					 				else
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['billing_address']='<pre>'.$this->data['billing_add'].'</pre>';
+																																					 					}
+																																					 		
+																																					 				if($this->data['Client']['shipping_add'])
+																																					 					{
+																																							 				$savearray1->data['ClientDetail']['shipping_address']=$this->data['Client']['shipping_add'];
+																																							 			}
+																																					 				else
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['shipping_address']='<pre>'.$this->data['shipping_add'].'</pre>';
+																																					 					}
+																																									$this->ClientDetail->save($savearray1->data);
+																																								}
+																																							elseif($explode[1]=='s')
+																																								{
+																																									$savearray1->data=null;
+																																									$this->ClientDetail->create();
+																																									$savearray1->data['ClientDetail']['client_id']= $id;
+																																									$savearray1->data['ClientDetail']['brands_service_id']=$explode[0];
+																																									$savearray1->data['ClientDetail']['quantity_service']=$this->data['quantity_unit'][$kadd];
+																																									$savearray1->data['ClientDetail']['totalcost_service']=$this->data['quantity_unit'][$kadd]*$this->numberconversion($this->data['price_unit'][$kadd.$kadd]);
+																																									
+																																									if($this->data['Client']['billing_add'])
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'];
+																																					 					}
+																																					 				else
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['billing_address']='<pre>'.$this->data['billing_add'].'</pre>';
+																																					 					}
+																																					 		
+																																					 				if($this->data['Client']['shipping_add'])
+																																					 					{
+																																							 				$savearray1->data['ClientDetail']['shipping_address']=$this->data['Client']['shipping_add'];
+																																							 			}
+																																					 				else
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['shipping_address']='<pre>'.$this->data['shipping_add'].'</pre>';
+																																					 					}
+																																									
+																																									$this->ClientDetail->save($savearray1->data);
+																																								}
+																																							elseif($explode[1]=='u' || $explode[1]=='su')
+																																								{
+																																									$savearray1->data=null;
+																																									$this->ClientDetail->create();
+																																									$savearray1->data['ClientDetail']['client_id']= $id;
+																																									$savearray1->data['ClientDetail']['billing_unit_id']=$explode[0];
+																																									$savearray1->data['ClientDetail']['quantity_unit']=$this->data['quantity_unit'][$kadd];
+																																									$savearray1->data['ClientDetail']['totalcost_unit']=$this->data['quantity_unit'][$kadd]*$this->numberconversion($this->data['price_unit'][$kadd.$kadd.$kadd]);
+																																									
+																																									if($this->data['Client']['billing_add'])
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'];
+																																					 					}
+																																					 				else
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['billing_address']='<pre>'.$this->data['billing_add'].'</pre>';
+																																					 					}
+																																					 		
+																																					 				if($this->data['Client']['shipping_add'])
+																																					 					{
+																																							 				$savearray1->data['ClientDetail']['shipping_address']=$this->data['Client']['shipping_add'];
+																																							 			}
+																																					 				else
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['shipping_address']='<pre>'.$this->data['shipping_add'].'</pre>';
+																																					 					}
+																																									
+																																									
+																																									$this->ClientDetail->save($savearray1->data);
+																																								}
+																																							else
+																																								{
+																																									$savearray1->data=null;
+																																									$this->ClientDetail->create();
+																																									$savearray1->data['ClientDetail']['client_id']= $id;
+																																									$savearray1->data['ClientDetail']['billing_unit_id']=$explode[0];
+																																									$savearray1->data['ClientDetail']['quantity_unit']=$this->data['quantity_unit'][$kadd];
+																																									$savearray1->data['ClientDetail']['totalcost_unit']=$this->data['quantity_unit'][$kadd]*$this->numberconversion($this->data['price_unit'][$kadd.$kadd.$kadd]);
+																																									
+																																									if($this->data['Client']['billing_add'])
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['billing_address']=$this->data['Client']['billing_add'];
+																																					 					}
+																																					 				else
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['billing_address']='<pre>'.$this->data['billing_add'].'</pre>';
+																																					 					}
+																																					 		
+																																					 				if($this->data['Client']['shipping_add'])
+																																					 					{
+																																							 				$savearray1->data['ClientDetail']['shipping_address']=$this->data['Client']['shipping_add'];
+																																							 			}
+																																					 				else
+																																					 					{
+																																					 						$savearray1->data['ClientDetail']['shipping_address']='<pre>'.$this->data['shipping_add'].'</pre>';
+																																					 					}
+																																									
+																																									
+																																									$this->ClientDetail->save($savearray1->data);
+																																								}
+																																							
+																																									
+																																			 			}
+																																	 			}
+																																	 	
+																																	 		$this->Session->setFlash('<div class="flashMessageSuccess">The client has been saved</div>',true);
+																																			
+																																			$this->redirect(array('action' => 'index'));
+																																	 }
+																															    else
+																															    	 {
+																															    	 		$this->Session->setFlash('<div class="flashMessageError">The client could not be saved. Please, try again.</div>',true);
+		 																																	return;
+																																			//$this->Session->setFlash(__('The client could not be saved. Please, try again.'));
+																																	 }
+			 																										}
+			 																									else
+			 																										{
+			 																											$this->Session->setFlash('<div class="flashMessageError">Emergency Contact phone number</div>',true);
+		 																												return;
+			 																										}
+			 																								}
+			 																							else
+			 																								{
+			 																									$this->Session->setFlash('<div class="flashMessageError">Emergency Contact Person Name</div>',true);
+		 																										return;
+			 																								}
+			 																						}
+			 																					else
+			 																						{
+			 																							$this->Session->setFlash('<div class="flashMessageError">Enter Email Id</div>',true);
+		 																								return;
+			 																						}
+			 																				}
+			 																			else
+			 																				{
+			 																					$this->Session->setFlash('<div class="flashMessageError">Enter A Contact Number</div>',true);
+		 																						return;
+			 																				}
+			 																		}
+			 																	else
+			 																		{
+			 																			$this->Session->setFlash('<div class="flashMessageError">Enter Contact Person Name</div>',true);
+		 																				return;
+			 																		}
+			 																}
+			 															else
+			 																{
+			 																	$this->Session->setFlash('<div class="flashMessageError">Enter Postal Index</div>',true);
+		 																		return;
+			 																}
+			 														}
+			 													else
+			 														{
+			 															$this->Session->setFlash('<div class="flashMessageError">Select A State</div>',true);
+		 																return;
+			 														}
+			 												}
+			 											else
+			 												{
+			 													$this->Session->setFlash('<div class="flashMessageError">Select A Country</div>',true);
+		 														return;
+			 												}
+			 										}
+			 									else
+			 										{
+			 											$this->Session->setFlash('<div class="flashMessageError">Enter City</div>',true);
+		 												return;
+			 										}
+			 								}
+			 							else
+			 								{
+			 									$this->Session->setFlash('<div class="flashMessageError">Enter A Vlid Billing Address</div>',true);
+		 										return;
+			 								}
+			 						}
+			 					else
+			 						{
+			 							$this->Session->setFlash('<div class="flashMessageError">Select  A currency</div>',true);
+		 								return;
+			 						}
+			 				}
+			 			else
+			 				{
+			 					$this->Session->setFlash('<div class="flashMessageError">Enter Company Name</div>',true);
+		 						return;
+			 				}
+			 		}
+			 	else
+			 		{
+			 			$this->Session->setFlash('<div class="flashMessageError">Select a company</div>',true);
+		 				return;
+			 		}
+			 	/*$editarray->data=null;*/
+		
+			 }
+	   else
+	   		 {
+	   		 	
+					$this->request->data = $this->Client->read(null, $id);
+			 }
+		$companyid=$this->Client->find('first',array('conditions'=>array('Client.id'=>$id),'fields'=>array('Client.company_id','Client.first_name','Client.brand_id','Client.client_companyname','Client.paymentdue_term','Client.currency_id','Client.email1','Client.phone')));
+		$currency_list=$this->Currency->find('all',array('fields'=>array('Currency.id','Currency.name','Currency.symbol')));
+		foreach($currency_list as $currency_key=>$currency_val)
+			{
+				$currency_drop[$currency_val['Currency']['id']]=$currency_val['Currency']['name'];
+			}
+		$companies = $this->Client->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+		$brands=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+		$unitlist=$this->BillingUnit->find('list',array('fields'=>array('BillingUnit.id','BillingUnit.name')));
+		$servicelist=$this->BrandsService->find('list',array('fields'=>array('BrandsService.id','BrandsService.service_name')));
+		$packagelist=$this->BrandsPackage->find('list',array('fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+		$client_contacts=$this->ClientContact->find('all',array('conditions'=>array('ClientContact.client_id'=>$id)));
+		$clientdetails=$this->ClientDetail->find('all',array('conditions'=>array('ClientDetail.client_id'=>$id)));
+		
+		foreach($clientdetails as $details)
+			{
+				if($details['ClientDetail']['billing_unit_id'])
+					{
+						$unittype=1;
+						$this->set(compact('unittype'));
+					}
+				if($details['ClientDetail']['brands_service_id'])
+					{
+						$servicetype=1;
+						$this->set(compact('servicetype'));
+					}
+				if($details['ClientDetail']['brands_package_id'])
+					{
+						$packagetype=1;
+						$this->set(compact('packagetype'));
+					}
+			}
+		$this->set(compact('client_contacts','currency_drop','id','companies','companyid','brands','clientdetails','unitlist','servicelist','packagelist'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		/*if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}*/
+		$this->Client->id = $id;
+		/*if (!$this->Client->exists()) {
+			throw new NotFoundException(__('Invalid client'));
+		}*/
+		if ($this->Client->delete()) {
+			$this->Session->setFlash(__('<div class=flashMessageSuccess>Client deleted</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('<div class=flashMessageError>Client was not deleted</div>'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	public function unit($flag=null)
+	{
+		/*configure::write('debug',2);
+		debug($flag);
+		debug($this->data);*/
+		if($this->data){
+			debug($flag);
+			$flag=1;
+			$this->loadModel('BillingUnit');
+			$unit=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.active'=>'Y')));
+			$disp=1;
+			$this->set(compact('unit','disp','flag'));
+		
+		}
+		else{
+			
+			if(empty($this->data) && !$flag)
+			{
+				$unit=null;
+				$this->set(compact('unit'));
+			}
+			else
+			{
+				debug($flag);
+				$this->loadModel('BillingUnit');
+				$unit=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.active'=>'Y')));
+				$disp=1;
+				$this->set(compact('unit','flag','disp'));
+			}
+		}
+	}
+	
+	
+	
+	
+	
+	public function service($flag1=null)
+	{
+		
+		if($this->data){
+			debug($flag1);
+			$flag1=1;
+			$this->loadModel('BrandsService');
+			$unit=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			$disp=1;
+			$this->set(compact('unit','disp','flag1'));
+		
+		}
+		else{
+			
+			if(empty($this->data) && !$flag1)
+			{
+				$unit=null;
+				$this->set(compact('unit'));
+			}
+			else
+			{
+				debug($flag1);
+				$this->loadModel('BrandsService');
+				$unit=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+				$disp=1;
+				$this->set(compact('unit','flag1','disp'));
+			}
+		}
+	}
+	public function package($flag2=null)
+	{
+	if($this->data){
+			debug($flag2);
+			$flag=1;
+			$this->loadModel('BrandsPackage');
+			$unit=$this->BrandsPackage->find('list',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+			$disp=1;
+			$this->set(compact('unit','disp','flag'));
+		
+		}
+		else{
+			
+			if(empty($this->data) && !$flag2)
+			{
+				$unit=null;
+				$this->set(compact('unit'));
+			}
+			else
+			{
+				debug($flag2);
+				$this->loadModel('BrandsPackage');
+				$unit=$this->BrandsPackage->find('list',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+				$disp=1;
+				$this->set(compact('unit','flag','disp'));
+			}
+		}
+	}
+	
+	public function brand($flag=null)
+	{
+		//changed on 25 sept 4.30pm
+			$this->loadModel('Brand');
+			$unit=$this->Brand->find('list',array('conditions'=>array('Brand.company_id'=>$this->data['Client']['company_name']),'fields'=>array('Brand.id','Brand.brandname')));
+			$flag=$flag++;
+			$this->set(compact('unit','flag'));
+		
+	}
+	
+	//added on 25 sept 4.30pm
+	function brand_update($flag=null){
+			$this->loadModel('Brand');
+			$unit=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+			$flag=$flag++;
+			$this->set(compact('unit','flag'));		
+	}
+	
+	public function ship($flag = null)
+	{
+		/*configure::write('debug',2);
+		debug($this->data);
+		debug($flag);*/
+		if($flag!=1)
+			{
+				debug($flag);
+				if($this->data)
+					{
+						$data=$this->data['Client']['ship_add'];
+						$this->set(compact('data'));
+					}
+			}
+		
+		
+	}
+	public function ship_add($flag=null)
+		{
+			/*configure::write('debug',2);
+			debug($this->data);
+			debug($flag);*/
+		}
+	
+	public function check($flag=null)
+	{
+//		configure::write('debug',2);
+//		
+//		debug($this->data);
+		if($this->data['Client']['unit']==1 && $this->data['Client']['service']==0 && $this->data['Client']['package']==0)
+		{
+			debug($flag);
+			if($flag){$flag=$flag;}
+			else{$flag=1;}
+			$this->loadModel('BillingUnit');
+			$unit=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.active'=>'Y')));
+			debug($unit);
+			$disp=1;
+			$singleunit=1;
+			$this->set('unit',$unit);
+			$this->set(compact('disp','flag','singleunit'));
+		}
+		
+		if($this->data['Client']['service']==1 && $this->data['Client']['unit']==0 && $this->data['Client']['package']==0)
+		{
+			//debug($flag1);
+			if($flag){$flag=$flag;}
+			else{$flag=1;}
+			$this->loadModel('BrandsService');
+			$this->loadModel('BillingUnit');
+			$unit=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			$disp=1;
+			$singleservice=1;
+			debug($unit);
+			$popupunit=$this->BillingUnit->find('list',array('fields'=>array('BillingUnit.id','BillingUnit.name')));
+			$this->set(compact('popupunit'));
+			$this->set(compact('unit','disp','flag','singleservice'));
+		}
+		
+		if($this->data['Client']['service']==0 && $this->data['Client']['unit']==0 && $this->data['Client']['package']==1)
+		{
+			//debug($flag1);
+			if($flag){$flag=$flag;}
+			else{$flag=1;}
+			$this->loadModel('BrandsPackage');
+			$this->loadModel('BillingUnit');
+			$unit=$this->BrandsPackage->find('list',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+			$disp=1;
+			$singleservice=1;
+			debug($unit);
+			$popupunit=$this->BillingUnit->find('list',array('fields'=>array('BillingUnit.id','BillingUnit.name')));
+			$this->set(compact('popupunit'));
+			$this->set(compact('unit','disp','flag','singleservice'));
+		}
+		
+		
+		
+		if($this->data['Client']['service']==0 && $this->data['Client']['unit']==0 && $this->data['Client']['package']==0)
+		{
+			$unit=null;
+			debug($unit);
+				$this->set(compact('unit'));
+		}
+		if($this->data['Client']['service']==1 && $this->data['Client']['unit']==1 && $this->data['Client']['package']==0)
+		{
+			//configure::write('debug',2);
+			//debug($this->data);
+			//debug($flag1);
+			if($flag){$flag=201;}
+			else{$flag=1;}
+			$this->loadModel('BrandsService');
+			$this->loadModel('BrandsServiceunit');
+			$this->loadModel('BillingUnit');
+			$serv=$this->BrandsService->find('all',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			//debug($serv);
+			$billingunits = $this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+			$brands_units = $this->BrandsServiceunit->find('all');
+			$final=null;
+			foreach($serv as $serv)
+			{	
+				
+				$final[$serv['BrandsService']['id']]['service']=$serv['BrandsService']['service_name'];
+				$this->BrandsServiceunit->recursive = 0;
+				$brands_units = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$serv['BrandsService']['id'])));
+				$j=0;
+				foreach($brands_units as $brands_unit){
+					$final[$serv['BrandsService']['id']]['units'][$brands_unit['BillingUnit']['id']]=$brands_unit['BillingUnit']['name'];
+				/*	if($brands_unit['BrandsServiceunit']['brands_service_id'] == $k){
+						$unit[$k.'s'] = $v;
+						foreach($billingunits as $k1 => $v1){
+							if($brands_unit['BrandsServiceunit']['billing_unit_id'] == $k1){
+								//$u = $this->BillingUnit->find('first',array('BillingUnit.id'=>$k1));
+								$unit[$k1.'u']= '-'.$v1;
+							}
+						}
+					}*/
+					$j++;
+				}
+			
+				/*//debug($brands_units);
+				foreach($billingunits as $k1 => $v1){
+					foreach($brands_units as $brands_unit){
+						debug($brands_unit);
+						if(($brands_unit['BrandsServiceunit']['billing_unit_id'] == $k1) && ($brands_unit['BrandsServiceunit']['brands_service_id'] == $k)){
+						$unit[$k1] = $v;
+						}
+					}
+				}*/
+				//debug($k);
+			//	debug($v);
+				/*foreach($units as $value){
+					$unit[$k]['units']=$value['BrandsServiceunit']['id'];
+				}
+				*/
+				//$servunit[$k]['units']=$units['BrandsServiceunit']['']
+				
+			}
+			
+				debug($final);
+				$i=1;
+				foreach($final as $key => $value){
+					$unit[$key."-s"] = $value['service'];
+					foreach($value['units'] as $key1 => $val1){
+						debug($key1."-u");
+						debug($unit);
+						foreach($unit as $key2=>$val2){
+							if($key2 == $key1."-u"){
+							debug("xyz");
+							$unit[$key1."-u"."-".$i] = "--".$val1;
+							
+							$i++;
+						}else{
+							$unit[$key1."-u"] = "--".$val1;
+							debug("1234");
+						}
+						}
+						
+						
+					}
+				}
+				
+				
+				
+					
+			/*foreach($final as $key => $value){
+				$unit[$value['service'].'---'.'s'.'---'.$key] = $value['service'];
+				//$unit[$key] = $value['service'];
+				
+				foreach($value['units'] as $key1 => $val1){
+					if(in_array($key1,$unit[$val1."---".'u'.'---'.$key1])){
+						$unit[$val1."---".'u'.'---'.$key1."---"."key"] = $val1;
+					}else{
+						$unit[$val1."---".'u'.'---'.$key1] = '------'.$val1;
+					}
+					
+//					/$unit[$key1][$key] = '--'.$val1;
+				}
+			}*/
+				/*if($value['units']){
+					foreach($value['units'] as $key1 => $val1){
+						if(in_array($key1,$unit[$key1]))
+						{
+						$unit[$key1.'-u'] = '--'.$val1;
+						}
+						else
+						{
+							$unit[$key1] = '--'.$val1;
+						}
+					}
+				}*/
+			
+			debug($unit)	;
+				
+				
+		
+			//debug($servunits);
+			//$unit=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			$disp=1;
+			$both=1;
+			//$unit=$final;
+			//debug($unit);
+			$this->set(compact('unit','disp','flag','both','popupunit'));
+		}
+		
+		if($this->data['Client']['service']==1 && $this->data['Client']['unit']==1 && $this->data['Client']['package']==1)
+		{
+			//configure::write('debug',2);
+			debug($this->data);
+			
+			$flag=301;
+			$this->loadModel('BrandsService');
+			$this->loadModel('BrandsPackagedetail');
+			$this->loadModel('BrandsPackage');
+			$this->loadModel('BrandsServiceunit');
+			$this->loadModel('BillingUnit');
+			
+			$serv=$this->BrandsPackage->find('all',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+			foreach($serv as $serv1)
+			{
+				$i=0;
+				$brands_packagedetails[$serv1['BrandsPackage']['id']]['package']=$this->BrandsPackagedetail->find('all',array('conditions'=>array('BrandsPackagedetail.brands_package_id'=>$serv1['BrandsPackage']['id'])));
+				$final[$serv1['BrandsPackage']['id'].'-p'] = $serv1['BrandsPackage']['package_name'];
+				foreach($brands_packagedetails[$serv1['BrandsPackage']['id']]['package'] as $brands_packagedetail)
+				{
+					
+					if($brands_packagedetail['BrandsPackagedetail']['brands_service_id'])
+					{
+						$brandsservice[$serv1['BrandsPackage']['id']]['service'][$brands_packagedetail['BrandsPackagedetail']['brands_service_id']]=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y','BrandsService.id'=>$brands_packagedetail['BrandsPackagedetail']['brands_service_id']),'fields'=>array('BrandsService.id','BrandsService.service_name')));						
+							
+						foreach($brandsservice[$serv1['BrandsPackage']['id']]['service'] as $k=>$v)
+						{
+							debug($v);
+							$final[$k.'-s'] = '--'.$v[$k];
+							$servicedetails[$k]=$this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$k)));
+							foreach($servicedetails as $k2=>$v2)
+							{
+								debug($v2);
+								foreach($v2 as $k1=>$v1)
+								{
+									$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$v1['BrandsServiceunit']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+									
+									$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['Servicedetails'][$k2]=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+									foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1] as $units_id => $units_name){
+										$final[$units_id.'-su'] = '----'.$units_name;
+									}
+									
+								}
+								
+							}
+						}
+					}
+					if($brands_packagedetail['BrandsPackagedetail']['billing_unit_id'])
+					{
+						
+						//$billingunit[$serv1['BrandsPackage']['id']]['unit'][$brands_packagedetail['BrandsPackagedetail']['billing_unit_id']]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						debug($servunits);
+						foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i] as $main_units_id => $main_units_name){
+							$final[$main_units_id.'-u'] = '--'.$main_units_name;
+						}
+						$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['billedunit']=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+						$i++;
+					}
+					
+					
+				}
+				
+			}
+			$unit=$final;
+			$disp=1;
+			$triple=1;
+			//debug($brands_packagedetails);
+		//	debug($final);
+			//debug($brandsservicedetails);
+		//	debug($servunits);
+			//debug($brandsservice);
+		//	debug($servicedetails);
+			
+			$this->set(compact('unit','disp','flag','triple','popupunit'));
+		}
+		if($this->data['Client']['service']==1 && $this->data['Client']['unit']==0 && $this->data['Client']['package']==1)
+		{
+			//configure::write('debug',2);
+			debug($this->data);
+			if($flag){$flag=$flag;}
+			else{$flag=1;}
+			$this->loadModel('BrandsService');
+			$this->loadModel('BrandsPackagedetail');
+			$this->loadModel('BrandsPackage');
+			$this->loadModel('BrandsServiceunit');
+			$this->loadModel('BillingUnit');
+			
+			$serv=$this->BrandsPackage->find('all',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+			foreach($serv as $serv1)
+			{
+				$i=0;
+				$brands_packagedetails[$serv1['BrandsPackage']['id']]['package']=$this->BrandsPackagedetail->find('all',array('conditions'=>array('BrandsPackagedetail.brands_package_id'=>$serv1['BrandsPackage']['id'])));
+				$final[$serv1['BrandsPackage']['id'].'-p'] = $serv1['BrandsPackage']['package_name'];
+				foreach($brands_packagedetails[$serv1['BrandsPackage']['id']]['package'] as $brands_packagedetail)
+				{
+					
+					if($brands_packagedetail['BrandsPackagedetail']['brands_service_id'])
+					{
+						$brandsservice[$serv1['BrandsPackage']['id']]['service'][$brands_packagedetail['BrandsPackagedetail']['brands_service_id']]=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y','BrandsService.id'=>$brands_packagedetail['BrandsPackagedetail']['brands_service_id']),'fields'=>array('BrandsService.id','BrandsService.service_name')));						
+							
+						foreach($brandsservice[$serv1['BrandsPackage']['id']]['service'] as $k=>$v)
+						{
+							debug($v);
+							$final[$k.'-s'] = '--'.$v[$k];
+							$servicedetails[$k]=$this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$k)));
+							foreach($servicedetails as $k2=>$v2)
+							{
+								debug($v2);
+								foreach($v2 as $k1=>$v1)
+								{
+									$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$v1['BrandsServiceunit']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+									
+									$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['Servicedetails'][$k2]=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+									foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1] as $units_id => $units_name){
+										$final[$units_id.'-su'] = '----'.$units_name;
+									}
+									
+								}
+								
+							}
+						}
+					}
+					/*if($brands_packagedetail['BrandsPackagedetail']['billing_unit_id'])
+					{
+						
+						//$billingunit[$serv1['BrandsPackage']['id']]['unit'][$brands_packagedetail['BrandsPackagedetail']['billing_unit_id']]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						debug($servunits);
+						foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i] as $main_units_id => $main_units_name){
+							$final[$main_units_id.'-u'] = '--'.$main_units_name;
+						}
+						$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['billedunit']=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+						$i++;
+					}*/
+					
+					
+				}
+				
+			}
+			$unit=$final;
+			$disp=1;
+			$servpack=1;
+			//debug($brands_packagedetails);
+		//	debug($final);
+			//debug($brandsservicedetails);
+		//	debug($servunits);
+			//debug($brandsservice);
+		//	debug($servicedetails);
+			
+			$this->set(compact('unit','disp','flag','servpack','popupunit'));
+		}
+		
+		if($this->data['Client']['service']==0 && $this->data['Client']['unit']==1 && $this->data['Client']['package']==1)
+		{
+			//configure::write('debug',2);
+			debug($this->data);
+			if($flag){$flag=$flag;}
+			else{$flag=1;}
+			$this->loadModel('BrandsService');
+			$this->loadModel('BrandsPackagedetail');
+			$this->loadModel('BrandsPackage');
+			$this->loadModel('BrandsServiceunit');
+			$this->loadModel('BillingUnit');
+			
+			$serv=$this->BrandsPackage->find('all',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+			foreach($serv as $serv1)
+			{
+				$i=0;
+				$brands_packagedetails[$serv1['BrandsPackage']['id']]['package']=$this->BrandsPackagedetail->find('all',array('conditions'=>array('BrandsPackagedetail.brands_package_id'=>$serv1['BrandsPackage']['id'])));
+				$final[$serv1['BrandsPackage']['id'].'-p'] = $serv1['BrandsPackage']['package_name'];
+				foreach($brands_packagedetails[$serv1['BrandsPackage']['id']]['package'] as $brands_packagedetail)
+				{
+					
+					/*if($brands_packagedetail['BrandsPackagedetail']['brands_service_id'])
+					{
+						$brandsservice[$serv1['BrandsPackage']['id']]['service'][$brands_packagedetail['BrandsPackagedetail']['brands_service_id']]=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y','BrandsService.id'=>$brands_packagedetail['BrandsPackagedetail']['brands_service_id']),'fields'=>array('BrandsService.id','BrandsService.service_name')));						
+							
+						foreach($brandsservice[$serv1['BrandsPackage']['id']]['service'] as $k=>$v)
+						{
+							debug($v);
+							$final[$k.'-s'] = '--'.$v[$k];
+							$servicedetails[$k]=$this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$k)));
+							foreach($servicedetails as $k2=>$v2)
+							{
+								debug($v2);
+								foreach($v2 as $k1=>$v1)
+								{
+									$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$v1['BrandsServiceunit']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+									
+									$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['Servicedetails'][$k2]=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+									foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1] as $units_id => $units_name){
+										$final[$units_id.'-su'] = '----'.$units_name;
+									}
+									
+								}
+								
+							}
+						}
+					}*/
+					if($brands_packagedetail['BrandsPackagedetail']['billing_unit_id'])
+					{
+						
+						//$billingunit[$serv1['BrandsPackage']['id']]['unit'][$brands_packagedetail['BrandsPackagedetail']['billing_unit_id']]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						debug($servunits);
+						foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i] as $main_units_id => $main_units_name){
+							$final[$main_units_id.'-u'] = '--'.$main_units_name;
+						}
+						$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['billedunit']=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+						$i++;
+					}
+					
+					
+				}
+				
+			}
+			$unit=$final;
+			$disp=1;
+			$unitpack=1;
+			//debug($brands_packagedetails);
+		//	debug($final);
+			//debug($brandsservicedetails);
+		//	debug($servunits);
+			//debug($brandsservice);
+		//	debug($servicedetails);
+			
+			$this->set(compact('unit','disp','flag','unitpack','popupunit'));
+		}
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+	}
+	
+	public function packageunit($flag=null,$singleunit=null,$singleservice=null,$both=null,$triple=null,$servpack=null,$unitpack=null)
+	{	
+		//configure::write('debug',2);
+		
+		debug($this->data);
+		debug($flag);
+		debug($singleunit);
+		debug($singleservice);
+		debug($both);
+		if($singleunit)
+		{
+			
+				$this->loadModel('BillingUnit');
+				$unit=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.active'=>'Y')));
+				$disp=1;
+				$singleunit=1;
+				$this->set(compact('unit','flag','disp','singleunit'));
+		}
+		if($singleservice)
+		{
+			//$flag=1;
+			$this->loadModel('BillingUnit');
+			$this->loadModel('BrandsService');
+			$unit=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			$disp=1;
+			$singleservice=1;
+			$popupunit=$this->BillingUnit->find('list',array('fields'=>array('BillingUnit.id','BillingUnit.name')));
+			$this->set(compact('popupunit'));
+			debug($unit);
+			$this->set(compact('unit','disp','flag','singleservice'));
+		}
+		if($both)
+		{
+			//configure::write('debug',2);
+			//debug($flag1);
+			//$flag=1;
+			$this->loadModel('BrandsService');
+			$this->loadModel('BrandsServiceunit');
+			$this->loadModel('BillingUnit');
+			$serv=$this->BrandsService->find('all',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			//debug($serv);
+			$billingunits = $this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+			$brands_units = $this->BrandsServiceunit->find('all');
+			$final=null;
+			foreach($serv as $serv)
+			{	
+				
+				$final[$serv['BrandsService']['id']]['service']=$serv['BrandsService']['service_name'];
+				$this->BrandsServiceunit->recursive = 0;
+				$brands_units = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$serv['BrandsService']['id'])));
+				$j=0;
+				foreach($brands_units as $brands_unit){
+					$final[$serv['BrandsService']['id']]['units'][$brands_unit['BillingUnit']['id']]=$brands_unit['BillingUnit']['name'];
+				/*	if($brands_unit['BrandsServiceunit']['brands_service_id'] == $k){
+						$unit[$k.'s'] = $v;
+						foreach($billingunits as $k1 => $v1){
+							if($brands_unit['BrandsServiceunit']['billing_unit_id'] == $k1){
+								//$u = $this->BillingUnit->find('first',array('BillingUnit.id'=>$k1));
+								$unit[$k1.'u']= '-'.$v1;
+							}
+						}
+					}*/
+					$j++;
+				}
+			
+				/*//debug($brands_units);
+				foreach($billingunits as $k1 => $v1){
+					foreach($brands_units as $brands_unit){
+						debug($brands_unit);
+						if(($brands_unit['BrandsServiceunit']['billing_unit_id'] == $k1) && ($brands_unit['BrandsServiceunit']['brands_service_id'] == $k)){
+						$unit[$k1] = $v;
+						}
+					}
+				}*/
+				//debug($k);
+			//	debug($v);
+				/*foreach($units as $value){
+					$unit[$k]['units']=$value['BrandsServiceunit']['id'];
+				}
+				*/
+				//$servunit[$k]['units']=$units['BrandsServiceunit']['']
+				
+			}
+			
+				debug($final);	
+			$i=1;
+				foreach($final as $key => $value){
+					$unit[$key."-s"] = $value['service'];
+					foreach($value['units'] as $key1 => $val1){
+						debug($key1."-u");
+						debug($unit);
+						foreach($unit as $key2=>$val2){
+							if($key2 == $key1."-u"){
+							debug("xyz");
+							$unit[$key1."-u"."-".$i] = "--".$val1;
+							
+							$i++;
+						}else{
+							$unit[$key1."-u"] = "--".$val1;
+							debug("1234");
+						}
+						}
+						
+						
+					}
+				}
+				/*if($value['units']){
+					foreach($value['units'] as $key1 => $val1){
+						if(in_array($key1,$unit[$key1]))
+						{
+						$unit[$key1.'-u'] = '--'.$val1;
+						}
+						else
+						{
+							$unit[$key1] = '--'.$val1;
+						}
+					}
+				}*/
+			
+			debug($unit)	;
+				
+				
+		
+			//debug($servunits);
+			//$unit=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			$disp=1;
+			$both=1;
+			$popupunit=$this->BillingUnit->find('list',array('fields'=>array('BillingUnit.id','BillingUnit.name')));
+			$this->set(compact('popupunit'));
+			//$unit=$final;
+			//debug($unit);
+			$this->set(compact('unit','disp','flag','both'));
+		}
+		
+		
+		
+		
+		if($triple)
+		{
+			//configure::write('debug',2);
+			//debug($flag1);
+			//$flag=1;
+			$this->loadModel('BrandsService');
+			$this->loadModel('BrandsPackagedetail');
+			$this->loadModel('BrandsPackage');
+			$this->loadModel('BrandsServiceunit');
+			$this->loadModel('BillingUnit');
+			
+			$serv=$this->BrandsPackage->find('all',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+			foreach($serv as $serv1)
+			{
+				$i=0;
+				$brands_packagedetails[$serv1['BrandsPackage']['id']]['package']=$this->BrandsPackagedetail->find('all',array('conditions'=>array('BrandsPackagedetail.brands_package_id'=>$serv1['BrandsPackage']['id'])));
+				$final[$serv1['BrandsPackage']['id'].'-p'] = $serv1['BrandsPackage']['package_name'];
+				foreach($brands_packagedetails[$serv1['BrandsPackage']['id']]['package'] as $brands_packagedetail)
+				{
+					
+					if($brands_packagedetail['BrandsPackagedetail']['brands_service_id'])
+					{
+						$brandsservice[$serv1['BrandsPackage']['id']]['service'][$brands_packagedetail['BrandsPackagedetail']['brands_service_id']]=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y','BrandsService.id'=>$brands_packagedetail['BrandsPackagedetail']['brands_service_id']),'fields'=>array('BrandsService.id','BrandsService.service_name')));						
+							
+						foreach($brandsservice[$serv1['BrandsPackage']['id']]['service'] as $k=>$v)
+						{
+							debug($v);
+							$final[$k.'-s'] = '--'.$v[$k];
+							$servicedetails[$k]=$this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$k)));
+							foreach($servicedetails as $k2=>$v2)
+							{
+								debug($v2);
+								foreach($v2 as $k1=>$v1)
+								{
+									$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$v1['BrandsServiceunit']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+									
+									$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['Servicedetails'][$k2]=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+									foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1] as $units_id => $units_name){
+										$final[$units_id.'-su'] = '----'.$units_name;
+									}
+									
+								}
+								
+							}
+						}
+					}
+					if($brands_packagedetail['BrandsPackagedetail']['billing_unit_id'])
+					{
+						
+						//$billingunit[$serv1['BrandsPackage']['id']]['unit'][$brands_packagedetail['BrandsPackagedetail']['billing_unit_id']]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						debug($servunits);
+						foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i] as $main_units_id => $main_units_name){
+							$final[$main_units_id.'-u'] = '--'.$main_units_name;
+						}
+						$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['billedunit']=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+						$i++;
+					}
+					
+					
+				}
+				
+			}
+			$unit=$final;
+			$disp=1;
+			$triple=1;
+			//debug($brands_packagedetails);
+		//	debug($final);
+			//debug($brandsservicedetails);
+		//	debug($servunits);
+			//debug($brandsservice);
+		//	debug($servicedetails);
+			
+			$this->set(compact('unit','disp','flag','triple','popupunit'));
+			
+			
+			
+			
+			
+			
+			
+			
+			
+		}
+		if($servpack)
+		{
+			//configure::write('debug',2);
+			debug($this->data);
+			//$flag=1;
+			$this->loadModel('BrandsService');
+			$this->loadModel('BrandsPackagedetail');
+			$this->loadModel('BrandsPackage');
+			$this->loadModel('BrandsServiceunit');
+			$this->loadModel('BillingUnit');
+			
+			$serv=$this->BrandsPackage->find('all',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+			foreach($serv as $serv1)
+			{
+				$i=0;
+				$brands_packagedetails[$serv1['BrandsPackage']['id']]['package']=$this->BrandsPackagedetail->find('all',array('conditions'=>array('BrandsPackagedetail.brands_package_id'=>$serv1['BrandsPackage']['id'])));
+				$final[$serv1['BrandsPackage']['id'].'-p'] = $serv1['BrandsPackage']['package_name'];
+				foreach($brands_packagedetails[$serv1['BrandsPackage']['id']]['package'] as $brands_packagedetail)
+				{
+					
+					if($brands_packagedetail['BrandsPackagedetail']['brands_service_id'])
+					{
+						$brandsservice[$serv1['BrandsPackage']['id']]['service'][$brands_packagedetail['BrandsPackagedetail']['brands_service_id']]=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y','BrandsService.id'=>$brands_packagedetail['BrandsPackagedetail']['brands_service_id']),'fields'=>array('BrandsService.id','BrandsService.service_name')));						
+							
+						foreach($brandsservice[$serv1['BrandsPackage']['id']]['service'] as $k=>$v)
+						{
+							debug($v);
+							$final[$k.'-s'] = '--'.$v[$k];
+							$servicedetails[$k]=$this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$k)));
+							foreach($servicedetails as $k2=>$v2)
+							{
+								debug($v2);
+								foreach($v2 as $k1=>$v1)
+								{
+									$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$v1['BrandsServiceunit']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+									
+									$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['Servicedetails'][$k2]=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+									foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1] as $units_id => $units_name){
+										$final[$units_id.'-su'] = '----'.$units_name;
+									}
+									
+								}
+								
+							}
+						}
+					}
+					/*if($brands_packagedetail['BrandsPackagedetail']['billing_unit_id'])
+					{
+						
+						//$billingunit[$serv1['BrandsPackage']['id']]['unit'][$brands_packagedetail['BrandsPackagedetail']['billing_unit_id']]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						debug($servunits);
+						foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i] as $main_units_id => $main_units_name){
+							$final[$main_units_id.'-u'] = '--'.$main_units_name;
+						}
+						$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['billedunit']=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+						$i++;
+					}*/
+					
+					
+				}
+				
+			}
+			$unit=$final;
+			$disp=1;
+			$servpack=1;
+			//debug($brands_packagedetails);
+		//	debug($final);
+			//debug($brandsservicedetails);
+		//	debug($servunits);
+			//debug($brandsservice);
+		//	debug($servicedetails);
+			
+			$this->set(compact('unit','disp','flag','servpack','popupunit'));
+		}
+		
+		if($unitpack)
+		{
+			//configure::write('debug',2);
+			debug($this->data);
+			//$flag=1;
+			$this->loadModel('BrandsService');
+			$this->loadModel('BrandsPackagedetail');
+			$this->loadModel('BrandsPackage');
+			$this->loadModel('BrandsServiceunit');
+			$this->loadModel('BillingUnit');
+			
+			$serv=$this->BrandsPackage->find('all',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+			foreach($serv as $serv1)
+			{
+				$i=0;
+				$brands_packagedetails[$serv1['BrandsPackage']['id']]['package']=$this->BrandsPackagedetail->find('all',array('conditions'=>array('BrandsPackagedetail.brands_package_id'=>$serv1['BrandsPackage']['id'])));
+				$final[$serv1['BrandsPackage']['id'].'-p'] = $serv1['BrandsPackage']['package_name'];
+				foreach($brands_packagedetails[$serv1['BrandsPackage']['id']]['package'] as $brands_packagedetail)
+				{
+					
+					/*if($brands_packagedetail['BrandsPackagedetail']['brands_service_id'])
+					{
+						$brandsservice[$serv1['BrandsPackage']['id']]['service'][$brands_packagedetail['BrandsPackagedetail']['brands_service_id']]=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y','BrandsService.id'=>$brands_packagedetail['BrandsPackagedetail']['brands_service_id']),'fields'=>array('BrandsService.id','BrandsService.service_name')));						
+							
+						foreach($brandsservice[$serv1['BrandsPackage']['id']]['service'] as $k=>$v)
+						{
+							debug($v);
+							$final[$k.'-s'] = '--'.$v[$k];
+							$servicedetails[$k]=$this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$k)));
+							foreach($servicedetails as $k2=>$v2)
+							{
+								debug($v2);
+								foreach($v2 as $k1=>$v1)
+								{
+									$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$v1['BrandsServiceunit']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+									
+									$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['Servicedetails'][$k2]=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+									foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$k1] as $units_id => $units_name){
+										$final[$units_id.'-su'] = '----'.$units_name;
+									}
+									
+								}
+								
+							}
+						}
+					}*/
+					if($brands_packagedetail['BrandsPackagedetail']['billing_unit_id'])
+					{
+						
+						//$billingunit[$serv1['BrandsPackage']['id']]['unit'][$brands_packagedetail['BrandsPackagedetail']['billing_unit_id']]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i]=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.id'=>$brands_packagedetail['BrandsPackagedetail']['billing_unit_id'],'BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+						debug($servunits);
+						foreach($servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']][$i] as $main_units_id => $main_units_name){
+							$final[$main_units_id.'-u'] = '--'.$main_units_name;
+						}
+						$brandsservicedetails[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']]['billedunit']=$servunits[$brands_packagedetail['BrandsPackagedetail']['brands_package_id']];
+						$i++;
+					}
+					
+					
+				}
+				
+			}
+			$unit=$final;
+			$disp=1;
+			$unitpack=1;
+			//debug($brands_packagedetails);
+		//	debug($final);
+			//debug($brandsservicedetails);
+		//	debug($servunits);
+			//debug($brandsservice);
+		//	debug($servicedetails);
+			
+			$this->set(compact('unit','disp','flag','unitpack','popupunit'));
+		}
+		
+		
+		
+	}
+	
+	public function cost($flag=null,$singleunit=null,$singleservice=null,$both=null,$triple=null,$servpack=null,$unitpack=null)
+	{
+	
+		//configure::write('debug',2);
+		debug($this->data);
+		debug($both);
+		debug($this->data);
+		$pid=1;
+		if($singleunit==1)
+		{
+			$this->loadModel('BillingUnit');
+			$x=1;
+			debug($this->data['unit_name']);
+			$cost=$this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$this->data['unit_name']),'fields'=>array('BillingUnit.amount')));
+				$price=$cost['BillingUnit']['amount'];
+				debug($price);
+				$this->set(compact('price','x','flag'));
+		}
+		if($singleservice==1)
+		{
+			$this->loadModel('BrandsService');
+			$y=1;
+			$cost=$this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$this->data['unit_name']),'fields'=>array('BrandsService.totalcost')));
+				$price=$cost['BrandsService']['totalcost'];
+				debug($price);
+				$this->set(compact('price','y','flag'));
+		}
+		if($both==1)
+		{
+			foreach($this->data['unit_name'] as $key=>$val)
+			{
+				debug($key);
+				debug($val);
+				$findid=explode('-',$val);
+				debug($findid[0]);
+				debug($findid[1]);
+				debug($findid[2]);
+				if($findid[1]=='u')
+			{
+				$this->loadModel('BillingUnit');
+				$z=1;
+				$cost=$this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$findid[0]),'fields'=>array('BillingUnit.amount')));
+				$price=$cost['BillingUnit']['amount'];
+				debug($price);
+				$this->set(compact('price','z','flag'));
+			}
+			if($findid[1]=='s')
+			{
+				$this->loadModel('BrandsService');
+				$z=1;
+				$cost=$this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$findid[0]),'fields'=>array('BrandsService.totalcost')));
+				$price=$cost['BrandsService']['totalcost'];
+				debug($price);
+				debug($key);
+				$this->set(compact('price','z','flag'));
+			}
+			}
+			
+		}
+		if($triple)
+		{
+			//configure::write('debug',2);
+			debug($this->data);
+			foreach($this->data['unit_name'] as $kt=>$vt)
+			{
+				
+				$requiredid=explode('-',$vt);
+				
+				debug($requiredid[1]);
+				if($requiredid[1]=='p')
+				{
+					$z=1;
+					$this->loadModel('BrandsPackage');
+					$cost=$this->BrandsPackage->find('first',array('conditions'=>array('BrandsPackage.id'=>$requiredid[0])));
+					
+					$price=$cost['BrandsPackage']['totalcost'];
+					
+					$this->set(compact('price','z','flag'));
+				}
+				
+				if($requiredid[1]=='s')
+				{
+					
+					$z=1;
+					$this->loadModel('BrandsService');
+					$cost=$this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$requiredid[0]),'fields'=>array('BrandsService.totalcost')));
+					debug($cost);
+					$price=$cost['BrandsService']['totalcost'];
+					debug($cost);
+					$this->set(compact('price','z','flag'));
+				}
+				if($requiredid[1]=='u' || $requiredid[1]=='su' )
+				{
+					$this->loadModel('BillingUnit');
+					$z=1;
+					$cost=$this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$requiredid[0]),'fields'=>array('BillingUnit.amount')));
+					$price=$cost['BillingUnit']['amount'];
+					debug($price);
+					$this->set(compact('price','z','flag'));
+				}
+			}
+		}
+		if($servpack)
+		{
+			
+			foreach($this->data['unit_name'] as $kt=>$vt)
+			{
+				
+				$requiredid=explode('-',$vt);
+				
+				debug($requiredid[1]);
+				if($requiredid[1]=='p')
+				{
+					$z=1;
+					$this->loadModel('BrandsPackage');
+					$cost=$this->BrandsPackage->find('first',array('conditions'=>array('BrandsPackage.id'=>$requiredid[0])));
+					
+					$price=$cost['BrandsPackage']['totalcost'];
+					
+					$this->set(compact('price','z','flag'));
+				}
+				
+				if($requiredid[1]=='s')
+				{
+					
+					$z=1;
+					$this->loadModel('BrandsService');
+					$cost=$this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$requiredid[0]),'fields'=>array('BrandsService.totalcost')));
+					debug($cost);
+					$price=$cost['BrandsService']['totalcost'];
+					debug($cost);
+					$this->set(compact('price','z','flag'));
+				}
+				if($requiredid[1]=='u' || $requiredid[1]=='su' )
+				{
+					$this->loadModel('BillingUnit');
+					$z=1;
+					$cost=$this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$requiredid[0]),'fields'=>array('BillingUnit.amount')));
+					$price=$cost['BillingUnit']['amount'];
+					debug($price);
+					$this->set(compact('price','z','flag'));
+				}
+			}
+			
+		}
+		if($unitpack)
+		{
+			
+			foreach($this->data['unit_name'] as $kt=>$vt)
+			{
+				
+				$requiredid=explode('-',$vt);
+				
+				debug($requiredid[1]);
+				if($requiredid[1]=='p')
+				{
+					$z=1;
+					$this->loadModel('BrandsPackage');
+					$cost=$this->BrandsPackage->find('first',array('conditions'=>array('BrandsPackage.id'=>$requiredid[0])));
+					
+					$price=$cost['BrandsPackage']['totalcost'];
+					
+					$this->set(compact('price','z','flag'));
+				}
+				
+				
+				if($requiredid[1]=='u' || $requiredid[1]=='su' )
+				{
+					$this->loadModel('BillingUnit');
+					$z=1;
+					$cost=$this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$requiredid[0]),'fields'=>array('BillingUnit.amount')));
+					$price=$cost['BillingUnit']['amount'];
+					debug($price);
+					$this->set(compact('price','z','flag'));
+				}
+			}
+		}
+	}
+	
+	public function addnewperson($flag=null)
+	{
+		$flag++;
+		$this->set(compact('flag'));
+		
+	}
+	
+	public function numberconversion($data=null)
+	{
+		//$data='10,000.50';
+		$numz=explode('.',$data);
+		$base=explode(',',$numz[0]);
+		$i=0;
+		while($base[$i])
+		{
+			$i++;
+		}
+		
+		$kbc=2*$i-1;
+		$num=0;
+		for($j=0;$j<=$i-1;$j++)
+			{
+				$mul=1;
+				if($kbc != 1)
+					{
+						for($pow=1;$pow<=$kbc;$pow++)
+							{
+								$mul=$mul*10;
+							}
+					}
+				else
+					{
+						$mul=$mul*1;
+					}
+				$num=$num+$base[$j]*$mul;
+				$kbc=$kbc-2;
+				
+				
+			}
+			$dec=$numz[1]/100;
+			
+			$num1=$num+$dec;
+		
+		return $num1;
+	}
+	public function editcost($flag=null,$singleunit=null,$singleservice=null,$add=null,$singlepackage=null)
+	{
+	
+		/*configure::write('debug',2);
+		debug($this->data);*/
+		debug($flag);
+		debug($singleunit);
+		debug($singleservice);
+		debug($singlepackage);
+		$pid=1;
+		if($this->data['Client']['default_unit_name'])
+		{
+			$this->loadModel('BillingUnit');
+			$x=1;
+			$costdetails=$this->data['Client']['default_unit_name'];
+			$cost=$this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$this->data['Client']['default_unit_name']),'fields'=>array('BillingUnit.amount')));
+				$price=$cost['BillingUnit']['amount'];
+				debug($price);
+				$this->set(compact('price','x','flag','add'));
+		}
+		if($this->data['default_unit_name'] && $singleunit)
+		{
+			$this->loadModel('BillingUnit');
+			$x=1;
+			
+			$costdetails=$this->data['Client']['default_unit_name'];
+			$cost=$this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$this->data['default_unit_name']),'fields'=>array('BillingUnit.amount')));
+				$price=$cost['BillingUnit']['amount'];
+				debug($price);
+				$this->set(compact('price','x','flag','add'));
+		}
+		if($this->data['defaultservice_name'] && $singleservice)
+		{
+			$this->loadModel('BrandsService');
+			$y=1;
+			$cost=$this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$this->data['defaultservice_name']),'fields'=>array('BrandsService.totalcost')));
+				$price=$cost['BrandsService']['totalcost'];
+				debug($price);
+				$this->set(compact('price','y','flag','add'));
+		}
+		if($this->data['default_unit_name'] && $singleservice)
+		{
+			$this->loadModel('BrandsService');
+			$y=1;
+			$cost=$this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$this->data['default_unit_name']),'fields'=>array('BrandsService.totalcost')));
+				$price=$cost['BrandsService']['totalcost'];
+				debug($price);
+				$this->set(compact('price','y','flag','add'));
+		}
+		if($this->data['Client']['defaultservice_name'])
+		{
+			$this->loadModel('BrandsService');
+			$y=1;
+			$cost=$this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$this->data['Client']['defaultservice_name']),'fields'=>array('BrandsService.totalcost')));
+				$price=$cost['BrandsService']['totalcost'];
+				debug($price);
+				$this->set(compact('price','y','flag','add'));
+		}
+		
+		if($this->data['add_unit_name'])
+		{
+			
+				$this->loadModel('BillingUnit');
+				$x=1;
+				$costdetails=$this->data['add_unit_name'];
+				$cost=$this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$this->data['add_unit_name']),'fields'=>array('BillingUnit.amount')));
+				$price=$cost['BillingUnit']['amount'];
+				debug($price);
+				$this->set(compact('price','x','flag','add'));
+			}
+			if($this->data['add_service_name'])
+			{
+				$this->loadModel('BrandsService');
+					$y=1;
+					$cost=$this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$this->data['add_unit_name']),'fields'=>array('BrandsService.totalcost')));
+					$price=$cost['BrandsService']['totalcost'];
+					debug($price);
+					$this->set(compact('price','y','flag','add'));
+			}
+			if($this->data['add_unit_service_name'])
+			{
+				
+				foreach($this->data['add_unit_service_name'] as $key=>$val)
+					{
+						debug($key);
+						debug($val);
+						$findid=explode('-',$val);
+						debug($findid[0]);
+						debug($findid[1]);
+						debug($findid[2]);
+				if($findid[1]=='u')
+					{
+						$this->loadModel('BillingUnit');
+						$z=1;
+						$cost=$this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$findid[0]),'fields'=>array('BillingUnit.amount')));
+						$price=$cost['BillingUnit']['amount'];
+						debug($price);
+						$this->set(compact('price','z','flag'));
+					}
+				if($findid[1]=='s')
+					{
+						$this->loadModel('BrandsService');
+						$z=1;
+						$cost=$this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$findid[0]),'fields'=>array('BrandsService.totalcost')));
+						$price=$cost['BrandsService']['totalcost'];
+						debug($price);
+						debug($key);
+						$this->set(compact('price','z','flag'));
+					}
+			}
+			}
+		
+		if($this->data['Client']['default_package_name'])
+			{
+				$this->loadModel('BrandsPackage');
+				$pack=1;
+				$cost=$this->BrandsPackage->find('first',array('conditions'=>array('BrandsPackage.id'=>$this->data['Client']['default_package_name'][$flag])));
+				$price=$cost['BrandsPackage']['totalcost'];
+				$this->set(compact('price','pack','flag'));
+			}
+		
+		
+		if($this->data['package_name'])
+			{
+				$this->loadModel('BrandsPackage');
+				$pack1=1;
+				$cost=$this->BrandsPackage->find('first',array('conditions'=>array('BrandsPackage.id'=>$this->data['package_name'][$flag])));
+				$price=$cost['BrandsPackage']['totalcost'];
+				$this->set(compact('price','pack1','flag'));
+			}
+		
+		
+		
+		/*if($this->data['pack_name'])
+		{	debug($this->data['pack_name']);
+			$z=1;
+			$this->loadModel('Client');
+			$cost=$this->Client->find('first',array('conditions'=>array('Client.id'=>$this->data['pack_name']),'fields'=>array('Client.totalcost')));
+				$price=$cost['Client']['totalcost'];
+				debug($price);
+				$this->set(compact('price','z','flag'));
+		}*/
+	}
+	
+	public function editpackageunit($flag=null,$singleunit=null,$singleservice=null,$both=null)
+	{
+		/*configure::write('debug',2);
+		debug($this->data);*/
+		debug($flag);
+		//debug($singleunit);
+		//debug($singleservice);
+		debug($both);
+		//$flag=$flag+1;
+		if($singleunit)
+		{
+			debug('abc');
+				$this->loadModel('BillingUnit');
+				$unitlist=$this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.active'=>'Y')));
+				$disp=1;
+				$singleunit=1;
+				$this->set(compact('unitlist','flag','disp','singleunit','both'));
+		}
+		if($singleservice)
+		{
+			//$flag=1;
+			$this->loadModel('BrandsService');
+			$this->loadModel('BillingUnit');
+			$unitlist=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			$disp=1;
+			$singleservice=1;
+			$popupunit=$this->BillingUnit->find('list',array('fields'=>array('BillingUnit.id','BillingUnit.name')));
+			$this->set(compact('popupunit'));
+			debug($unitlist);
+			debug($singleservice);
+			debug($singleunit);
+			$this->set(compact('unitlist','disp','flag','singleservice','both'));
+		}
+		if($both)
+		{
+			$this->loadModel('BrandsPackage');
+			$unitlist=$this->BrandsPackage->find('list',array('conditions'=>array('BrandsPackage.active'=>'Y'),'fields'=>array('BrandsPackage.id','BrandsPackage.package_name')));
+			$disp=1;
+			$singlepackage=1;
+			$this->set(compact('unitlist','disp','flag','singlepackage','both'));
+		}
+		/*if($singlepackage)
+			{
+				
+			}*/
+		
+		
+		/*if($both)
+		{
+			//configure::write('debug',2);
+			//debug($flag1);
+			//$flag=1;
+			$this->loadModel('BrandsService');
+			$this->loadModel('BrandsServiceunit');
+			$this->loadModel('BillingUnit');
+			$serv=$this->BrandsService->find('all',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			//debug($serv);
+			$billingunits = $this->BillingUnit->find('list',array('conditions'=>array('BillingUnit.active'=>'Y'),'fields'=>array('BillingUnit.id','BillingUnit.name')));
+			$brands_units = $this->BrandsServiceunit->find('all');
+			$final=null;
+			foreach($serv as $serv)
+			{	
+				
+				$final[$serv['BrandsService']['id']]['service']=$serv['BrandsService']['service_name'];
+				$this->BrandsServiceunit->recursive = 0;
+				$brands_units = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$serv['BrandsService']['id'])));
+				$j=0;
+				foreach($brands_units as $brands_unit){
+					$final[$serv['BrandsService']['id']]['units'][$brands_unit['BillingUnit']['id']]=$brands_unit['BillingUnit']['name'];
+					if($brands_unit['BrandsServiceunit']['brands_service_id'] == $k){
+						$unit[$k.'s'] = $v;
+						foreach($billingunits as $k1 => $v1){
+							if($brands_unit['BrandsServiceunit']['billing_unit_id'] == $k1){
+								//$u = $this->BillingUnit->find('first',array('BillingUnit.id'=>$k1));
+								$unit[$k1.'u']= '-'.$v1;
+							}
+						}
+					}
+					$j++;
+				}
+			
+				//debug($brands_units);
+				foreach($billingunits as $k1 => $v1){
+					foreach($brands_units as $brands_unit){
+						debug($brands_unit);
+						if(($brands_unit['BrandsServiceunit']['billing_unit_id'] == $k1) && ($brands_unit['BrandsServiceunit']['brands_service_id'] == $k)){
+						$unit[$k1] = $v;
+						}
+					}
+				}
+				//debug($k);
+			//	debug($v);
+				foreach($units as $value){
+					$unit[$k]['units']=$value['BrandsServiceunit']['id'];
+				}
+				
+				//$servunit[$k]['units']=$units['BrandsServiceunit']['']
+				
+			}
+			
+				debug($final);	
+			$i=1;
+				foreach($final as $key => $value){
+					$unit[$key."-s"] = $value['service'];
+					foreach($value['units'] as $key1 => $val1){
+						debug($key1."-u");
+						debug($unit);
+						foreach($unit as $key2=>$val2){
+							if($key2 == $key1."-u"){
+							debug("xyz");
+							$unit[$key1."-u"."-".$i] = "--".$val1;
+							
+							$i++;
+						}else{
+							$unit[$key1."-u"] = "--".$val1;
+							debug("1234");
+						}
+						}
+						
+						
+					}
+				}
+				if($value['units']){
+					foreach($value['units'] as $key1 => $val1){
+						if(in_array($key1,$unit[$key1]))
+						{
+						$unit[$key1.'-u'] = '--'.$val1;
+						}
+						else
+						{
+							$unit[$key1] = '--'.$val1;
+						}
+					}
+				}
+			
+			debug($unit)	;
+				
+				
+		
+			//debug($servunits);
+			//$unit=$this->BrandsService->find('list',array('conditions'=>array('BrandsService.active'=>'Y'),'fields'=>array('BrandsService.id','BrandsService.service_name')));
+			$disp=1;
+			$both=1;
+			//$unit=$final;
+			//debug($unit);
+			$this->set(compact('unit','disp','flag','both'));
+		}*/
+		
+		
+		
+	}
+	
+public function delete_details($id,$clientid)
+{
+	
+	$this->loadModel('ClientDetail');
+	$this->ClientDetail->id = $id;
+	if ($this->ClientDetail->delete()) 
+		{
+			
+			$this->Session->setFlash('<div class="flashMessageSuccess">Unit deleted</div>');
+			$this->redirect(array('action'=>'edit',$clientid));
+		}
+		$this->Session->setFlash('<div class="flashMessageError">Unit deleted</div>');
+		$this->redirect(array('action' => 'edit',$clientid));
+	
+}	
+	
+}

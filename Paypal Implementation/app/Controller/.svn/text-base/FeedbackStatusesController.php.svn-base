@@ -1,0 +1,117 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * FeedbackStatuses Controller
+ *
+ * @property FeedbackStatus $FeedbackStatus
+ */
+class FeedbackStatusesController extends AppController {
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	
+	public function index() {
+			$this->FeedbackStatus->recursive = 0;
+			$this->set('feedbackStatuses', $this->paginate());
+	}
+	
+	
+	/*
+	public function index() {
+		   Configure::write('debug', 2);		
+		   $this->loadModel('Candidate');	
+		   $candidates=$this->Candidate->find('all',array('fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name')));
+					 $this->set(compact('candidates', $this->paginate()));		
+	
+		}
+	*/
+	
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->FeedbackStatus->id = $id;
+		if (!$this->FeedbackStatus->exists()) {
+			throw new NotFoundException(__('Invalid feedback status'));
+		}
+		$this->set('feedbackStatus', $this->FeedbackStatus->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->FeedbackStatus->create();
+			if ($this->FeedbackStatus->save($this->request->data)) {
+				$this->Session->setFlash(__('The feedback status has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The feedback status could not be saved. Please, try again.'));
+			}
+		}
+		$candidates = $this->FeedbackStatus->Candidate->find('list');
+		$users = $this->FeedbackStatus->User->find('list');
+		$this->set(compact('candidates', 'users'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->FeedbackStatus->id = $id;
+		if (!$this->FeedbackStatus->exists()) {
+			throw new NotFoundException(__('Invalid feedback status'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->FeedbackStatus->save($this->request->data)) {
+				$this->Session->setFlash(__('The feedback status has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The feedback status could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->FeedbackStatus->read(null, $id);
+		}
+		$candidates = $this->FeedbackStatus->Candidate->find('list');
+		$users = $this->FeedbackStatus->User->find('list');
+		$this->set(compact('candidates', 'users'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->FeedbackStatus->id = $id;
+		if (!$this->FeedbackStatus->exists()) {
+			throw new NotFoundException(__('Invalid feedback status'));
+		}
+		if ($this->FeedbackStatus->delete()) {
+			$this->Session->setFlash(__('Feedback status deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Feedback status was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

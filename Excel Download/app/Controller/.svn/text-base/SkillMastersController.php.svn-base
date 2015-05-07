@@ -1,0 +1,100 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * SkillMasters Controller
+ *
+ * @property SkillMaster $SkillMaster
+ */
+class SkillMastersController extends AppController {
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->SkillMaster->recursive = 0;
+		$this->set('skillMasters', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->SkillMaster->id = $id;
+		if (!$this->SkillMaster->exists()) {
+			throw new NotFoundException(__('Invalid skill master'));
+		}
+		$this->set('skillMaster', $this->SkillMaster->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->SkillMaster->create();
+			if ($this->SkillMaster->save($this->request->data)) {
+				$this->Session->setFlash(__('The skill master has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The skill master could not be saved. Please, try again.'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->SkillMaster->id = $id;
+		if (!$this->SkillMaster->exists()) {
+			throw new NotFoundException(__('Invalid skill master'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->SkillMaster->save($this->request->data)) {
+				$this->Session->setFlash(__('The skill master has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The skill master could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->SkillMaster->read(null, $id);
+		}
+		$this->set(compact('id'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->SkillMaster->id = $id;
+		if (!$this->SkillMaster->exists()) {
+			throw new NotFoundException(__('Invalid skill master'));
+		}
+		if ($this->SkillMaster->delete()) {
+			$this->Session->setFlash(__('Skill master deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Skill master was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

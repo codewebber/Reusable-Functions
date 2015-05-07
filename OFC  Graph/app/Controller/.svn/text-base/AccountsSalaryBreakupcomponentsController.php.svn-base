@@ -1,0 +1,250 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * AccountsSalaryBreakupcomponents Controller
+ *
+ * @property AccountsSalaryBreakupcomponent $AccountsSalaryBreakupcomponent
+ */
+class AccountsSalaryBreakupcomponentsController extends AppController {
+
+	function beforeFilter() {
+		parent :: beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Salary Breakups';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+
+	}
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+	//	Configure::write('debug',2);
+		debug($this->data);
+		$count = $this->AccountsSalaryBreakupcomponent->find('count');
+		$this->set('accountsSalaryBreakupcomponents', $this->paginate());
+		$this->set(compact('count'));
+		if($this->data['Delete']){
+			foreach($this->data['Delete'] as $breakup_id => $delete){
+				if($delete == 1){
+					debug($breakup_id);
+					debug($delete);
+					$this->delete($breakup_id);
+				}
+			}
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Salary breakupcomponent deleted</div>'));
+			$this->redirect(array('action' => 'index'));
+		}
+		if($this->data['Search']['breakup']){
+			$this->paginate=null;
+			$search=$this->AccountsSalaryBreakupcomponent->find('all',array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component LIKE' => '%'.$this->data['Search']['breakup'].'%')));
+			//debug($this->paginate());
+			/*$conditions = array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component LIKE' => '%'.$this->data['Search']['breakup'].'%'));
+			debug($conditions);
+			$this->paginate = $conditions;
+			debug($this->paginate);*/
+			$this->set('accountsSalaryBreakupcomponents', $search);
+			//$this->set('accountsSalaryBreakupcomponents', $this->paginate());
+		}
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsSalaryBreakupcomponent->id = $id;
+		if (!$this->AccountsSalaryBreakupcomponent->exists()) {
+			throw new NotFoundException(__('Invalid accounts salary breakupcomponent'));
+		}
+		$this->set('accountsSalaryBreakupcomponent', $this->AccountsSalaryBreakupcomponent->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+	//	Configure::write('debug',2);
+		debug($this->data);
+		if ($this->request->is('post')) {
+			
+			/**Validation starts**/
+			
+			if(strlen($this->data['AccountsSalaryBreakupcomponent']['salary_component'])>50){
+				$this->Session->setFlash('<div class="flashMessageError">Component name is too large! Couldn\'t save!</div>');
+				return;
+			}
+			
+			if($this->data['AccountsSalaryBreakupcomponent']['order']>100){
+				$this->Session->setFlash('<div class="flashMessageError">Order exceeded 100! Couldn\'t save!</div>');
+				return;
+			}
+			
+			if($this->data['AccountsSalaryBreakupcomponent']['type'] == '%'){
+				if(($this->data['AccountsSalaryBreakupcomponent']['value'] <=0) || ($this->data['AccountsSalaryBreakupcomponent']['value'] > 100)){
+					$this->Session->setFlash(__('<div class="flashMessageError">The value should be between 0 to 100. Please, try again.</div>'));
+					return;
+				}
+			}
+			
+			if($this->data['AccountsSalaryBreakupcomponent']['type'] == 'fixed'){
+				if(($this->data['AccountsSalaryBreakupcomponent']['value'] <=0)){
+					$this->Session->setFlash(__('<div class="flashMessageError">The value shouldn\'t be less than 0. Please, try again.</div>'));
+					return;
+				}
+			}
+			
+			if(!empty($this->data['AccountsSalaryBreakupcomponent']['order'])){
+				$salary_breakup_componentss = $this->AccountsSalaryBreakupcomponent->find('all',array('conditions'=>array('AccountsSalaryBreakupcomponent.active'=>'Yes'),'fields'=>array('AccountsSalaryBreakupcomponent.order')));
+				foreach($salary_breakup_componentss as $salary_breakup_component){
+					if($salary_breakup_component['AccountsSalaryBreakupcomponent']['order'] == $this->data['AccountsSalaryBreakupcomponent']['order']){
+						$error = 1;
+					}
+				}
+				
+				if(isset($error)){
+					$this->Session->setFlash(__('<div class="flashMessageError">The order you entered is already present. Please try other number!.</div>'));
+					return;
+				}
+			}
+			/**Validation ends**/
+			
+			
+			$this->AccountsSalaryBreakupcomponent->create();
+			$this->request->data['AccountsSalaryBreakupcomponent']['active'] = 'Yes';
+			if ($this->AccountsSalaryBreakupcomponent->save($this->request->data)) {
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The salary breakup component has been saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The salary breakup component could not be saved. Please, try again.</div>'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->AccountsSalaryBreakupcomponent->id = $id;
+		$this->set(compact('id'));
+		if (!$this->AccountsSalaryBreakupcomponent->exists()) {
+			throw new NotFoundException(__('Invalid accounts salary breakupcomponent'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			/**Validation starts**/
+			
+			if(strlen($this->data['AccountsSalaryBreakupcomponent']['salary_component'])>50){
+				$this->Session->setFlash('<div class="flashMessageError">Component name is too large! Couldn\'t save!</div>');
+				return;
+			}
+			
+			if($this->data['AccountsSalaryBreakupcomponent']['order']>100){
+				$this->Session->setFlash('<div class="flashMessageError">Order exceeded 100! Couldn\'t save!</div>');
+				return;
+			}
+			
+			if($this->data['AccountsSalaryBreakupcomponent']['type'] == '%'){
+				if(($this->data['AccountsSalaryBreakupcomponent']['value'] <=0) || ($this->data['AccountsSalaryBreakupcomponent']['value'] > 100)){
+					$this->Session->setFlash(__('<div class="flashMessageError">The value should be between 0 to 100. Please, try again.</div>'));
+					return;
+				}
+			}
+			
+			if($this->data['AccountsSalaryBreakupcomponent']['type'] == 'fixed'){
+				if(($this->data['AccountsSalaryBreakupcomponent']['value'] <=0)){
+					$this->Session->setFlash(__('<div class="flashMessageError">The value shouldn\'t be less than 0. Please, try again.</div>'));
+					return;
+				}
+			}
+			
+			if(!empty($this->data['AccountsSalaryBreakupcomponent']['order'])){
+				$salary_breakup_componentss = $this->AccountsSalaryBreakupcomponent->find('all',array('conditions'=>array('AccountsSalaryBreakupcomponent.active'=>'Yes'),'fields'=>array('AccountsSalaryBreakupcomponent.id','AccountsSalaryBreakupcomponent.order')));
+				foreach($salary_breakup_componentss as $salary_breakup_component){
+					if($salary_breakup_component['AccountsSalaryBreakupcomponent']['id'] != $this->data['AccountsSalaryBreakupcomponent']['id']){
+						if($salary_breakup_component['AccountsSalaryBreakupcomponent']['order'] == $this->data['AccountsSalaryBreakupcomponent']['order']){
+							$error = 1;
+						}
+					}
+				}
+				
+				if(isset($error)){
+					$this->Session->setFlash(__('<div class="flashMessageError">The order you entered is already present. Please try other number!.</div>'));
+					return;
+				}
+			}
+			/**Validation ends**/
+			if ($this->AccountsSalaryBreakupcomponent->save($this->request->data)) {
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The salary breakup component has been saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The salary breakup component could not be saved. Please, try again.</div>'));
+			}
+		} else {
+			$this->request->data = $this->AccountsSalaryBreakupcomponent->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsSalaryBreakupcomponent->id = $id;
+		if (!$this->AccountsSalaryBreakupcomponent->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid accounts salary breakupcomponent</div>'));
+		}
+		if ($this->AccountsSalaryBreakupcomponent->delete()) {
+		//	$this->Session->setFlash(__('<div class="flashMessageSuccess">Salary breakupcomponent deleted</div>'));
+		//	$this->redirect(array('action'=>'index'));
+		}
+	//	$this->Session->setFlash(__('<div class="flashMessageError">Accounts salary breakupcomponent was not deleted</div>'));
+	//	$this->redirect(array('action' => 'index'));
+	}
+	
+	
+	function value_type(){
+		$this->set('type',$this->data);	
+	}
+	
+	function error_in_order(){
+		if($this->data['AccountsSalaryBreakupcomponent']['order']>100){
+			$x=1;
+			$this->set('flash',$x);
+		}
+	}
+}

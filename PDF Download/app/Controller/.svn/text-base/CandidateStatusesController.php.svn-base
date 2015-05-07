@@ -1,0 +1,105 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * CandidateStatuses Controller
+ *
+ * @property CandidateStatus $CandidateStatus
+ * @property PaginatorComponent $Paginator
+ * @property SessionComponent $Session
+ */
+class CandidateStatusesController extends AppController {
+
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('Paginator', 'Session');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->CandidateStatus->recursive = 0;
+		$this->set('candidateStatuses', $this->Paginator->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		if (!$this->CandidateStatus->exists($id)) {
+			throw new NotFoundException(__('Invalid candidate status'));
+		}
+		$options = array('conditions' => array('CandidateStatus.' . $this->CandidateStatus->primaryKey => $id));
+		$this->set('candidateStatus', $this->CandidateStatus->find('first', $options));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->CandidateStatus->create();
+			if ($this->CandidateStatus->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate status has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate status could not be saved. Please, try again.'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		if (!$this->CandidateStatus->exists($id)) {
+			throw new NotFoundException(__('Invalid candidate status'));
+		}
+		if ($this->request->is(array('post', 'put'))) {
+			if ($this->CandidateStatus->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate status has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate status could not be saved. Please, try again.'));
+			}
+		} else {
+			$options = array('conditions' => array('CandidateStatus.' . $this->CandidateStatus->primaryKey => $id));
+			$this->request->data = $this->CandidateStatus->find('first', $options);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		$this->CandidateStatus->id = $id;
+		if (!$this->CandidateStatus->exists()) {
+			throw new NotFoundException(__('Invalid candidate status'));
+		}
+		$this->request->allowMethod('post', 'delete');
+		if ($this->CandidateStatus->delete()) {
+			$this->Session->setFlash(__('The candidate status has been deleted.'));
+		} else {
+			$this->Session->setFlash(__('The candidate status could not be deleted. Please, try again.'));
+		}
+		return $this->redirect(array('action' => 'index'));
+	}
+}

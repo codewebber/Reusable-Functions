@@ -1,0 +1,13 @@
+
+<style type="text/css">
+.accessdeniedimage {
+    padding-top: 11%;
+    text-align: center;
+}
+</style>
+
+
+
+	<div class="accessdeniedimage">
+		<?php echo $this->Html->image('no_access1.jpg');?>
+	</div>

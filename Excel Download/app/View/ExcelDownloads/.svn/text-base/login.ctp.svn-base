@@ -1,0 +1,137 @@
+
+    	<?php echo $this->Form->create('User',array('id'=>'loginform','url'=>array('controller'=>'users','action'=>'login',0,$jd_id))); ?>
+    	<div style="width: 100%; float: left;"> 
+    	    <div class="login_main_div">
+    	    	<div style="width: 100%;float: left;">
+    	    		<div style="float: left; margin-top: 0%; margin-left: 25%; margin-bottom: 1%;">
+	    	    		<a ><img src="<?php echo $this->webroot?>img/logo_carmatec.png" alt="logo"/></a>
+	    	    	</div>
+    	    	</div>
+    	    	
+    	    	<div style="float: left; width: 100%;">
+    	    		<div style="width: 45%; float: left;">
+    	    			<div style="border-bottom: 1px solid rgb(187, 197, 191); width: 84%; margin-left: 6%; margin-top: 4%;"></div>
+    	    		</div>
+    	    		<div style="color: rgb(187, 32, 50); font-family: verdana; font-size: 16pt; float: left;width: 14%;">
+    	    			Sign in
+    	    		</div>
+    	    		<div style="width: 40%; float: left;">
+    	    			<div style="border-bottom: 1px solid rgb(187, 197, 191); width: 90%; margin-left: 5%; margin-top: 4%;"></div>
+    	    		</div>
+    	    	</div>
+    	    	
+    	    	<div style="width: 100%;float: left;">
+    	    		<div class="login-row" style="margin-bottom: -3px;">
+						<?php 
+						      echo $this->Form->input('User.username',array('id'=>"username"/*,'class'=>"login-input"*/,'style'=>'width: 58%; font-family: arial;','label'=>false,'placeholder'=>'Username','value'=>trim($cookieValues['username']))); 
+						 ?>
+						<div class="error_conatiner2" > </div>
+					</div>
+    	    		<div class="login-row" >
+						<?php 
+						      echo $this->Form->input('User.password',array('type'=>'password','id'=>"password"/*,'class'=>"login-input"*/,'style'=>'width: 58%; font-family: arial;','label'=>false,'placeholder'=>'Password')); 
+						?>
+						<?php if($error_msg){  ?>
+							<div class="error_conatiner2" >
+									Invalid Username or Password 
+							</div>
+						 <?php }?>
+					</div>
+				</div>
+				
+				<div style="width: 100%;float: left;">
+					<div style="width: 20%;float: left;">
+						&nbsp;
+					</div>
+					<div style="float: left; width: 43%;">
+						<div style="width: auto; float: left; margin-top: -4.5px;">
+						<?php echo $this->Form->checkbox('rememberMe',array('checked'=>$cookieValues['rememberMe'],'style'=>'padding-top: 12%')); ?> 
+						</div> 
+						  
+						  <label for="persistent" >Keep me signed in</label>
+					</div>
+					
+					 
+					
+					
+					<div>
+						<?php echo $this->Html->link('Forgot Password?',array('controller'=>'users','action' =>'forgotpassword'),array('class'=>'cantacess'));?>
+					</div>
+					
+				</div>
+    	    	
+    	    	<div style="width: 100%;float: left; margin-top: 3%;">
+					<div style="width: 21%;float: left;">
+						&nbsp;
+					</div>
+					
+					<div style="float: left; width: 43%;">
+						<div style="float: left; width: 100%; margin-bottom: 1%;">
+							New User? <?php echo $this->Html->link('Sign Up',array('controller'=>'candidates','action' =>'registration'),array('class'=>'cantacess','style'=>'float: none;color: rgb(187, 32, 50);'));?> 
+						</div>
+						
+						<div style="float: left;">
+							Employee? <?php echo $this->Html->link('Sign Up',array('controller'=>'users','action' =>'add'),array('class'=>'cantacess','style'=>'float: none;color: rgb(187, 32, 50);'));?> 
+						</div>
+					</div>
+					
+					<div style="float: left;">
+						<!--<input type="submit" class="greenButton" style="float:left;margin-left:8px;" value="Sign In"  />-->
+						<?php echo $this->Form->submit('Sign in',array('url'=>array('action'=>'login'),'class'=>'greenButton','div' => false)); ?>
+					</div>
+				</div>
+				
+				<div style="width: 100%;float: left;  margin-top: 4%;">
+					<div style="width: 42%;float: left;">
+						&nbsp;
+					</div>
+					
+    	    		<div style="float: left; width: 40%;">
+	    	    		<a href="#"  style="cursor: auto;" ><img src="<?php echo $this->webroot?>img/icon-facebook.png" alt="logo"/></a>
+	    	    		<a href="#" style="cursor: auto;" ><img src="<?php echo $this->webroot?>img/icon-twitter.png" alt="logo"/></a>
+	    	    		<a href="#" style="cursor: auto;" ><img src="<?php echo $this->webroot?>img/icon_google.png" alt="logo"/></a>
+	    	    		<a href="#" style="cursor: auto;" ><img src="<?php echo $this->webroot?>img/icon_linked.png" alt="logo"/></a>
+	    	    	</div>
+    	    	</div>
+				
+    	    </div>	
+    	</div>
+    <?php echo $this->Form->end();?> 
+    <style>
+    	.cantacess{
+    		font-size: 12px;
+    	}
+    	label.error {
+		    width: 65%;
+		}
+		.flashmessagebox {
+		    width: 64%;
+		}
+    	
+    </style>
+	<script>
+	$(document).ready(function(){
+		  $("#loginform").validate({
+			rules:{    
+				"data[User][username]":{
+					required: true
+				},
+				"data[User][password]":{
+					required: true
+				}
+				},
+				
+			messages: {
+					"data[User][username]":{
+						required: "Please enter user name"
+					},
+					"data[User][password]":{
+						required: "Please enter password"
+					}
+				}
+			
+		});
+	});
+	
+	</script>
+<?php echo $this->Js->writeBuffer();?>

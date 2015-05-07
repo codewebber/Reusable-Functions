@@ -1,0 +1,184 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * AccountsBudgetCategories Controller
+ * 
+ * @property AccountsBudgetCategory $AccountsBudgetCategory
+ */
+class AccountsBudgetCategoriesController extends AppController {
+
+
+/**
+ * index method
+ * @return void
+ */
+	public function index() {
+		$this->AccountsBudgetCategory->recursive = 0;
+		$this->set('accountsBudgetCategories', $this->paginate());
+	}
+
+/**
+ * view method
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsBudgetCategory->id = $id;
+		if (!$this->AccountsBudgetCategory->exists()) {
+			throw new NotFoundException(__('Invalid accounts budget category'));
+		}
+		$this->set('accountsBudgetCategory', $this->AccountsBudgetCategory->read(null, $id));
+	}
+
+	
+/**
+ * add method
+ * not using 
+ * @return void
+ */
+	public function add() {
+		/*if ($this->request->is('post')) {
+			$this->AccountsBudgetCategory->create();
+			if ($this->AccountsBudgetCategory->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts budget category has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts budget category could not be saved. Please, try again.'));
+			}
+		}
+		$parentAccountsBudgetCategories = $this->AccountsBudgetCategory->ParentAccountsBudgetCategory->find('list');
+		$brands = $this->AccountsBudgetCategory->Brand->find('list');
+		$accountTypes = $this->AccountsBudgetCategory->AccountType->find('list');
+		$this->set(compact('parentAccountsBudgetCategories', 'brands', 'accountTypes'));*/
+	}
+
+	
+/**
+ * edit method
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->AccountsBudgetCategory->id = $id;
+		if (!$this->AccountsBudgetCategory->exists()) {
+			throw new NotFoundException(__('Invalid accounts budget category'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsBudgetCategory->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts budget category has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts budget category could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->AccountsBudgetCategory->read(null, $id);
+		}
+		$parentAccountsBudgetCategories = $this->AccountsBudgetCategory->ParentAccountsBudgetCategory->find('list');
+		$brands = $this->AccountsBudgetCategory->Brand->find('list');
+		$accountTypes = $this->AccountsBudgetCategory->AccountType->find('list');
+		$this->set(compact('parentAccountsBudgetCategories', 'brands', 'accountTypes'));
+	}
+
+	
+/**
+ * delete method
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsBudgetCategory->id = $id;
+		if (!$this->AccountsBudgetCategory->exists()) {
+			throw new NotFoundException(__('Invalid accounts budget category'));
+		}
+		if ($this->AccountsBudgetCategory->delete()) {
+			$this->Session->setFlash(__('Accounts budget category deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Accounts budget category was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+
+	
+/**
+ * returns category icon path.
+ */
+	public function getGategoryIconPath($category_id = null){
+		$this->AccountsBudgetCategory->recursive = -1;
+		$category = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.id'=>$category_id)));
+		return $category['AccountsBudgetCategory']['icon_path'];
+	}
+	
+	
+/**
+ * to edit the first level category.
+ */
+	
+	public function editFirstlevelCategory($category_id = null,$budget_id=null){
+		//Configure::write('debug',2);
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsBudgetCategory');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountsBudget');
+		$budget_amount = $this->AccountsBudget->find('first',array('conditions'=>array('AccountsBudget.id'=>$budget_id),'fields'=>array('AccountsBudget.total_amount','AccountsBudget.from_period')));
+		$category = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.id'=>$category_id)));
+		//$existing_accounts = $this->AccountsBudgetCategory->find('list',array('conditions'=>array('AccountsBudgetCategory.active'=>'Y'),'fields'=>array('AccountsBudgetCategory.accounts_account_id','AccountsBudgetCategory.id')));
+		$account_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name'=>'Expenses'),'fields'=>array('AccountType.id')));
+		$accounts = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.parent_id IS NULL','AccountsAccount.account_type_id'=>$account_type['AccountType']['id']),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+		$final[$accounts['AccountsAccount']['id']] = $accounts['AccountsAccount']['account_name'];
+		/*$child_accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.parent_id'=>$accounts['AccountsAccount']['id']),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+		if(!empty($child_accounts)){
+			foreach($child_accounts as $idd => $account){
+				$final[$idd] = '|--'.$account;
+				$child_accounts = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.parent_id'=>$idd),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+				if(!empty($child_accounts)){
+					foreach($child_accounts as $child_id => $child_acc_name){
+						$final[$child_id] = '|----'.$child_acc_name;
+					}
+				}
+			}
+		}*/
+		$this->set(compact('final','budget_amount'));
+		
+		$this->AccountsBudgetCategory->recursive = -1;
+		if ($this->request->is('post')) {
+			$exist_account = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.accounts_account_id !='=>$category['AccountsBudgetCategory']['accounts_account_id'],'AccountsBudgetCategory.accounts_account_id'=>$this->request->data['accounts_budget_categories']['accounts_account_id'])));
+			if(!empty($exist_account)){
+				$this->Session->setFlash(__('<div class="flashMessageError">Selected account is already have a category, try any other account!</div>'));
+				$this->redirect(array('controller'=>'accounts_budgets','action'=>'index'));
+			}
+			$child_budgets = $this->AccountsBudget->find('all',array('conditions'=>array('NOT'=>array('AccountsBudget.id'=>$budget_id),'AccountsBudget.from_period'=>$budget_amount['AccountsBudget']['from_period']),'fields'=>array('AccountsBudget.total_amount')));
+			$tot_budgetamountt = 0;
+			foreach($child_budgets as $child_budget){
+				$tot_budgetamountt = $tot_budgetamountt + $child_budget['AccountsBudget']['total_amount'];
+			}
+			if($tot_budgetamountt > $this->request->data['accounts_budget_categories']['amount']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Budget amount should be more than the child budget amount</div>'));
+				$this->redirect(array('controller'=>'accounts_budgets','action' => 'budget_tree',$budget_id));
+			}
+			$save = null;
+			$category = $this->AccountsBudgetCategory->find('first',array('conditions'=>array('AccountsBudgetCategory.id'=>$category_id)));
+			$save->data['AccountsBudgetCategory']['id'] = $category['AccountsBudgetCategory']['id'];
+			$save->data['AccountsBudgetCategory']['budget_category_name'] = $this->request->data['budget_category_name'];
+			$save->data['AccountsBudgetCategory']['accounts_account_id'] = $this->request->data['accounts_budget_categories']['accounts_account_id'];
+			$save->data['AccountsBudgetCategory']['icon_path'] = $this->request->data['category_icon'];
+			if ($this->AccountsBudgetCategory->save($save->data)) {
+				$save_budget=null;
+				$save_budget['AccountsBudget']['id'] = $budget_id;
+				$save_budget['AccountsBudget']['total_amount'] = $this->request->data['accounts_budget_categories']['amount'];
+				if($this->AccountsBudget->save($save_budget)){
+					$this->Session->setFlash('<div class="flashMessageSuccess">Budget category has been updated successfully!</div>');
+				}
+				$this->redirect(array('controller'=>'accounts_budgets','action' => 'budget_tree',$budget_id));
+			}
+			else{
+				$this->Session->setFlash(__('<div class="flashMessageError">Budget category could not be saved</div>'));
+				$this->redirect(array('controller'=>'accounts_budgets','action' => 'budget_tree',$budget_id));
+			}
+		}
+		$parentAccountsBudgetCategories = $this->AccountsBudgetCategory->ParentAccountsBudgetCategory->find('list');
+		$this->set(compact('parentAccountsBudgetCategories','category','current_brand'));
+	}
+}

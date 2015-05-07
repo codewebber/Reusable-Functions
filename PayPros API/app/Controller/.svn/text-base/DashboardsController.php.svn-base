@@ -1,0 +1,1561 @@
+<?php
+App::uses('AppController', 'Controller');
+
+/**
+ * Dashboards Controller
+ *
+ * @property 
+ */
+class DashboardsController extends AppController {
+	
+	
+	
+	
+	public function beforeFilter(){
+		parent::beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+		
+		if($url == 'accountsDashboard'){
+			$module_name = 'Accounts';
+		}
+		if($url == 'invoices_dashboard'){
+			$module_name = 'Invoices';
+		}
+		if($url == 'main_dashboard'){
+			$module_name = 'Accounts';
+		}
+			
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	//$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+    }
+	
+	
+	
+	
+	
+	
+	
+	
+	public function accountsDashboard($year=null){
+		//Function to display the dashboard
+		
+		$displayYears = $year;
+		
+		$financialYear=Cache::read('dashboard_financialYear'); 
+        if(!$financialYear){
+        	$financialYear = $this->getFinancialYear();
+        	Cache::write('dashboard_financialYear', $financialYear);
+        }
+		$startYear = $financialYear['start_year'];
+		$endYear   = $financialYear['end_year'];
+        
+        
+				
+		$currMonth = date('m');
+
+		if($displayYears) {
+			if($currMonth >= $startYear)
+			{
+				$displayYear = $displayYears;
+				$cm = $currMonth;
+			}
+			else {
+				$displayYear = $displayYears;
+				$displayYear--;
+				$cm = $currMonth;
+			}			
+		}
+		else {
+			if($currMonth >= $startYear)
+			{
+				$displayYear = date('Y');
+				$cm = $currMonth;
+			}
+			else {
+				$displayYear = date('Y');
+				$displayYear--;
+				$cm = $currMonth;
+			}
+			
+		}
+
+		/*if(!$year){
+			$year = date('Y');
+		}*/
+		
+		$account_result=Cache::read('dashboard_account_result'); 
+		if(!$account_result){
+			$account_result = $this->yearlyAccountDetails($displayYear);
+			Cache::write('dashboard_account_result', $account_result);
+		}
+		
+		/*$final=Cache::read('dashboard_final');
+		if(!$final){
+			$final = $this->billDetails($startYear,$endYear);
+			Cache::write('dashboard_final', $final);
+		}*/
+        $final = $this->billDetails($startYear,$endYear);
+		$this->set(compact('final','year', 'displayYear','cm','startYear'));
+
+		$fixedAr 		   = $account_result['Fixed']; 		
+		$variableAr		   = $account_result['Variable']; 	
+		$salaryAr          = $account_result['Salary'];		
+		$totalexpenseAr    = $account_result['Total_Expense']; 
+		$totalsaleAr       = $account_result['Total_Sale'];	 
+		$profitAr          = $account_result['profit'];
+		$staffAr           = $account_result['staff_count'];
+		$accountSale = array_sum($totalsaleAr);
+		if($accountSale <= 100000) { $divisor1 = 1;}
+		else {$divisor1 = 1000000;}
+		
+		$accountExpense = array_sum($totalexpenseAr);
+		if($accountExpense <= 100000) { $divisor2 = 1;}
+		else {$divisor2 = 1000000;}
+		
+		foreach($fixedAr as $val1){
+			$fixedArr[] = $val1/$divisor2;
+		}
+		foreach($variableAr as $val2){
+			$variableArr[] = $val2/$divisor2;
+		}
+		foreach($salaryAr as $val3){
+			$salaryArr[] = $val3/$divisor2;
+		}
+		foreach($totalexpenseAr as $val4){
+			if(!$val4){$totalexpenseArr[]='';}
+			else {$totalexpenseArr[] = $val4/$divisor1;}			
+		}
+		foreach($totalsaleAr as $val5){
+		  if(!$val5){$totalsaleArr[]='';}	
+		  else {$totalsaleArr[] = $val5/$divisor1;}
+		}
+		 foreach($profitAr as $val6){
+		  if(!$val6){$profitArr[]='';}
+		 else{ $profitArr[] = $val6/$divisor1;}
+		  
+		}
+		 foreach($staffAr as $val7){
+		 if(!$val7){$staffArr[]='';}
+		  else {$staffArr[] = $val7;}
+		}
+		foreach($totalexpenseArr as $key8 => $value8){
+			if($value8>0){
+				$expenseee[$key8] = $value8;
+			}
+		}
+		foreach($totalsaleArr as $key9=>$value9){
+			if($value9 > 0){
+				$totaal[$key9] = $value9;
+			}
+		}
+		
+		
+		foreach($profitArr as $key10 => $value10){
+			if($value10 > 0){
+				$prooffit[$key10] = $value10;
+			}
+		}
+		
+		foreach($fixedArr as $key11 => $value11){
+			if($value11 > 0){
+				$fixxxeeed[$key11] = $value11;
+			}
+		}
+		
+		foreach($variableArr as $key12 => $value12){
+			if($value12 > 0){
+				$vaarrriableArr[$key12] = $value12;
+			}
+		}
+		
+		foreach($salaryArr as $key13 => $value13){
+			if($value13 > 0){
+				$saaalllaryArr[$key13] = $value13;
+			}
+		}
+		
+		foreach($staffArr as $key14 => $value14){
+			if($value14 > 0){
+				$sttttttaffArr[$key14] = $value14;
+			}
+		}
+		
+		foreach($divisor1 as $key15 => $value15){
+			if($value15 > 0){
+				$diiiiiiiivisor1[$key15] = $value15;
+			}
+		}
+		
+		
+		
+		if((empty($expenseee)) || (empty($totaal)) || (empty($prooffit))){
+			$lineGraphFlag = 1;
+			$this->set(compact('lineGraphFlag'));
+		}else{
+			
+			$randomValue=Cache::read('dashboard_randomValue'); 
+			if(!$randomValue){
+				$randomValue =  $this->RandNumber(6);
+				$this->accountsLineGraph($totalexpenseArr, $totalsaleArr, $profitArr,$divisor1);
+			}
+			
+		}
+		
+	
+		if((empty($fixxxeeed)) && (empty($vaarrriableArr)) && (empty($saaalllaryArr))){
+			$barGraphFlag = 1;
+			$this->set(compact('barGraphFlag'));
+		}elseif(empty($sttttttaffArr)){
+			$barGraphFlag = 1;
+			$this->set(compact('barGraphFlag'));
+		}else{
+			$randomValue10=Cache::read('dashboard_randomValue10'); 
+			if(!$randomValue10){
+				$randomValue10 = $this->RandNumber(10);
+				$this->accountsBarGraph($fixedArr, $variableArr, $salaryArr, $staffArr,$divisor2);
+			}
+		}
+		
+		$final1 = $this->currentAccountDetails();
+		$this->set(compact('final1','randomValue','randomValue10'));	
+
+	}
+	 /************************************************/
+	/** Function to calculate Required Bill details */
+   /************************************************/	
+	function billDetails($startYear,$endYear) {
+	    $present_monthyear = date('Y-m');
+		$this->loadModel('AccountsBill');
+		 /************************************************/
+		/**To Calculate the Open Bills till current date*/
+	   /************************************************/
+		/*$open_bills = $this->AccountsBill->find('first',array(
+			'conditions'=>array('AccountsBill.paid_status'=>'N','AccountsBill.last_date >'=>date('Y-m-d')),
+			'fields' => array('count(id) as open_bills_count','SUM(amount) as totalAmount')
+		));*/
+		$open_bills = $this->AccountsBill->find('first',array(
+			'conditions'=>array('AccountsBill.amount > AccountsBill.billamount'),
+			'fields' => array('count(id) as open_bills_count','SUM(amount) as totalAmount', 'SUM(billamount) as totalBillAmount')
+		));
+		$final['Open']['count'] = $open_bills[0]['open_bills_count'];
+		$final['Open']['amount'] = $open_bills[0]['totalAmount'] - $open_bills[0]['totalBillAmount'];
+		 /************************************************/
+		/**To Calculate the Paid Bills for current Month*/
+	   /************************************************/		
+		//$paid_bills = $this->AccountsBill->find('all',array('conditions'=>array('OR'=>array('AccountsBill.paid_status'=>array('Y','C')),'AccountsBill.period_fromdate LIKE'=>$present_monthyear.'%')));
+		$paid_bills = $this->AccountsBill->find('first',array(
+			'conditions'=>array('AccountsBill.ledger_due'=>'N','AccountsBill.amount = AccountsBill.billamount','AccountsBill.period_fromdate BETWEEN ? AND ?'=>array($startYear,$endYear)),
+			'fields' => array('COUNT(id) as paidBillCount','SUM(amount) as totalAmount')
+		));
+		
+		$final['Paid']['count'] = $paid_bills[0]['paidBillCount'];
+		$final['Paid']['amount'] = $paid_bills[0]['totalAmount'];
+
+
+		 /***************************************************/
+		/**To Calculate the Overdue Bills till current date*/
+	   /***************************************************/			
+		//$due_bills = $this->AccountsBill->find('all',array('conditions'=>array('OR'=>array('AccountsBill.paid_status'=>array('Due','N')),'AccountsBill.last_date <='=>date('Y-m-d'))));
+		$due_bills = $this->AccountsBill->find('first',array(
+			'conditions'=>array('AccountsBill.last_date <='=>date('Y-m-d'),'AccountsBill.amount > AccountsBill.billamount'),
+			'fields' => array('COUNT(id) as overdueBillCount','SUM(amount) as totalAmount', 'SUM(billamount) as totalBillAmount')
+		));
+		$final['Over_due']['count'] =  $due_bills[0]['overdueBillCount'];
+		$final['Over_due']['amount'] = $due_bills[0]['totalAmount'] - $due_bills[0]['totalBillAmount'];
+        return $final;
+	}
+	
+	function currentAccountDetails(){
+		
+		$this->loadModel('AccountsBill');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsClientinvoice');
+  		$this->loadModel('AccountsLedger');
+		
+		 /**********************************/
+		/**To Calculate the Total Expenses*/
+	   /**********************************/
+		$expenseaccount_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name'=>'Expenses'),'fields'=>array('AccountType.id')));
+		$this->AccountsBill->recursive = 0;
+		$bills = $this->AccountsBill->find('all',array(
+			'conditions'=>array('AccountsBill.bill_recieveddate LIKE'=>date('Y-m').'%'),
+			'fields' => array('AccountsBill.amount')
+		));
+		foreach($bills as $bill){
+			$account = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$bill['AccountsBill']['accounts_account_id'],'AccountsAccount.account_type_id'=>$expenseaccount_type['AccountType']['id']),'fields'=>array('AccountsAccount.id','AccountsAccount.expense_type')));
+			if(!empty($account)){
+				if($account['AccountsAccount']['expense_type'] == 'Fixed'){
+					$fixed_expenses = $fixed_expenses + $bill['AccountsBill']['amount'];
+					$final['FixedExpenses'] = $fixed_expenses;
+				}elseif($account['AccountsAccount']['expense_type'] == 'Variable'){
+					$variable_expenses = $variable_expenses + $bill['AccountsBill']['amount'];
+					$final['VariableExpenses'] = $variable_expenses;
+				}else{
+					$salary_expenses = $salary_expenses + $bill['AccountsBill']['amount'];
+					$final['SalaryExpenses'] = $salary_expenses;
+				}
+			}
+		}
+		$final['TotalExpenses'] = $final['FixedExpenses'] + $final['VariableExpenses'] + $final['SalaryExpenses'];
+		 /**********************************/
+		/**To Calculate Total Sales Amount*/
+	   /**********************************/
+		$invoices = $this->AccountsClientinvoice->find('all',array(
+			'conditions'=>array('AccountsClientinvoice.service_startdate LIKE'=>date('Y-m').'%','AccountsClientinvoice.void'=>'N'),
+			'fields' => array('AccountsClientinvoice.currency_id','AccountsClientinvoice.ajusted_invoiceamount')
+		));
+		$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+		foreach($invoices as $invoice){
+			$invoiceConvertedSale = $this->requestAction('/accounts_clientinvoices/totalInvoiceConversion/'.$invoice['AccountsClientinvoice']['currency_id'].'/'.$invoice['AccountsClientinvoice']['ajusted_invoiceamount']);
+			$total_sale = $total_sale + $invoiceConvertedSale[$accountingCurrency['Currency']['symbol']];
+		}
+		$final['TotalSale'] = $total_sale;
+		
+		 /***********************************/
+	    /**To Calculate Total Profit Amount*/
+	   /***********************************/
+	   	$profit_amount = $final['TotalSale'] - $final['TotalExpenses'];
+	   	$final['TotalProfit'] = $profit_amount;
+	   	
+	   	 /***********************************/
+	    /**To Calculate Accounts Recievable*/
+	   /***********************************/
+	   	$accounts_accounts=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Receivable')));
+	   	$final['AccountsRecievable'] = $accounts_accounts['AccountsAccount']['closing_balance'];
+	   	
+	   	
+	   	 /********************************/
+	    /**To Calculate Accounts Payable*/
+	   /********************************/
+	   
+	   //The Variable $lastdate_currentmonth will return the last date of thecurrent month
+	   $lastdate_currentmonth = date('Y-m-d',strtotime('-1 second',strtotime('+1 month',strtotime(date('m').'/01/'.date('Y').'00:00:00'))));
+	   $accounts_accounts=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Payable')));
+	   $final['AccountsPayable'] = $accounts_accounts['AccountsAccount']['closing_balance'];
+	   
+	   	 /****************************/
+	    /**To Calculate Bank Balance*/
+	   /****************************/	   
+  		$account_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name'=>'Assets'),'fields'=>array('AccountType.id')));
+  		$accounts = $this->AccountsAccount->find('first',array(
+  			'conditions'=>array('AccountsAccount.active'=>'Y','AccountsAccount.account_type_id' =>$account_type['AccountType']['id'],'AccountsAccount.asset_type'=>'Bank'),
+  			'fields'=>array('SUM(closing_balance) as closing_balance')
+		));
+  		$final['bankBalance'] = $accounts[0]['closing_balance'];
+		
+	   	 /****************************/
+	    /**To Calculate Cash in Hand*/
+	   /****************************/	   
+  		$accounts_cash = $this->AccountsAccount->find('first',array(
+  			'conditions'=>array('AccountsAccount.account_type_id' =>$account_type['AccountType']['id'],'AccountsAccount.asset_type'=>'Cash','AccountsAccount.account_name !='=>'Accounts Receivable'),
+  			'fields'=>array('SUM(closing_balance) as closing_balance')));
+  		$final['cashInHand'] = $accounts_cash[0]['closing_balance'];
+	   	return $final;
+	}
+	
+	
+	function yearlyAccountDetails($year_passed) { 
+		$this->loadModel('AccountsBill');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsClientinvoice');
+		$this->loadModel('AccountsSalaryregister');
+		$this->loadModel('Currency');
+		//$this->loadModel('AccountsLedger');
+		//$salaAccountId = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Salary'),'fields'=>array('AccountsAccount.id')));
+ 		$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+		$financialYear = $this->getFinancialYear();
+		$startYear = $financialYear['start_year'];
+		$endYear   = $financialYear['end_year'];
+		$year = $year_passed;
+		$diffMY      = 12 - ($startYear - 1);     
+		$month_limit = 12;
+		$month_init  = $startYear;
+		for($m = $month_init; $m <=$month_limit; $m++ )
+		{
+			$fixed_expenses    = 0;
+			$variable_expenses = 0;	
+			$salary_expenses   = 0;
+			$totalsale         = 0;
+			$account_recievable =0;
+			$i=0;   
+        	if($m <=9) {$month = $i.$m;} 
+        	else {$month = $m;} 
+        	$year_month = $year.'-'.$month;
+			$invoices = $this->AccountsClientinvoice->find('all',array(
+				'conditions'=>array('AccountsClientinvoice.service_startdate LIKE'=>$year_month.'%','AccountsClientinvoice.void'=>'N'),
+				'fields' => array('SUM(ajusted_invoiceamount) as total_invoice_amount','AccountsClientinvoice.currency_id'),
+				'group' => 'currency_id'
+			));
+			if(!empty($invoices)) {
+				$totalsale= 0;
+				foreach($invoices as $invoice) {
+					$totalsaleConverted1 = $this->requestAction('/accounts_clientinvoices/totalInvoiceConversion/'.$invoice['AccountsClientinvoice']['currency_id'].'/'.$invoice['0']['total_invoice_amount']);
+					$totalsale = $totalsale + $totalsaleConverted1[$accountingCurrency['Currency']['symbol']];
+					$total_sale[$m] = $totalsale;
+				}
+			} else {
+		    	     $total_sale[$m] = 0;
+		    }
+			$no_of_emp = $this->AccountsSalaryregister->find('count',array('conditions'=>array('AccountsSalaryregister.month'=>$m,'AccountsSalaryregister.year'=>$year)));
+			$monthly_no_of_emp[$m] = $no_of_emp;
+			//commented on 21st sep
+			$this->AccountsBill->recursive = 0;
+			$bills = $this->AccountsBill->find('all',array(
+				'joins' => array(
+					array(
+						'table' => 'accounts_accounts',
+						'alias' => 'AccountsAccount',
+						'type' => 'INNER',
+						'conditions' => array('AccountsAccount.id = AccountsBill.accounts_account_id')
+					)
+				),
+				'conditions'=>array('AccountsBill.bill_recieveddate LIKE'=>$year_month.'%'),
+				'fields' => array('SUM(amount) as amount','AccountsAccount.expense_type'),
+				'group' => 'AccountsAccount.expense_type'
+			));
+			if(!empty($bills)) {
+				foreach ($bills as $value11) {
+					$final[$m] += $value11[0]['amount'];
+					if($value11['AccountsAccount']['expense_type'] == 'Fixed') {
+						$fixed[$m] = $value11[0]['amount'];
+						$salary[$m] = 0;
+						$variable[$m] =0;
+					} elseif($value11['AccountsAccount']['expense_type'] == 'Variable') {
+						$variable[$m] = $value11[0]['amount'];
+						$fixed[$m]=0;
+						$salary[$m] = 0;
+					} else {
+						$salary[$m] = $value11[0]['amount'];
+						$fixed[$m]=0;
+						$variable[$m] =0;
+					}
+				}
+			} else {
+				$final[$m] = 0;
+				$fixed[$m]=0;
+		    	$variable[$m] =0;
+		    	$salary[$m] = 0;
+			}
+			/*$amount1234 = null;
+			$amount1234 = $this->AccountsLedger->find('first',array(
+				'conditions'=> array('AccountsLedger.date LIKE'=>$year_month.'%','AccountsLedger.accounts_account_id'=>$salaAccountId['AccountsAccount']['id']),
+				'fields' => array('SUM(credit) as TotalSalary')
+			));
+			$salary[$m] += $amount1234[0]['TotalSalary'];*/
+		    $profit_amount = $total_sale[$m] - $final[$m];
+	   	    $profit[$m] = $profit_amount;
+	   	    if($diffMY !=12) {
+	   	    if ($m == 12) {
+	   	    	$month_init = 0;
+	   	    	$m = $month_init;
+	   	    	$month_limit = $endYear;
+	   	    	$year++;
+	   	    }
+		  }
+		}	   
+		$account_result['Fixed'] 		 = $fixed;
+		$account_result['Variable'] 	 = $variable;
+		$account_result['Salary'] 		 = $salary;
+		$account_result['Total_Expense'] = $final;
+		$account_result['Total_Sale']	 = $total_sale;
+		$account_result['profit'] 		 = $profit;
+		$account_result['staff_count']   = $monthly_no_of_emp;
+		return $account_result;
+	}		
+
+
+	function accountsBarGraph($fixedArr, $variableArr, $salaryArr, $staffArr,$divisor2) {
+    App::import('Vendor', 'jpgraph/jpgraph');
+    App::import('Vendor', 'jpgraph/jpgraph_line');
+    App::import('Vendor', 'jpgraph/jpgraph_bar');
+    
+    
+	$data3y = $fixedArr;
+	$data4y = $salaryArr;
+	$data5y = $variableArr;
+	$data6y = $staffArr;
+	
+	debug($data3y);
+	debug($data4y);
+	debug($data5y);
+	
+	
+	
+	// Create the graph. These two calls are always required
+	$graph = new Graph(611,261,'auto',1);
+	$graph->SetScale("textlin");
+	$graph->SetY2Scale("int");
+	$graph->SetY2OrderBack(false);
+	$graph->SetMargin(65,56,15,10);	
+	
+	
+	
+	$gDateLocale = new DateLocale();
+	$months = $gDateLocale->GetShortMonth();
+	
+	$financialYear = $this->getFinancialYear();
+	$startYear = $financialYear['start_year'];
+	$endYear   = $financialYear['end_year'];
+	$months = array_merge(array_slice($months,$startYear-1,12-($startYear-1)), array_slice($months,0,$startYear-1));
+	
+	$graph->SetBox(false);
+	
+	$graph->ygrid->SetFill(false);
+	$graph->yaxis->HideLine(true);
+	$graph->yaxis->HideTicks(true,true);
+	$graph->y2axis->HideLine(true);
+	$graph->y2axis->HideTicks(true,true);
+	if($divisor2 == 1000){$graph->yaxis->SetLabelFormat('%s K');}
+	else {$graph->yaxis->SetLabelFormat('%s M');}
+	$graph->yaxis->SetFont(FF_FONT1,FS_BOLD);
+	$graph->y2axis->SetFont(FF_FONT1,FS_BOLD);
+	
+	$lplot =  new LinePlot($data6y);
+	$b3plot = new BarPlot($data3y);
+	$b4plot = new BarPlot($data4y);
+	$b5plot = new BarPlot($data5y);
+		
+	// Setup month as labels on the X-axis
+	$graph->xaxis->SetTickLabels($months);
+	$graph->xaxis->SetFont(FF_FONT1,FS_BOLD);
+	$gbbplot = new AccBarPlot(array($b3plot,$b4plot,$b5plot));
+	$gbplot = new GroupBarPlot(array($gbbplot));
+	$graph->y2axis->title->Set('No of Employees');
+	$graph->y2axis->title->SetFont(FF_FONT1,FS_BOLD);
+	$graph->y2axis->title->SetColor('#4E4E4E');
+	$graph->AddY2($lplot);
+	$graph->Add($gbplot);
+			
+		
+	// ...and add it to the graPH
+	$lplot->SetBarCenter();
+	$lplot->setColor("navy");
+	$lplot->SetLegend("Employee");
+	$lplot->mark->SetType(MARK_IMG_SBALL,'navy');
+	$lplot->mark->SetWeight(2);
+	$lplot->mark->SetWidth(8);
+	$lplot->value->SetFormat('%d');
+	$lplot->value->Show();
+	
+	$b3plot->SetFillcolor('#FA0404');
+	$b3plot->SetLegend("Fixed");
+	$b3plot->SetValuePos('center');
+	$b3plot->value->SetFormat('%.2f');
+	$b3plot->value->SetColor('#FA0404');
+	
+	$b4plot->SetFillcolor('#35B139');
+	$b4plot->SetLegend("Salary Expenses");
+	$b4plot->SetColor("#35B139");
+	$b4plot->SetValuePos('center');
+	$b4plot->value->SetFormat('%.2f');
+	$b4plot->value->SetColor('blue');
+	
+	$b5plot->SetFillcolor('#E2AA53');
+	$b5plot->SetLegend("Variable");
+	$b5plot->SetColor("#E2AA53");
+	$b5plot->SetValuePos('center');
+	$b5plot->value->SetFormat('%.2f');
+	$b5plot->value->SetColor('blue');	
+	
+	$graph->legend->SetFont(FF_FONT1,FS_BOLD);
+	$graph->legend->SetAbsPos(50,230,"right", "top");
+	$graph->legend->SetFrameWeight(0);
+	$graph->legend->SetColumns(6);
+	$graph->legend->SetColor('#4E4E4E');
+	
+	// Create the grouped bar plot
+	
+
+    // Get the handler to prevent the library from sending the
+    // image to the browser
+    $gdImgHandler = $graph->Stroke(_IMG_HANDLER);
+
+    // Stroke image to a file
+
+    // Default is PNG so use ".png" as suffix
+    $fileName = "accountsbar.png";
+    $graph->img->Stream($fileName);
+    
+    // Send it back to browser
+    //$graph->img->Headers();
+    //$graph->img->Stream();
+   }
+
+	function accountsLineGraph($totalexpenseArr, $totalsaleArr, $profitArr,$divisor1) {
+//	Configure::write('debug',2);
+	App::import('Vendor', 'jpgraph/jpgraph');
+    App::import('Vendor', 'jpgraph/jpgraph_line');
+    App::import('Vendor', 'jpgraph/jpgraph_scatter');
+    
+	$datay1 = $profitArr;
+	$datay2 = $totalexpenseArr;
+	$datay3 = $totalsaleArr;
+	// Setup the graph
+	$graph = new Graph(600,250,'auto',1);
+	$graph->SetScale("textlin");
+	$graph->SetMargin(75,16,15,10);
+	$gDateLocale = new DateLocale();
+	$months = $gDateLocale->GetShortMonth();	
+	$financialYear = $this->getFinancialYear();
+	$startYear = $financialYear['start_year'];
+	$endYear   = $financialYear['end_year'];
+	$months = array_merge(array_slice($months,$startYear-1,12-($startYear-1)), array_slice($months,0,$startYear-1));
+	$graph->SetBox(true);
+	
+	$graph->ygrid->SetFill(false);	
+	$graph->SetBox(false);
+	$graph->yaxis->HideLine(true);
+	$graph->yaxis->HideTicks(true,true);
+	$graph->yaxis->HideZeroLabel();
+	$graph->yaxis->SetFont(FF_FONT1,FS_BOLD);
+	if($divisor1 == 1){$graph->yaxis->SetLabelFormat('%s');}
+	else {$graph->yaxis->SetLabelFormat('%s M');}	
+	$graph->xaxis->SetTickLabels($months);
+	$graph->xaxis->SetFont(FF_FONT1,FS_BOLD);
+	// Create the plot
+	$p1 = new LinePlot($datay1);
+	$graph->Add($p1);
+	
+	$p2 = new LinePlot($datay2);
+	$graph->Add($p2);
+	
+	$p3 = new LinePlot($datay3);
+	$graph->Add($p3);
+
+	// Use an image of favourite car as marker
+	$p1->mark->SetType(MARK_IMG_SBALL,'green');
+	$p1->SetLegend('Profit');
+	
+	$p1->SetColor('#35B139');
+	$p1->value->SetFormat('%.2f');
+	$p1->SetWeight('2');
+	$p1->value->Show();
+	$p1->value->SetColor('#35B139');	
+	
+	$p2->mark->SetType(MARK_IMG_SBALL,'red');	
+	$p2->SetLegend('Expenses');
+	$p2->SetColor('#D72727');
+	$p2->value->SetFormat('%.2f');
+	$p2->SetWeight('2');
+	$p2->value->Show();
+	$p2->value->SetColor('#D72727');
+	
+	
+	$p3->mark->SetType(MARK_IMG_SBALL,'orange');
+	
+	$p3->SetLegend('Sales');
+	$p3->SetColor('#E2AA53');
+	$p3->value->SetFormat('%.2f');
+	$p3->SetWeight('2');
+	$p3->value->Show();
+	$p3->value->SetColor('#E2AA53');
+	// Output line
+	$graph->legend->SetFont(FF_FONT1,FS_BOLD);
+	$graph->legend->SetFrameWeight(0);
+	$graph->legend->SetAbsPos(30,220,"right", "top");
+	$graph->legend->SetColor('#4E4E4E');
+	 // Get the handler to prevent the library from sending the
+    // image to the browser
+    $gdImgHandler = $graph->Stroke(_IMG_HANDLER);
+    // Stroke image to a file
+    // Default is PNG so use ".png" as suffix
+    $fileName = "accountsline.png";
+    $graph->img->Stream($fileName); 	    
+    		
+  }
+  
+  function getFinancialYear() {
+              
+  	$this->loadModel('Setting');  	
+  	$fin_year  = $this->Setting->find('first',array('conditions'=>array('Setting.label'=>'Accounting Format', 'Setting.active'=>'Y'),'fields'=>array('Setting.value')));
+    $fyear     = $fin_year['Setting']['value'];
+    $fy        = explode('-',$fyear);
+    if($fy[0] == 'Jan' && $fy[1] == 'Dec') {
+    	$start_year = 01;
+    	$end_year   = 12;
+    }
+    elseif($fy[0] == 'Apr' && $fy[1] == 'Mar')
+    {
+    	$start_year = 04;
+    	$end_year   = 03;
+    }
+  
+   $financial_year['start_year'] = $start_year;
+   $financial_year['end_year']   = $end_year;
+
+   return $financial_year;
+  }
+  
+  
+	 /****************************************/
+	/**To Get Invoice data for right section*/
+   /****************************************/  
+  function invoicedata($displayYear = null,$startYear = null,$endYear = null){
+  	$this->loadModel('AccountsClientinvoice');
+  	$this->loadModel('BrandsEstimate');
+  	$this->loadModel('Client');
+  	$this->loadModel('AccountsClientpaymentdetail');
+  	$this->loadModel('Currency');
+  	$final = null;
+  	$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+	$currencyConversionArray = $this->currencyConversionVal();
+  	 /****************************************/
+	/**To Get aging data from invoices table*/
+   /****************************************/  
+  	$agings = $this->AccountsClientinvoice->find('all',array('conditions'=>array('AccountsClientinvoice.void'=>'N','AccountsClientinvoice.paid'=>'N','AccountsClientinvoice.invoiced_date BETWEEN ? AND ?'=>array(($displayYear.'-'.$startYear.'-01'),($displayYear.'-'.date('m').'-30'))),'fields'=>array('AccountsClientinvoice.id','AccountsClientinvoice.due_date','AccountsClientinvoice.ajusted_invoiceamount','AccountsClientinvoice.client_id','AccountsClientinvoice.currency_id'),'limit'=>3,'order'=>array('AccountsClientinvoice.id DESC')));
+  	foreach($agings as $aging){
+  		$client_name = $this->Client->find('first',array('conditions'=>array('Client.id'=>$aging['AccountsClientinvoice']['client_id']),'fields'=>array('Client.client_companyname')));
+  		$final['ClientName'][$aging['AccountsClientinvoice']['id']] = $client_name['Client']['client_companyname'];
+  		$final['Aging'][$aging['AccountsClientinvoice']['id']] =  $aging;
+  		$final['Aging'][$aging['AccountsClientinvoice']['id']]['invoicedAmount'] =  $aging['AccountsClientinvoice']['ajusted_invoiceamount'] * $currencyConversionArray[$aging['AccountsClientinvoice']['currency_id']];
+  		$total_aging_amount = $total_aging_amount + ($aging['AccountsClientinvoice']['ajusted_invoiceamount'] * $currencyConversionArray[$aging['AccountsClientinvoice']['currency_id']]);
+  	}
+  	$final['AgingTotal'] =  $total_aging_amount;
+
+  	 /**********************************************/
+	/**To Get outstanding data from invoices table*/
+   /**********************************************/  
+  	//$outstanding_payments = $this->AccountsClientinvoice->find('all',array('conditions'=>array('AccountsClientinvoice.paid'=>'N','AccountsClientinvoice.status'=>'overdue','AccountsClientinvoice.void'=>'N'),'fields'=>array('AccountsClientinvoice.id','AccountsClientinvoice.invoice_amount')));
+	
+  	
+	  $outstanding_payments = $this->AccountsClientinvoice->find('all',array('conditions'=>array('AccountsClientinvoice.paid'=>'N','AccountsClientinvoice.void'=>'N','AccountsClientinvoice.status !='=>'draft','AccountsClientinvoice.service_startdate BETWEEN ? AND ?'=>array(($displayYear.'-'.$startYear.'-01'),($displayYear.'-'.date('m').'-30')))));
+			foreach($outstanding_payments as $outstanding_payment){
+				$invoicePaymentDetails = $this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.accounts_clientinvoice_id'=>$outstanding_payment['AccountsClientinvoice']['id']),'fields'=>array('AccountsClientpaymentdetail.id','AccountsClientpaymentdetail.paid_amount')));
+				foreach($invoicePaymentDetail as $invoicePaymentDetail){
+					$paymentReceivedForInvoice +=  $invoicePaymentDetail['AccountsClientpaymentdetail']['paid_amount'];
+				}
+				$duePayment = $outstanding_payment['AccountsClientinvoice']['ajusted_invoiceamount'] - $paymentReceivedForInvoice;
+			  $final['OutstandingPayments'] = $final['OutstandingPayments'] +  ($duePayment * $currencyConversionArray[$outstanding_payment['AccountsClientinvoice']['currency_id']]);
+			}
+  	 /*************************************************************/
+	/**To Get net Sales for the current month from invoices table*/
+   /*************************************************************/    
+   
+  	$net_sales = $this->AccountsClientinvoice->find('all',array('conditions'=>array('AccountsClientinvoice.void'=>'N','AccountsClientinvoice.service_startdate LIKE'=>date('Y-m').'%'),'fields'=>array('AccountsClientinvoice.id','AccountsClientinvoice.ajusted_invoiceamount','AccountsClientinvoice.currency_id')));
+  	foreach($net_sales as $net_sale){
+		$final['TotalSale']   = $final['TotalSale'] + ($net_sale['AccountsClientinvoice']['ajusted_invoiceamount'] * $currencyConversionArray[$net_sale['AccountsClientinvoice']['currency_id']]);
+	}
+  	 /****************************************************/
+	/**To Get latest sent estimates from Estimates table*/
+   /****************************************************/    	  	
+  /*
+      $estimates = $this->BrandsEstimate->find('all',array('conditions'=>array('BrandsEstimate.active'=>'Y','BrandsEstimate.status'=>'sent'),'fields'=>array('BrandsEstimate.id','BrandsEstimate.estimate_name','BrandsEstimate.totalcost','BrandsEstimate.estimate_date','BrandsEstimate.client_id'),'limit'=>3,'order'=>array('BrandsEstimate.id DESC')));
+        foreach($estimates as $estimate){
+            $client = $this->Client->find('first',array('conditions'=>array('Client.id'=>$estimate['BrandsEstimate']['client_id']),'fields'=>array('Client.client_companyname')));
+            $final['Client'][$estimate['BrandsEstimate']['id']] = $client['Client']['client_companyname'];
+            $final['Estimates'][$estimate['BrandsEstimate']['id']] = $estimate;
+            $total_estimate_amountConverted = $this->totalInvoiceConversion($estimate['BrandsEstimate']['currency_id'],$estimate['BrandsEstimate']['totalcost']);
+            $total_estimate_amount = $total_estimate_amount + $total_estimate_amountConverted[$accountingCurrency['Currency']['symbol']];
+        }
+        $final['EstimateTotal'] = $total_estimate_amount;*/
+  
+
+  	 /****************************************************************/
+	/**To Get turn over for the current financial year from invoices*/
+   /****************************************************************/ 
+   		$final1 = $this->annualTurnover($displayYear);
+  		$final['monthlyTurnOver'] = $final1['totalSales'];
+  	    $final['NetTurnOver'] = $final1['turnover'];
+  	
+  	  	return $final;
+  	
+  }
+  
+  public function totalInvoiceConversion($currencyId,$amount){
+ 	$this->loadModel('Currency');
+ 	$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+ 	$invoiceCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.id'=>$currencyId)));
+ 	if($accountingCurrency['Currency']['id'] != $currencyId){
+ 		$from=$invoiceCurrency['Currency']['name'];
+		$to=$accountingCurrency['Currency']['name'];
+		$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+		$handle = @fopen($url, 'r');
+		if ($handle) 
+			{
+		   		$result = fgets($handle, 4096);
+		   		fclose($handle);
+			}
+		$allData = explode(',',$result);  //Get all the contents to an array 
+		$convertedAmount[$accountingCurrency['Currency']['symbol']]=$amount*$allData['1'];
+		$this->set(compact('symbol'));
+ 	}else{
+ 		$convertedAmount[$accountingCurrency['Currency']['symbol']] = $amount;
+ 	}
+ 	return $convertedAmount;
+ }
+  	function invoice_graphdata($yearpass){
+  		$this->loadModel('AccountsClientinvoice');
+  		$this->loadModel('AccountsClientpaymentdetail');
+  		$this->loadModel('Currency');
+		$currencyConversionArray = $this->currencyConversionVal();
+ 		$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+		
+  		$year = $yearpass; 		
+  		$financialYear = $this->getFinancialYear();
+		$startYear = $financialYear['start_year'];
+		$endYear   = $financialYear['end_year'];
+		$diffMY      = 12 - ($startYear - 1);     
+		$month_limit = 12;
+		$month_init  = $startYear;
+		for($m = $month_init; $m <=$month_limit; $m++ )
+		{
+			$fixed_expenses    = 0;
+			$variable_expenses = 0;	
+			$salary_expenses   = 0;
+			$totalsale         = 0;
+			$total_amount	   = 0;
+			$i=0;   
+        	if($m <=9) {$month = $i.$m;} 
+        	else {$month = $m;} 
+        	
+			$year_month = $year.'-'.$month;
+			$invoices = $this->AccountsClientinvoice->find('all',array('conditions'=>array('AccountsClientinvoice.service_startdate LIKE'=>$year_month.'%','AccountsClientinvoice.void'=>'N')));
+			//$amount_recieved = $this->AccountsClientinvoice->find('all',array('conditions'=>array('AccountsClientinvoice.service_startdate LIKE'=>$year_month.'%','AccountsClientinvoice.void'=>'N')));
+			$amount_recieved	=	$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.received_date LIKE'=>$year_month.'%')));
+			if(!empty($invoices)) {
+				foreach($invoices as $invoice){
+					 //$totalSaleConverted = $this->requestAction('/accounts_clientinvoices/totalInvoiceConversion/'.$invoice['AccountsClientinvoice']['currency_id'].'/'.$invoice['AccountsClientinvoice']['ajusted_invoiceamount']);
+				     $totalsale = $totalsale + ($invoice['AccountsClientinvoice']['ajusted_invoiceamount']*$currencyConversionArray[$invoice['AccountsClientinvoice']['currency_id']]);
+				     $total_sale[$m] = $totalsale;
+			    }
+			}
+			else{
+		    	$total_sale[$m] = 0;
+		    }
+		    if(!empty($amount_recieved)){
+		    	foreach($amount_recieved as $amount){
+		    		/*
+					$receivedAmount =  $amount['AccountsClientinvoice']['amount_recieved'];
+										  //$receivedPaymentConverted = $this->requestAction('/accounts_clientinvoices/totalInvoiceConversion/'.$amount['AccountsClientinvoice']['currency_id'].'/'.$receivedAmount);
+										$total_amount = $total_amount + ($receivedAmount*$currencyConversionArray[$amount['AccountsClientinvoice']['currency_id']]);
+										$total_amountrecieved[$m] = $total_amount;*/
+					$receivedAmount =  $amount['AccountsClientpaymentdetail']['paid_amount'];
+		    		/*$total_amount = $total_amount + ($receivedAmount*$currencyConversionArray[$amount['AccountsClientinvoice']['currency_id']]);*/
+		    		$total_amount = $total_amount + $receivedAmount;
+		    		$total_amountrecieved[$m] = $total_amount;
+		    	}
+		    }else{
+		    	$total_amountrecieved[$m] = 0;
+		    }	
+	   	    if($diffMY !=12) {
+	   	    if ($m == 12) {
+	   	    	$month_init = 0;
+	   	    	$m = $month_init;
+	   	    	$month_limit = $endYear;
+	   	    	$year++;
+	   	    }
+		  }
+		}
+		
+		$final_invoiceGraphData['TotalSale'] = $total_sale;
+		$final_invoiceGraphData['AmountRecieved'] = $total_amountrecieved;
+		$brand_amountmonth = $this->pieGraphData($yearpass,$currencyConversionArray);
+		$final_invoiceGraphData['Brandwise'] = $brand_amountmonth;
+		return $final_invoiceGraphData;
+		
+  	}
+  	
+	public function invoices_dashboard($year=null){
+		/*configure::write('debug',2);*/
+		$displayYears = $year;
+        $financialYear = $this->getFinancialYear();
+		$startYear = $financialYear['start_year'];
+		$endYear   = $financialYear['end_year'];
+		$currMonth = date('m');
+		if($displayYears) {
+			if($currMonth >= $startYear)
+			{
+				$displayYear = $displayYears;
+				$cm = $currMonth;
+			}
+			else {
+				$displayYear = $displayYears;
+				$displayYear--;
+				$cm = $currMonth;
+			}			
+		}
+		else {
+			if($currMonth >= $startYear)
+			{
+				$displayYear = date('Y');
+				$cm = $currMonth;
+			}
+			else {
+				$displayYear = date('Y');
+				$displayYear--;
+				$cm = $currMonth;
+			}
+			
+		}	
+		
+		
+		$randomValue =  $this->RandNumber(6);
+		$randomValue10 = $this->RandNumber(10);
+		$rightSectionData = $this->invoicedata($displayYear,$startYear,$endYear);
+		$leftSectionData = $this->invoice_graphdata($displayYear);
+		$totalSale = $leftSectionData['TotalSale'];
+		$amountRecieved = $leftSectionData['AmountRecieved'];
+		$brandWise = $leftSectionData['Brandwise'];
+		$sum_of_sale = array_sum($totalSale);
+		if($sum_of_sale <= 100000) { $divisor = 1;}
+		else {$divisor = 1000000;}
+		foreach($totalSale as $val1){
+			if(!$val1){$totalSaleArr[]='';}	
+		   else {$totalSaleArr[] = $val1/$divisor;}
+		}
+		foreach($amountRecieved as $val2){
+			if(!$val2){$amountRecievedArr[]='';}	
+			else {$amountRecievedArr[] = $val2/$divisor;}
+		}
+		$sumArray = array();
+		foreach ($brandWise as $k=>$subArray) {
+			
+		  foreach ($subArray as $id=>$value) {
+		    $sumArray[$k]+=$value;
+		  }
+		}
+		$salesByBrand = array_values($sumArray);
+		$brandNames = array_keys($sumArray);
+		foreach($totalSaleArr as $kkey =>$vvalue){
+			if($vvalue > 0){
+				$saallee[$kkey] = $vvalue;
+			}
+		}
+		foreach($amountRecievedArr as $kkey1 => $vvalue1){
+			if($vvalue1 > 0){
+				$recievedAmoounnt[$kkey1] = $vvalue1;
+			}
+		}
+		if((empty($saallee)) && (empty($recievedAmoounnt))){
+			$lineGraphFlaag = 1;
+			$this->set(compact('lineGraphFlaag'));
+		}else{
+			$this->invoicesLineGraph($totalSaleArr, $amountRecievedArr, $divisor);
+		}
+		
+		
+		foreach($salesByBrand as $kkey2 => $vvalue2){
+			if($vvalue2 > 0){
+				$brandSaaless[$kkey2] = $vvalue2;
+			}
+		}
+		if(empty($brandSaaless)){
+			$pieChartFlag = 1;
+			$this->set(compact('pieChartFlag'));
+		}else{
+			$this->invoicesPieGraph($salesByBrand, $brandNames);
+		}
+		debug($rightSectionData);
+		$this->set(compact('rightSectionData','randomValue','randomValue10','year','displayYear','cm','startYear'));
+	}
+	
+	function invoicesLineGraph($totalSaleArr, $amountRecievedArr, $divisor) {
+		
+	App::import('Vendor', 'jpgraph/jpgraph');
+    App::import('Vendor', 'jpgraph/jpgraph_line');
+    App::import('Vendor', 'jpgraph/jpgraph_scatter');
+    
+	$datay1 = $amountRecievedArr;
+	$datay2 = $totalSaleArr;	
+     
+	// Setup the graph
+	$graph = new Graph(600,250,'auto',1);
+	$graph->SetScale("textlin");
+	$graph->SetMargin(75,16,15,10);	
+	$gDateLocale = new DateLocale();
+	$months = $gDateLocale->GetShortMonth();	
+	$financialYear = $this->getFinancialYear();
+	$startYear = $financialYear['start_year'];
+	$endYear   = $financialYear['end_year'];
+	$months = array_merge(array_slice($months,$startYear-1,12-($startYear-1)), array_slice($months,0,$startYear-1));
+	$graph->SetBox(true);
+	$graph->SetBox(false);
+	$graph->ygrid->SetFill(false);	
+	$graph->SetBox(false);
+	$graph->yaxis->HideLine(true);
+	$graph->yaxis->HideZeroLabel();
+	$graph->xaxis->SetFont(FF_FONT1,FS_BOLD);
+	$graph->yaxis->SetFont(FF_FONT1,FS_BOLD);
+	if($divisor == 1){$graph->yaxis->SetLabelFormat('%s');}
+	else {$graph->yaxis->SetLabelFormat('%s M');}	
+	$graph->xaxis->SetTickLabels($months);
+	$graph->img->SetAntiAliasing(false);
+	// Create the plot
+	$p1 = new LinePlot($datay1);
+	$graph->Add($p1);
+	
+	$p2 = new LinePlot($datay2);
+	$graph->Add($p2);
+	
+
+	// Use an image of favourite car as marker
+	$p1->mark->SetType(MARK_IMG_SBALL,'green');
+	$p1->SetLegend('Amount Recieved');
+	$p1->SetColor('#3E8B3E');
+	$p1->SetWeight(2);
+	$p1->value->SetFormat('%.2f');
+	$p1->value->Show();
+	$p1->value->SetColor('#3E8B3E');	
+		
+	$p2->mark->SetType(MARK_IMG_SBALL,'red');
+	$p2->SetLegend('Amount Invoiced');
+	$p2->SetColor('#D72727');
+	$p2->SetWeight(2);
+	$p2->value->SetFormat('%.2f');
+	$p2->value->Show();
+	$p2->value->SetColor('#D72727');
+	
+	$graph->legend->SetAbsPos(30,220,"right", "top");
+	$graph->legend->SetFont(FF_FONT1,FS_BOLD);
+	$graph->legend->SetColor('#4E4E4E');
+	// Output line
+	
+	 // Get the handler to prevent the library from sending the
+    // image to the browser
+    $gdImgHandler = $graph->Stroke(_IMG_HANDLER);
+    // Stroke image to a file
+    // Default is PNG so use ".png" as suffix
+    $fileName = "invoicesline.png";
+    $graph->img->Stream($fileName);
+  }
+  
+  	function invoicesPieGraph1($salesByBrand, $brandNames) {
+     App::import('Vendor', 'jpgraph/jpgraph');   
+     App::import('Vendor', 'jpgraph/jpgraph_pie'); 
+     App::import('Vendor', 'jpgraph/jpgraph_pie3d');  	
+	
+	 	$totalBrandSales = array_sum($salesByBrand);
+		if($totalBrandSales <= 1000000) { $divisor3 = 1000;
+		$unit = 'K';}
+		else {$divisor3 = 1000000;
+		$unit = 'M';}		
+		
+		$graph = new PieGraph(600,280,'auto',1);
+		PieGraph::SetAntiAliasing(false);
+	
+		$p1 = new PiePlot3D($salesByBrand);
+		
+		$p1->SetCenter(0.5,0.55);
+		$p1->SetSize(0.3);
+ 
+		$p1->ExplodeAll();
+		$p1->SetCenter(0.5);
+		$p1->SetSize(0.5);
+		$p1->SetLegends($brandNames);
+		$p1->SetLabelType(PIE_VALUE_PER); 
+		
+		
+		foreach($salesByBrand as $val13){
+			$saleAmount = $val13/$divisor3;
+			$saleAmounts = number_format($saleAmount, 2, '.', '');
+			$saleAmountss = $saleAmounts." $unit";
+			$salesByBrandArray[] = $saleAmountss."\n%.1f%%";			
+		}
+		        
+        $lbl =  $salesByBrandArray;
+		
+		$p1->SetLabels($lbl);
+		$graph->legend->Pos(0.0,0.9,"right", "vertical");		
+		$p1->SetCenter(0.5);		
+		$p1->value->SetFont(FF_FONT1,FS_BOLD,0.8);
+		$p1->value->SetColor("black");
+		$p1->SetLabelPos(0.3);
+		$p1->ExplodeAll(10);
+		$graph->Add($p1);
+		$graph->legend->SetFont(FF_FONT1,FS_BOLD);
+		$graph->legend->SetFrameWeight(0);
+		$graph->legend->SetFont(FF_FONT1,FS_BOLD,8);
+		$p1->SetStartAngle(120);
+		$p1->SetSliceColors(array('#ec282c','#38943d','#25a2dc')); 
+		$gdImgHandler = $graph->Stroke(_IMG_HANDLER);
+		  	   
+		$fileName = "invoicesPie.png";
+		$graph->img->Stream($fileName);
+	}
+	function invoicesPieGraph($salesByBrand, $brandNames) {
+     App::import('Vendor', 'jpgraph/jpgraph');   
+     App::import('Vendor', 'jpgraph/jpgraph_pie'); 
+     App::import('Vendor', 'jpgraph/jpgraph_pie3d');  	
+	
+	 	$totalBrandSales = array_sum($salesByBrand);
+		if($totalBrandSales <= 1000000) { $divisor3 = 1000;
+		$unit = 'K';}
+		else {$divisor3 = 1000000;
+		$unit = 'M';}		
+		
+		$graph = new PieGraph(700,280,'auto',1);
+		PieGraph::SetAntiAliasing(false);
+	
+		$p1 = new PiePlot3D($salesByBrand);
+		$p1->SetSize(0.4);
+		$p1->SetLegends($brandNames);
+		$p1->SetLabelType(PIE_VALUE_PER); 
+		
+		
+		foreach($salesByBrand as $val13){
+			$saleAmount = $val13/$divisor3;
+			$saleAmounts = number_format($saleAmount, 2, '.', '');
+			$saleAmountss = $saleAmounts." $unit";
+			$salesByBrandArray[] = $saleAmountss."\n%.1f%%";			
+		}
+		        
+        $lbl =  $salesByBrandArray;
+		
+		$p1->SetLabels($lbl);
+		$graph->legend->Pos(0.0,0.8,"right", "top");		
+		$p1->SetCenter(0.5);		
+		$p1->value->SetFont(FF_FONT1,FS_BOLD,0.6);
+		$p1->value->SetColor("black");
+		$p1->SetLabelPos(1.0);
+		$graph->Add($p1);
+		$graph->legend->SetFont(FF_FONT1,FS_BOLD);
+		$graph->legend->SetFrameWeight(0);
+		$graph->legend->SetFont(FF_FONT1,FS_BOLD,6);
+		$p1->SetStartAngle(90);
+		$p1->SetSliceColors(array('#ec282c','#38943d','#25a2dc','#EDEF3B','#6119E8','#4F4E3C')); 
+		$gdImgHandler = $graph->Stroke(_IMG_HANDLER);
+		  	   
+		$fileName = "invoicesPie.png";
+		$graph->img->Stream($fileName);
+	}
+	
+  function RandNumber($e){  
+	 for($i=0;$i<$e;$i++){
+	 $rand =  $rand .  rand(0, 9); 
+	 }
+	 return $rand;
+ }
+ 
+ 
+	function annualTurnover($displayYear = null){
+ 	 /****************************************************************/
+	/**To Get turn over for the current financial year from invoices*/
+   /****************************************************************/ 
+   
+  // Configure::write('debug',2);
+ 		$this->loadModel('Currency');
+ 		$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+		$currencyConversionArray = $this->currencyConversionVal();
+ 		$turnover = null;
+ 		$total_sale = null;
+ 		if(!$displayYear){$year = date('Y');}
+ 		else{$year = $displayYear;}
+		$financialYear = $this->getFinancialYear();
+		$startYear = $financialYear['start_year'];
+		$endYear   = $financialYear['end_year'];
+		$diffMY      = 12 - ($startYear - 1);     
+		$month_limit = 12;
+		$month_init  = $startYear;
+		for($m = $month_init; $m <=$month_limit; $m++ )
+		{
+			$fixed_expenses    = 0;
+			$variable_expenses = 0;	
+			$salary_expenses   = 0;
+			$totalsale         = 0;
+			$i=0;   
+        	if($m <=9) {$month = $i.$m;} 
+        	else {$month = $m;} 
+			$year_month = $year.'-'.$month;
+			$invoices = $this->AccountsClientinvoice->find('all',array('conditions'=>array('AccountsClientinvoice.service_startdate LIKE'=>$year_month.'%','AccountsClientinvoice.void'=>'N','AccountsClientinvoice.paid'=>'Y')));
+			if(!empty($invoices)) {
+				foreach($invoices as $invoice){
+				     $totalsale = $totalsale + ($invoice['AccountsClientinvoice']['ajusted_invoiceamount'] * $currencyConversionArray[$invoice['AccountsClientinvoice']['currency_id']]);
+				     debug($totalsale);
+				     $total_sale[$m] = $totalsale;
+			    }
+			}
+			else{
+		    	$total_sale[$m] = 0;
+		    }
+	   	    if($diffMY !=12) {
+	   	    if ($m == 12) {
+	   	    	$month_init = 0;
+	   	    	$m = $month_init;
+	   	    	$month_limit = $endYear;
+	   	    	$year++;
+	   	    }
+		  }
+		}
+		$turnover = null;
+  		foreach($total_sale as $total_sal){
+  			debug($total_sal);
+  			$turnover = $turnover + $total_sal;
+  		}
+  		$final['turnover'] = $turnover;
+  		$final['totalSales'] = $total_sale;
+  		return $final;
+ 	}
+ 	
+ 	function pieGraphData($yearpass=null,$currencyConversionArray){
+  		$this->loadModel('AccountsClientinvoice');
+  		$this->loadModel('Brand');
+  		$this->loadModel('Currency');
+ 		$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+  		if($yearpass){
+  			$year = $yearpass;
+  		}else{
+  			$year = date('Y');
+  		}
+  		
+		$brands = $this->Brand->find('all',array('fields'=>array('Brand.id','Brand.brandname')));
+		$financialYear = $this->getFinancialYear();
+		$startYear = $financialYear['start_year'];
+		$endYear   = $financialYear['end_year'];
+		$diffMY      = 12 - ($startYear - 1);     
+		$month_limit = 12;
+		$month_init  = $startYear;
+		for($m = $month_init; $m <=$month_limit; $m++ )
+		{
+			$fixed_expenses    = 0;
+			$variable_expenses = 0;	
+			$salary_expenses   = 0;
+			$totalsale         = 0;
+			$i=0;   
+        	if($m <=9) {$month = $i.$m;} 
+        	else {$month = $m;} 
+        	
+			$year_month = $year.'-'.$month;
+			
+			
+			foreach($brands as $brand){
+				$brand_check = $this->AccountsClientinvoice->find('all',array('conditions'=>array('AccountsClientinvoice.void'=>'N','AccountsClientinvoice.brand_id'=>$brand['Brand']['id']),'fields'=>array('AccountsClientinvoice.id','AccountsClientinvoice.service_startdate')));
+				if(!empty($brand_check)){
+					$brandwise_sales[$brand['Brand']['brandname']] =  $this->AccountsClientinvoice->find('all',array('conditions'=>array('AccountsClientinvoice.service_startdate LIKE'=>$year_month.'%','AccountsClientinvoice.void'=>'N','AccountsClientinvoice.brand_id'=>$brand['Brand']['id'])));
+				}
+				
+			}		
+		    
+		    if(!empty($brandwise_sales)){
+		    	foreach($brandwise_sales as $brand_key => $brandwise_sale){
+		    		if(!empty($brandwise_sale)){
+		    			$brand_amount = null;
+		    			foreach($brandwise_sale as $brandwise_sal){
+		    				//$brand_amountConverted = $this->requestAction('/accounts_clientinvoices/totalInvoiceConversion/'.$brandwise_sal['AccountsClientinvoice']['currency_id'].'/'.$brandwise_sal['AccountsClientinvoice']['ajusted_invoiceamount']);
+		    				//$brand_amount = $brand_amount + $brand_amountConverted[$accountingCurrency['Currency']['symbol']];
+		    				$brand_amount = $brand_amount + ($brandwise_sal['AccountsClientinvoice']['ajusted_invoiceamount'] * $currencyConversionArray[$brandwise_sal['AccountsClientinvoice']['currency_id']]);
+		    				$brand_amountmonth[$brand_key][$m] = $brand_amount;
+		    			}
+		    		}else{
+		    			$brand_amountmonth[$brand_key][$m] = 0;
+		    		}
+		    	}
+		    }
+		    
+		    
+	   	    if($diffMY !=12) {
+	   	    if ($m == 12) {
+	   	    	$month_init = 0;
+	   	    	$m = $month_init;
+	   	    	$month_limit = $endYear;
+	   	    	$year++;
+	   	    }
+		  }
+		}		
+		return $brand_amountmonth;		
+  	}
+  	
+  	public function main_dashboard($year=null){  		
+  		
+        
+		$this->loadModel('AccountsAccount');		
+  		$this->loadModel('AccountsLedger');
+		$displayYears = $year;
+        $financialYear = $this->getFinancialYear();
+		$startYear = $financialYear['start_year'];
+		$endYear   = $financialYear['end_year'];
+
+		
+		$currMonth = date('m');
+
+		if($displayYears) {
+			if($currMonth >= $startYear)
+			{
+				$displayYear = $displayYears;
+				$cm = $currMonth;
+			}
+			else {
+				$displayYear = $displayYears;
+				$displayYear--;
+				$cm = $currMonth;
+			}			
+		}
+		else {
+			if($currMonth >= $startYear)
+			{
+				$displayYear = date('Y');
+				$cm = $currMonth;
+			}
+			else {
+				$displayYear = date('Y');
+				$displayYear--;
+				$cm = $currMonth;
+			}
+			
+		}
+
+		$account_result = $this->yearlyAccountDetails($displayYear);
+		
+		$final = $this->billDetails();
+		$this->set(compact('final','year', 'displayYear','cm','startYear'));
+
+		$totalexpenseAr    = $account_result['Total_Expense']; 
+		$totalsaleAr       = $account_result['Total_Sale'];	 
+		$profitAr          = $account_result['profit'];
+		
+		$accountSale = array_sum($totalsaleAr);
+		if($accountSale <= 100000) { $divisor1 = 1;}
+		else {$divisor1 = 1000000;}
+		
+		$accountExpense = array_sum($totalexpenseAr);
+		if($accountExpense <= 100000) { $divisor2 = 1;}
+		else {$divisor2 = 1000000;}
+		
+		foreach($totalexpenseAr as $val4){
+			if(!$val4){$totalexpenseArr[]='';}
+			else {$totalexpenseArr[] = $val4/$divisor1;}			
+		}
+		
+		foreach($totalsaleAr as $val5){
+		  if(!$val5){$totalsaleArr[]='';}	
+		  else {$totalsaleArr[] = $val5/$divisor1;}
+		}
+		
+		 foreach($profitAr as $val6){
+		  if(!$val6){$profitArr[]='';}
+		 else{ $profitArr[] = $val6/$divisor1;}
+		  
+		}
+		
+		foreach($totalexpenseArr as $key8 => $value8){
+			if($value8>0){
+				$expenseee[$key8] = $value8;
+			}
+		}
+		foreach($totalsaleArr as $key9=>$value9){
+			if($value9 > 0){
+				$totaal[$key9] = $value9;
+			}
+		}
+		
+		foreach($profitArr as $key10 => $value10){
+			if($value10 > 0){
+				$prooffit[$key10] = $value10;
+			}
+		}
+		
+		foreach($divisor1 as $key15 => $value15){
+			if($value15 > 0){
+				$diiiiiiiivisor1[$key15] = $value15;
+			}
+		}
+		
+  		$this->loadModel('AccountsBill');
+  		$brandWise = $this->pieGraphData($year);
+		$sumArray = array();
+		foreach ($brandWise as $k=>$subArray) {
+			
+		  foreach ($subArray as $id=>$value) {
+		    $sumArray[$k]+=$value;
+		  }
+		}
+		$salesByBrand = array_values($sumArray);
+		$brandNames = array_keys($sumArray);
+		
+  		$currentFinancialYearData = $this->yearlyAccountDetails($displayYear);
+  		debug($currentFinancialYearData);
+  		
+  		foreach($currentFinancialYearData['Total_Sale'] as $month => $turnoveramount){
+  			$turnover = $turnover + $turnoveramount;
+  		}
+  		$final['currentFinancialYearTurnOver'] = $turnover;
+  		
+  		foreach($currentFinancialYearData['Total_Expense'] as $expenseMonth => $expenseAmount){
+  			$totalExpense = $totalExpense + $expenseAmount;
+  		}
+  		$final['currentFinancialYearExpense'] = $totalExpense;
+  		
+  		
+  		$accounts_accounts=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Receivable')));
+	   	$recievable_accounts_amount=$this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accounts_accounts['AccountsAccount']['id']),'fields'=>array('AccountsLedger.balance'),'order'=>array('AccountsLedger.id DESC')));
+	   	$final['AccountsRecieved'] = $recievable_accounts_amount['AccountsLedger']['balance'];
+	   	
+  		
+  		
+  		//To calculate the current month's last date
+  		$lastdate_currentmonth = date('Y-m-d',strtotime('-1 second',strtotime('+1 month',strtotime(date('m').'/01/'.date('Y').'00:00:00'))));
+	   	$payable_accounts = $this->AccountsBill->find('all',array('conditions'=>array('OR'=>array('AccountsBill.paid_status'=>array('N','Due')),'AND'=>array('AccountsBill.period_fromdate <'=>$lastdate_currentmonth))));
+	   	foreach($payable_accounts as $payable_account){	   		
+	   		$amount = null;
+		   	if($payable_account['AccountsBill']['billamount'] > 0){
+		   		$amount = $payable_account['AccountsBill']['amount'] - $payable_account['AccountsBill']['billamount'];
+		   		$payable_amount = $payable_amount + $amount;
+		   	}
+		   	else{
+		   		$payable_amount = $payable_amount + $payable_account['AccountsBill']['amount'];
+		   	}	   	
+	   	}
+	   	$final['AccountsPayable'] = $payable_amount;	   	
+	   	
+  		
+  		foreach($salesByBrand as $brandKey => $brandValue){
+  			if($brandValue > 0){
+  				$brandValuee[$brandKey] = $brandValue;
+  			}
+  		}
+ 
+  		if((empty($expenseee)) || (empty($totaal)) || (empty($prooffit))){
+			$lineGraphFlag = 1;
+			$this->set(compact('lineGraphFlag'));
+		}else{
+			$this->main_dashboardLineGraph($totalexpenseArr, $totalsaleArr, $profitArr,$divisor1);
+		}
+		
+  		
+  		if(empty($brandValuee)){
+  			$brandwiseFlag = 1;
+  			$this->set(compact('brandwiseFlag'));
+  		}else{
+  			$this->invoicesPieGraph($salesByBrand, $brandNames);
+  		}
+  		
+  		$randomValue3 =  $this->RandNumber(3);
+		$randomValue10 = $this->RandNumber(10);
+  		$this->set(compact('final','randomValue3','randomValue10'));
+  	}
+  	
+  	 	function main_dashboardLineGraph($totalexpenseArr=null,$totalsaleArr=null,$profitArr=null,$divisor1=null){
+		App::import('Vendor', 'jpgraph/jpgraph');
+	    App::import('Vendor', 'jpgraph/jpgraph_line');
+	    App::import('Vendor', 'jpgraph/jpgraph_scatter');
+	    
+		$datay1 = $totalexpenseArr;
+		$datay2 = $totalsaleArr;
+		$datay3 = $profitArr;
+		
+		
+		// Setup the graph
+		$graph = new Graph(550,290,'auto',1);
+		$graph->SetScale("textlin");
+		$graph->SetMargin(75,16,15,110);
+		$gDateLocale = new DateLocale();
+		$months = $gDateLocale->GetShortMonth();	
+		$financialYear = $this->getFinancialYear();
+		$startYear = $financialYear['start_year'];
+		$endYear   = $financialYear['end_year'];
+		$months = array_merge(array_slice($months,$startYear-1,12-($startYear-1)), array_slice($months,0,$startYear-1));
+		$graph->SetBox(true);
+		
+		$graph->ygrid->SetFill(false);	
+		$graph->SetBox(false);
+		$graph->yaxis->HideLine(true);
+		$graph->yaxis->HideTicks(true,true);
+		$graph->yaxis->HideZeroLabel();
+		$graph->yaxis->SetFont(FF_FONT1,FS_BOLD,2);
+		if($divisor1 == 1){$graph->yaxis->SetLabelFormat('%s');}
+		else {$graph->yaxis->SetLabelFormat('%s M');}	
+		$graph->xaxis->SetTickLabels($months);
+		$graph->xaxis->SetFont(FF_FONT1,FS_BOLD);
+		// Create the plot
+		
+		
+		$p3 = new LinePlot($datay2);
+		$graph->Add($p3);
+		
+		$p2 = new LinePlot($datay1);
+		$graph->Add($p2);
+		
+		$p1 = new LinePlot($datay3);
+		$graph->Add($p1);
+		
+		
+		
+		// Use an image of favourite car as marker
+		$p1->mark->SetType(MARK_IMG_SBALL,'green');
+		$p1->SetLegend('Profits Actual');
+		$p1->SetColor('#35B139');
+		$p1->value->SetFormat('%.2f');
+		$p1->SetWeight('2');
+		$p1->value->Show();
+		$p1->value->SetColor('#35B139');	
+	
+		$p2->mark->SetType(MARK_IMG_SBALL,'red');
+		$p2->SetLegend('Expenses Actual');
+		$p2->SetColor('red');
+		$p2->value->SetFormat('%.2f');
+		$p2->SetWeight('2');
+		$p2->value->Show();
+		$p2->value->SetColor('red');
+		
+		$p3->mark->SetType(MARK_IMG_SBALL,'bluegreen');
+		$p3->SetLegend('Revenues Actual');
+		$p3->SetColor('#005E82');
+		$p3->value->SetFormat('%.2f');
+		$p3->SetWeight('2');
+		$p3->value->Show();
+		$p3->value->SetColor('#005E82');
+		
+		
+		// Output line
+		$graph->legend->SetFont(FF_FONT1,FS_BOLD);
+		$graph->legend->SetFrameWeight(0);
+		$graph->legend->SetAbsPos(30,255,"right", "top");
+		$graph->legend->SetColor('#4E4E4E');
+		 // Get the handler to prevent the library from sending the
+	    // image to the browser
+	    $gdImgHandler = $graph->Stroke(_IMG_HANDLER);
+	    // Stroke image to a file
+	    // Default is PNG so use ".png" as suffix
+	    $fileName = "maindashboardline.png";
+	    $graph->img->Stream($fileName); 	     	    
+		    		
+  	}
+ 
+	public function currencyConversionVal(){
+		$this->loadModel('Currency');
+ 		$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+		$allCurrencies = $this->Currency->find('all');
+		foreach($allCurrencies as $currenciesKey=>$currenciesVal){
+			if($accountingCurrency['Currency']['id'] != $currenciesVal['Currency']['id']){
+				$from = $currenciesVal['Currency']['name'];
+				$to=$accountingCurrency['Currency']['name'];
+				$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+				$handle = @fopen($url, 'r');
+				if ($handle) 
+					{
+				   		$result = fgets($handle, 4096);
+				   		fclose($handle);
+					}
+				$allData = explode(',',$result);  //Get all the contents to an array 
+				$convertedAmount[$currenciesVal['Currency']['id']] = $allData['1'];
+			}else{
+				$convertedAmount[$accountingCurrency['Currency']['id']] = 1;
+			}
+		}
+ 	
+ 	return $convertedAmount;
+		
+	}
+}
+?>

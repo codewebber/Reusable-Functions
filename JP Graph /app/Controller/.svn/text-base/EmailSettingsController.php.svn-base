@@ -1,0 +1,96 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * EmailSettings Controller
+ *
+ * @property EmailSetting $EmailSetting
+ */
+class EmailSettingsController extends AppController {
+
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->EmailSetting->recursive = 0;
+		$this->set('emailSettings', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->EmailSetting->id = $id;
+		if (!$this->EmailSetting->exists()) {
+			throw new NotFoundException(__('Invalid email setting'));
+		}
+		$this->set('emailSetting', $this->EmailSetting->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->EmailSetting->create();
+			if ($this->EmailSetting->save($this->request->data)) {
+				$this->Session->setFlash(__('The email setting has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The email setting could not be saved. Please, try again.'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->EmailSetting->id = $id;
+		if (!$this->EmailSetting->exists()) {
+			throw new NotFoundException(__('Invalid email setting'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->EmailSetting->save($this->request->data)) {
+				$this->Session->setFlash(__('The email setting has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The email setting could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->EmailSetting->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->EmailSetting->id = $id;
+		if (!$this->EmailSetting->exists()) {
+			throw new NotFoundException(__('Invalid email setting'));
+		}
+		if ($this->EmailSetting->delete()) {
+			$this->Session->setFlash(__('Email setting deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Email setting was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

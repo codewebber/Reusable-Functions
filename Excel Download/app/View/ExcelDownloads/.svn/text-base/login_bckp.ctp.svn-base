@@ -1,0 +1,136 @@
+<div class="main-wrapper">
+			<div class="main-wrapper-center" id="loginMain">
+						<div class="login-right-box" >
+						      <div class="logologinRes" >
+												<?php echo $this->Html->image('logo_career.png', array('alt' => 'Carmatec')); ?>
+									</div>
+									<div class="login-content">
+												<div class="login-content-head">
+															<h2><font color='#999999'>Welcome to</font></h2>
+															<h1>HRManager Login Page</h1>
+															<p>Human resource management is the management of an organization's workforce, or human resources. It is responsible for the attraction, selection, training, assessment, and rewarding of employees, while also overseeing organizational leadership and culture and ensuring compliance with employment and labor laws. </p>
+												</div>
+											<!--	<div class="feed-main" >
+															<div class="facebook" >
+																		<div class="tophead" >
+																					<h3>Facebook Feeds</h3>
+																					<a href="#" class="viewAll" >View All</a>
+																		</div>
+																		<ul class="facebook_feed" >
+																					<li>Lorem ipsum dolor sit amet</li>
+																					<li>Consectetur adipiscing elit.</li>
+																					<li>Pharetra eget diam.</li>
+																					<li>Mauris scelerisque.</li>
+																		</ul>
+															</div>
+															<div class="latestNews" >
+																		<div class="tophead" >
+																					<h3>Latest News</h3>
+																					<a href="#" class="viewAll" >View All</a>
+																		</div>
+																		<ul class="facebook_feed" >
+																					<li>Lorem ipsum dolor sit amet</li>
+																					<li>Consectetur adipiscing elit.</li>
+																					<li>Pharetra eget diam.</li>
+																					<li>Mauris scelerisque.</li>
+																		</ul>
+															</div>
+												</div> -->
+									</div>
+						</div>
+						<!--login-left-boxEndss-->
+						
+						<div class="login-left-box" >
+									<div class="logologin" >
+												<?php echo $this->Html->image('logo_career.png', array('alt' => 'Carmatec', 'style'=>'margin-bottom:30px;margin-top:-40px') ); ?>
+									</div>
+									<div class="login-body" >
+											<?php echo $this->Form->create('User',array('id'=>'loginform','url'=>array('controller'=>'users','action'=>'login',0,$jd_id))); ?>
+												<!--<form  name="User" id="loginform" method="post" >-->
+															<h3 class="heading-imported" >Login</h3>
+															<div class="login-row" style="height:0px;">
+																		<?php 
+																		      echo $this->Form->input('User.username',array('id'=>"username",'class'=>"login-input",'label'=>false)); 
+																		 ?>
+																		<div class="error_conatiner2" >
+																		</div>
+															</div>
+															<div class="login-row" >
+																		<?php 
+																		      echo $this->Form->input('User.password',array('id'=>"password",'class'=>"login-input",'label'=>false)); 
+																		?>
+																		<?php if($error_msg){  ?>
+																			<div class="error_conatiner2" >
+																					Invalid Username or Password
+																			</div>
+																		 <?php }?>
+															</div>
+															
+																
+													      
+															<div class="login-row" >
+																		<input type="submit" class="greenButton" style="margin-top:-28px;float:left;margin-left:8px;" value="Login"  />
+																		<input type="checkbox" style="margin-top:-22px;margin-left:98px;" >
+																		<span class="cantacess" style="float:right;margin-top:-21px;font-size:15px;margin-right:12px;" >Keep me logged in</span>
+																		
+															</div>
+															<div class="login-row" >
+																		<!--<a href="forgotpass.html" class="cantacess">Sign up</a> -->
+																		<?php echo $this->Html->link('Forgot Password?',array('controller'=>'users','action' =>'forgotpassword'),array('class'=>'cantacess','style'=>'margin-top:-26px;margin-left:6px;font-size:15px;'));?>
+															</div>
+															<div class="login-row" >
+																		<!--<a href="forgotpass.html" class="cantacess">Sign up</a> -->
+																		<?php echo $this->Html->link('SIGN UP',array('controller'=>'users','action' =>'add'),array('class'=>'cantacess','style'=>'margin-top:-66px;margin-right:10px;float:right;' ));?>
+																		
+															</div>
+															<div class="login-row" >
+																		<!--<a href="forgotpass.html" class="cantacess">Sign up</a> -->
+																		<?php echo $this->Html->link('Candidate SIGN UP',array('controller'=>'candidates','action' =>'apply'),array('class'=>'cantacess','style'=>'margin-top:-66px;margin-right:10px;float:right;' ));?>
+																		
+															</div>
+															
+												</form>
+									</div>
+						</div>
+						<!--login-left-boxEndss-->
+						<div class="clear" >
+						</div>
+			</div>
+			
+</div>
+
+<script type="text/ecmascript">
+	
+$(document).ready(function() {
+	
+	$("#loginform").validate({
+		
+	errorPlacement: function(error, element) {
+    element.parent().find(".error_conatiner2").html(error);
+      },
+	   
+	rules: {
+        username:
+		   {
+			   required:true
+				
+        },
+        password: {
+          required:true,
+					equalTo:"#username"
+        }
+      },
+      messages: {
+        username: {
+          required: "Please enter your User Name",
+				
+        },
+        password: {
+          required: "Please enter your password",
+					equalTo:"user name wrong"
+        }
+		
+		}
+    });
+ });
+</script>

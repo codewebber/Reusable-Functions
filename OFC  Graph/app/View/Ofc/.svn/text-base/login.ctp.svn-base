@@ -1,0 +1,65 @@
+<?php echo $this->Html->css('view');?>
+<?php echo $this->Html->css('resetNLayout');?>
+<?php echo $this->Html->script('jquery-1.6.2.min'); ?>
+<!--[if IE]>
+		<?php
+		echo $this->Html->css('ie.css');
+		?>
+		<![endif]-->
+       
+      	<!--[if IE 7]>
+		<?php
+		echo $this->Html->css('ie7.css');
+		?>
+		<![endif]-->
+
+		<!--[if IE 8]>
+		<?php
+		echo $this->Html->css('ie8.css');
+		?>
+<![endif]-->	
+ <?php	//if($displaysessionmessage){ ?>	
+<script type="text/javascript">
+	$(document).ready(function(){
+		//if($('.login_fields_ErrMsg').children().size()!='0')
+		if($('#authMessage').size() > 0)
+			{
+				$('.login_fields_ErrMsg').slideDown();
+			}		
+	})
+</script>
+<?php //} ?>
+<body class="login_body" >
+      <div class="login_row_logo" >
+	      <div class="login_logo_main" >
+		    <?php echo $this->Html->image('logo_loginscreen.png');?><!--<img src="img/logo_loginscreen.png" />-->
+		</div>
+	</div>
+	
+	<div class="login_fields_main_wrappre" >
+	    <div class="login_fields" >
+		   <div class="login_fields_inner" >
+		   <?php echo $this->Form->create('User', array('action' => 'login'));?>
+			  <?php echo $this->Form->input('username',array('value' => 'username','class'=>'common_login_filed','label'=>false,'onblur' => "if(this.value==''){this.value='username';}",'onfocus' => "if(this.value=='username'){ this.value='';}"));?><!--<input type="text" name="Username"  class="common_login_filed" onblur="if (this.value == '') this.value = 'Username';" onfocus="if (this.value == 'Username') this.value = '';" value="Username" />-->
+				<?php echo $this->Form->input('password',array('type'=>'password','value' => 'username','class'=>'common_login_filed','label'=>false,'onblur' => "if(this.value==''){this.value='username';}",'onfocus' => "if(this.value=='username'){ this.value='';}"));?>
+				   <?php echo $this->Form->submit('LOGIN',array('div'=>false,'class'=>'common_login_button'));?><!--<input type="submit"  value="LOGIN" class="common_login_button"/>-->
+			   </div>
+			   <?php //if($displaysessionmessage){ ?>	
+			 <div class="login_fields_ErrMsg">
+				<?php
+						echo $this->Session->flash();
+						echo $this->Session->flash('auth');
+				?>
+				</div>
+				<?php //} ?>
+			<div class="forgot_pass" >
+			      
+				 <span class="rememberme" ><?php echo $this->Form->input('Rememberme',array('div'=>false,'label'=>false,'type' => 'checkbox'));?> <label>Remember me </label></span>
+				 <?php echo $this->Html->link(__('Forgot your password'),array('controller'=>'users','action'=>'forgotpassword'),array('class'=>'forgot_pass_link'));?><!--<a href="#" class="forgot_pass_link" >Forgot password</a>-->
+			   </div>
+			   
+		    </div>
+		    
+	</div>
+	<div class="copy_right_login" >Copyright &copy; Carmatec 2013-14<?php /*echo date('Y').'-';echo date('y')+1;*/?></div>
+</body>

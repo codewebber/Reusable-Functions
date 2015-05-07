@@ -1,0 +1,102 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * AccountsBillalerts Controller
+ *
+ * @property AccountsBillalert $AccountsBillalert
+ */
+class AccountsBillalertsController extends AppController {
+
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->AccountsBillalert->recursive = 0;
+		$this->set('accountsBillalerts', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsBillalert->id = $id;
+		if (!$this->AccountsBillalert->exists()) {
+			throw new NotFoundException(__('Invalid accounts billalert'));
+		}
+		$this->set('accountsBillalert', $this->AccountsBillalert->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->AccountsBillalert->create();
+			if ($this->AccountsBillalert->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts billalert has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts billalert could not be saved. Please, try again.'));
+			}
+		}
+		$accountsRegularvendors = $this->AccountsBillalert->AccountsRegularvendor->find('list');
+		$accountsAccounts = $this->AccountsBillalert->AccountsAccount->find('list');
+		$this->set(compact('accountsRegularvendors', 'accountsAccounts'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->AccountsBillalert->id = $id;
+		if (!$this->AccountsBillalert->exists()) {
+			throw new NotFoundException(__('Invalid accounts billalert'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsBillalert->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts billalert has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts billalert could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->AccountsBillalert->read(null, $id);
+		}
+		$accountsRegularvendors = $this->AccountsBillalert->AccountsRegularvendor->find('list');
+		$accountsAccounts = $this->AccountsBillalert->AccountsAccount->find('list');
+		$this->set(compact('accountsRegularvendors', 'accountsAccounts'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsBillalert->id = $id;
+		if (!$this->AccountsBillalert->exists()) {
+			throw new NotFoundException(__('Invalid accounts billalert'));
+		}
+		if ($this->AccountsBillalert->delete()) {
+			$this->Session->setFlash(__('Accounts billalert deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Accounts billalert was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

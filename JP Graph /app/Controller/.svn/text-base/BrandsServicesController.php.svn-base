@@ -1,0 +1,1601 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * BrandsServices Controller
+ *
+ * @property BrandsService $BrandsService
+ */
+class BrandsServicesController extends AppController {
+	function beforeFilter() {
+		$this->params['donotredirect'] = -1;
+		parent :: beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		//Currency Setting For Services Module To default_billing_currency
+		$this->loadModel('Currency');
+		$currency=$this->Currency->find('first',array('conditions'=>array('Currency.default_billing_currency'=>'Y')));
+		$symbol=$currency['Currency']['symbol'];
+		$currency_name = $currency['Currency']['name'];
+		if($currency_name == 'USD') {
+			$cn = 'en_US';
+		}
+		elseif($currency_name == 'INR') {
+			$cn = 'en_IN';
+		}
+		elseif($currency_name == 'EUR') {
+			$cn = 'en_EUR';
+		}
+		setlocale(LC_MONETARY, $cn);
+		$this->params['currency']=$symbol;
+		//Currency Settings Ends Here
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Services';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+
+	}
+	
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index($flash = null,$search_field = NULL,$search_data=NULL) 
+	
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		debug($this->params);
+		$expcount = $this->datecal('2012-Jan-01','2012-Jan-01');
+		debug($expcount);
+		$this->BrandsService->recursive = 0;
+		$this->loadModel('BrandsServiceunit');
+		$this->BrandsServiceunit->recursive = 0;
+		if($this->data['Services']['from'])
+		{
+			$this->paginate = array('conditions'=>array('AND'=>array('BrandsService.created_on between ? and ? '=> array($this->data['Services']['from'],$this->data['Services']['to']))) , 'order' => array('BrandsService.service_name' => 'ASC'));
+			$final = $this->paginate();
+			$this->set('brandsServices', $this->paginate());
+			foreach($final as $k=> $v)
+				{
+					
+					debug($v['BrandsService']['id']);
+					$units = $this->BrandsServiceunit->find('count',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$v['BrandsService']['id'])));
+					debug($units);
+					$unit_count[$v['BrandsService']['id']] = $units;
+					$units2 = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$v['BrandsService']['id'])));
+					debug($units2);
+					foreach($units2 as $units12)
+					{
+						$toggle_units[$units12['BrandsServiceunit']['brands_service_id']][$units12['BillingUnit']['id']]['name'] =  $units12['BillingUnit']['name'];
+						$toggle_units[$units12['BrandsServiceunit']['brands_service_id']][$units12['BillingUnit']['id']]['quantity'] =  $units12['BrandsServiceunit']['quantity'];
+				
+					}
+				}
+				debug($toggle_units);
+		}
+		
+		elseif(($this->data['Search']['service_name']) && ($this->data['Search']['service_name'] != "-Service Name-"))
+		{
+			
+			$this->paginate = array('conditions'=>array('AND'=>array('BrandsService.service_name LIKE '=> '%'.$this->data['Search']['service_name'].'%')) , 'order' => array('BrandsService.service_name' => 'ASC'));
+			$final = $this->paginate();
+			debug($final);
+			$this->set('brandsServices', $this->paginate());
+			foreach($final as $k=> $v)
+				{
+					
+					debug($v['BrandsService']['id']);
+					$units = $this->BrandsServiceunit->find('count',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$v['BrandsService']['id'])));
+					debug($units);
+					$unit_count[$v['BrandsService']['id']] = $units;
+					$units2 = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$v['BrandsService']['id'])));
+					debug($units2);
+					foreach($units2 as $units12)
+					{
+						$toggle_units[$units12['BrandsServiceunit']['brands_service_id']][$units12['BillingUnit']['id']]['name'] =  $units12['BillingUnit']['name'];
+						$toggle_units[$units12['BrandsServiceunit']['brands_service_id']][$units12['BillingUnit']['id']]['quantity'] =  $units12['BrandsServiceunit']['quantity'];
+				
+					}
+				}
+				debug($toggle_units);
+		}
+		//Code for Global search 
+		elseif (!empty($search_field)) {
+			if ($search_field == 'service') {
+				$this->paginate = array('conditions'=>array('BrandsService.service_name LIKE '=> $search_data.'%') , 'order' => array('BrandsService.service_name' => 'ASC'));
+			}
+			if ($search_field == 'brand') {
+				$this->loadModel('Brand');
+				$brand_id = $this->Brand->find('first',array('conditions'=>array('Brand.brandname'=>$search_data.'%'),'fields'=>array('Brand.id')));
+				$this->paginate = array('conditions'=>array('BrandsService.brand_id'=> $brand_id['Brand']['id']) , 'order' => array('BrandsService.service_name' => 'ASC'));
+			}
+			if ($search_field == 'company') {
+				$this->loadModel('Company');
+				$company_id = $this->Company->find('first',array('conditions'=>array('Company.companyname LIKE'=>$search_data.'%'),'fields'=>array('Company.id')));
+				debug($company_id);
+				$this->paginate = array('conditions'=>array('BrandsService.company_id'=> $company_id['Company']['id']) , 'order' => array('BrandsService.service_name' => 'ASC'));
+			}
+			
+			foreach ($this->paginate() as $key => $value) {
+				$units = $this->BrandsServiceunit->find('count',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$value['BrandsService']['id'])));
+				$unit_count[$value['BrandsService']['id']] = $units;
+				$units2 = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$value['BrandsService']['id'])));
+			}
+			foreach ($units2 as $units12) {
+						$toggle_units[$units12['BrandsServiceunit']['brands_service_id']][$units12['BillingUnit']['id']]['name'] =  $units12['BillingUnit']['name'];
+						$toggle_units[$units12['BrandsServiceunit']['brands_service_id']][$units12['BillingUnit']['id']]['quantity'] =  $units12['BrandsServiceunit']['quantity'];
+				
+					}
+			debug($final);
+			
+			$this->set('brandsServices', $this->paginate());
+		}
+		//Code Ends
+		
+		else
+		{
+			if(!$final = Cache::read('final'))
+			{	
+				Cache::write('final', $final, 86400);
+				$this->paginate = array('order' => array('BrandsService.service_name' => 'ASC') );
+				$final = $this->paginate();
+				debug($final);
+				foreach($final as $k=> $v)
+				{
+					
+					debug($v['BrandsService']['id']);
+					$units = $this->BrandsServiceunit->find('count',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$v['BrandsService']['id'])));
+					debug($units);
+					$unit_count[$v['BrandsService']['id']] = $units;
+					$units2 = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$v['BrandsService']['id'])));
+					debug($unit_count);
+					foreach($units2 as $units12)
+					{
+						$toggle_units[$units12['BrandsServiceunit']['brands_service_id']][$units12['BillingUnit']['id']]['name'] =  $units12['BillingUnit']['name'];
+						$toggle_units[$units12['BrandsServiceunit']['brands_service_id']][$units12['BillingUnit']['id']]['quantity'] =  $units12['BrandsServiceunit']['quantity'];
+				
+					}
+				}
+				debug($toggle_units);
+				$this->set('brandsServices', $this->paginate());
+			}
+		}
+		$count_of_final = count($final);
+		debug(count($final));
+		$var = $count_of_final/2;
+		if(count($final) < 20) $no_pagination = 1;
+		else $no_pagination = 0;
+		$this->set(compact('no_pagination'));
+		$this->set(compact('flash','unit_count','toggle_units','var'));
+	}
+
+
+function datecal($date1=null,$date2=null) {
+		//to calculate difference between two dates
+		$diff = abs(strtotime($date2) - strtotime($date1));
+		$years = floor($diff / (365*60*60*24));
+		$months = floor(($diff - $years * 365*60*60*24) / (30*60*60*24));
+		$days = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24)/ (60*60*24));
+		$exp = /*$years."/".*/$months+1/*."/".$days*/;
+		return($exp);
+	}
+	
+
+
+
+
+
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) 
+	{
+	//	Configure::write('debug',2);
+		$this->BrandsService->recursive = 0;
+		$this->BrandsService->id = $id;
+		$this->BillingUnit->recursive = -1;
+		$this->BrandsServiceunit->recursive = -1;
+		$this->loadModel('BillingUnit');
+		$this->loadModel('BrandsServiceunit');
+		$this->loadModel('Brand');
+		if (!$this->BrandsService->exists()) 
+		{
+			throw new NotFoundException(__('Invalid brands service'));
+		}
+		$this->set('brandsService', $this->BrandsService->read(null, $id));
+		$this->set(compact('id'));
+		$unit_details = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$id)));
+		debug($unit_details);
+		foreach($unit_details as $kunit => $vunit)
+		{
+			$billing_details = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$vunit['BrandsServiceunit']['billing_unit_id'])));
+			debug($billing_details);
+			foreach($billing_details as $billing_details1)
+			{
+				debug($billing_details1);
+				debug($vunit['BrandsServiceunit']['brands_service_id']);
+				$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['name'] = $billing_details1['name'];
+				$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['rate'] = $vunit['BrandsServiceunit']['rate'];
+				$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['quantity'] = $vunit['BrandsServiceunit']['quantity'];
+				
+			}
+		}
+		
+		debug($final_details);
+		$service_details = $this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$id)));
+		$brands = $this->Brand->find('first',array('conditions'=>array('Brand.id'=>$service_details['BrandsService']['brand_id'])));
+		$icon_imagepath_url = $brands['Brand']['icon_imagepath_url'];
+		$icon_imagepath = $brands['Brand']['icon_imagepath'];
+		$this->set(compact('final_details','icon_imagepath_url','icon_imagepath'));
+		
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+ 
+ 	public function add($flash = null) 
+	{
+		//Configure::write('debug',2);
+	
+		debug($this->data);
+		$this->loadModel('StaffLevel');
+		$this->loadModel('BillingSlot');
+		$this->loadModel('BillingUnit');
+		$this->loadModel('Company');
+		$this->loadModel('Brand');
+		$this->loadModel('BrandsServiceunit');
+		if($this->data)
+		{
+			
+			if($this->data[0]['BrandsService'])
+			{
+				$done1 = 1;
+			}
+			
+			else
+			{
+				$done1 = 0;
+			}
+			$test1 = 0;
+			foreach($this->data[$test1]['BrandsService']['quantity'] as $testq1 => $testq2)
+			{
+				debug();
+				if($testq2)
+				{
+					debug('yes');
+					$done2 = 1;
+				}
+					
+				elseif( (!is_numeric($testq2) || $testq2 <= 0) )
+				{
+					$done2 = 0;
+					debug('No');
+				}
+				$test1++;
+			}
+			$test2 = 0;
+			foreach($this->data[$test2]['BrandsService']['rate'] as $testr1 => $testr2)
+			{
+				if($testr2)
+				{
+					debug('yes');
+					$done3 = 1;
+				}
+					
+				elseif( (!is_numeric($testr2) || $testr2 <= 0) )
+				{
+					$done3 = 0;
+					debug('No');
+				}
+				$test2++;
+			}
+			
+			debug($done1);
+			debug($done2);
+			debug($done3);
+		
+			if(  ( $this->data['BrandsService']['service_name'] && $this->data['BrandsService']['company_id']) && ( ($done1 && $done2) && ($done3)  )   )
+			{
+				if ($this->request->is('post')) 
+				{
+					//save
+					foreach($this->data as $key => $value)
+					{
+						debug($value);
+						debug($value['BrandsService']['quantity']);
+						foreach($value['BrandsService']['quantity'] as $q1 => $q2)
+						{
+							foreach($value['BrandsService']['rate'] as $r1 => $r2)
+							{
+								debug($q2);
+								debug($r2);
+								
+								$total += $q2 * $r2;
+								debug($total);
+								$this->BrandsService->create();
+								$save->data = null;
+								$save->data['BrandsService']['service_name'] = $this->data['BrandsService']['service_name'];
+								$save->data['BrandsService']['description'] = $this->data['BrandsService']['description'];
+								$save->data['BrandsService']['company_id'] = $this->data['BrandsService']['company_id'];
+								$save->data['BrandsService']['brand_id'] = $this->data['BrandsService']['brand_id'];
+								$save->data['BrandsService']['created_on'] = date('Y-m-d',strtotime($this->data['BrandsService']['date']));
+								$save->data['BrandsService']['totalcost'] = $total;
+								$save->data['BrandsService']['active'] = 'Y';
+							}
+						}
+						
+					
+						
+					}
+				
+					debug($save->data);
+					$this->BrandsService->save($save->data);
+					foreach($this->data as $key => $value)
+					{
+						
+						foreach($value['BrandsService']['quantity'] as $q1 => $q2)
+						{
+							foreach($value['BrandsService']['rate'] as $r1 => $r2)
+							{
+								$insertId = $this->BrandsService->getLastInsertId();
+								$this->BrandsServiceunit->create();
+							
+								$units->data = null;
+								$units->data['BrandsServiceunit']['brands_service_id'] = $insertId;
+								$units->data['BrandsServiceunit']['billing_unit_id'] = $q1;
+								$units->data['BrandsServiceunit']['quantity'] = $q2;
+								$units->data['BrandsServiceunit']['rate'] = $r2;
+								$units->data['BrandsServiceunit']['total'] = $q2 * $r2;
+								
+								$this->BrandsServiceunit->save($units->data);
+							}
+						}
+					}
+					
+					debug($units->data);
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">Service has been created</div>'));
+					$yes = 1;
+					$this->redirect(array('action' => 'index'));
+					
+				}
+			}
+			
+			else
+			{
+				//list +error
+				
+				if(!$this->data['BrandsService']['service_name'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the service name</div>'));
+				}
+				elseif(!$this->data['BrandsService']['company_id'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any one company</div>'));
+				}
+				elseif(!$done1)
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any resource</div>'));
+				}
+				elseif(!$done2)
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter a valid quantity</div>'));
+				}
+				elseif(!$done3)
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter a valid rate</div>'));
+				}
+				
+				$stafflevels =  $this->StaffLevel->find('list', array('fields' => array('StaffLevel.id','StaffLevel.staff_level'),'conditions'=>array('StaffLevel.active'=>'Y')));
+				$billingslots =  $this->BillingSlot->find('list', array('fields' => array('BillingSlot.id','BillingSlot.slot_name')));
+				$this->set(compact('stafflevels','billingslots'));
+				$this->BillingUnit->recursive = -1;
+				$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+				$this->set(compact('companies'));
+				$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'),'order'=>'BillingUnit.name ASC' ));
+				debug($bill_units);
+				$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+				$this->set(compact('brands','bill_units'));
+			}
+			
+		}
+		
+		else
+		{
+			//list
+			$stafflevels =  $this->StaffLevel->find('list', array('fields' => array('StaffLevel.id','StaffLevel.staff_level'),'conditions'=>array('StaffLevel.active'=>'Y')));
+			$billingslots =  $this->BillingSlot->find('list', array('fields' => array('BillingSlot.id','BillingSlot.slot_name')));
+			$this->set(compact('stafflevels','billingslots'));
+			$this->BillingUnit->recursive = -1;
+			$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+			$this->set(compact('companies'));
+			$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'),'order'=>'BillingUnit.name ASC' ));
+			debug($bill_units);
+			$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+			$this->set(compact('brands','bill_units'));
+		}
+	}
+ 	
+	public function addold($flash = null) 
+	{
+		//Configure::write('debug',2);
+	
+		debug($this->data);
+		
+		if($this->data[0]['BrandsService'])
+		{
+			$done1 = 1;
+		}
+		
+		else
+		{
+			$done1 = 0;
+		}
+		$test1 = 0;
+		foreach($this->data[$test1]['BrandsService']['quantity'] as $testq1 => $testq2)
+		{
+			debug();
+			if($testq2)
+			{
+				debug('yes');
+				$done2 = 1;
+			}
+				
+			else
+			{
+				$done2 = 0;
+				debug('No');
+			}
+			$test1++;
+		}
+		$test2 = 0;
+		foreach($this->data[$test2]['BrandsService']['rate'] as $testr1 => $testr2)
+		{
+			if($testr2)
+			{
+				debug('yes');
+				$done3 = 1;
+			}
+				
+			else
+			{
+				$done3 = 0;
+				debug('No');
+			}
+			$test2++;
+		}
+		
+		debug($done1);
+		debug($done2);
+		debug($done3);
+		
+		
+		
+		$this->loadModel('StaffLevel');
+		$this->loadModel('BillingSlot');
+		//$currencies = $this->BillingUnit->Currency->find('list');
+		$stafflevels =  $this->StaffLevel->find('list', array('fields' => array('StaffLevel.id','StaffLevel.staff_level'),'conditions'=>array('StaffLevel.active'=>'Y')));
+		$billingslots =  $this->BillingSlot->find('list', array('fields' => array('BillingSlot.id','BillingSlot.slot_name')));
+		
+		$this->set(compact('stafflevels','billingslots'));
+		$this->BillingUnit->recursive = -1;
+		$this->loadModel('BillingUnit');
+		$this->loadModel('Company');
+		$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+		$this->set(compact('companies'));
+		$this->loadModel('Brand');
+		$this->loadModel('BrandsServiceunit');
+		$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'),'order'=>'BillingUnit.name ASC' ));
+		debug($bill_units);
+		$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+		$this->set(compact('brands','bill_units'));
+		
+		$createdt = $this->data['BrandsService']['date'];
+		$date1=explode(' ',$createdt);
+		debug($date1);
+		if($date1[1] == "Jan") $month = "01";
+		if($date1[1] == "Feb") $month = "02";
+		if($date1[1] == "Mar") $month = "03";
+		if($date1[1] == "Apr") $month = "04";
+		if($date1[1] == "May") $month = "05";
+		if($date1[1] == "Jun") $month = "06";
+		if($date1[1] == "Jul") $month = "07";
+		if($date1[1] == "Aug") $month = "08";
+		if($date1[1] == "Sep") $month = "09";
+		if($date1[1] == "Oct") $month = "10";
+		if($date1[1] == "Nov") $month = "11";
+		if($date1[1] == "Dec") $month = "12";
+		$created = $date1[2].'-'.$month.'-'.$date1[0];
+		debug($created);
+		
+		if ($this->request->is('post')) 
+		{
+			if(!empty($this->data))
+			{
+				
+				if (1) 
+				{
+					
+					foreach($this->data as $key => $value)
+					{
+						debug($value);
+						debug($value['BrandsService']['quantity']);
+						foreach($value['BrandsService']['quantity'] as $q1 => $q2)
+						{
+							foreach($value['BrandsService']['rate'] as $r1 => $r2)
+							{
+								debug($q2);
+								debug($r2);
+								
+								$total += $q2 * $r2;
+								debug($total);
+								$this->BrandsService->create();
+								$save->data = null;
+								$save->data['BrandsService']['service_name'] = $this->data['BrandsService']['service_name'];
+								$save->data['BrandsService']['description'] = $this->data['BrandsService']['description'];
+								$save->data['BrandsService']['company_id'] = $this->data['BrandsService']['company_id'];
+								$save->data['BrandsService']['brand_id'] = $this->data['BrandsService']['brand_id'];
+								$save->data['BrandsService']['created_on'] = $created;
+								$save->data['BrandsService']['totalcost'] = $total;
+								$save->data['BrandsService']['active'] = 'Y';
+							}
+						}
+						
+					
+						
+					}
+				
+					debug($save->data);
+				//	$this->BrandsService->save($save->data);
+					foreach($this->data as $key => $value)
+					{
+						
+						foreach($value['BrandsService']['quantity'] as $q1 => $q2)
+						{
+							foreach($value['BrandsService']['rate'] as $r1 => $r2)
+							{
+								$insertId = $this->BrandsService->getLastInsertId();
+								$this->BrandsServiceunit->create();
+							
+								$units->data = null;
+								$units->data['BrandsServiceunit']['brands_service_id'] = $insertId;
+								$units->data['BrandsServiceunit']['billing_unit_id'] = $q1;
+								$units->data['BrandsServiceunit']['quantity'] = $q2;
+								$units->data['BrandsServiceunit']['rate'] = $r2;
+								$units->data['BrandsServiceunit']['total'] = $q2 * $r2;
+								
+					//			$this->BrandsServiceunit->save($units->data);
+							}
+						}
+					}
+					
+					debug($units->data);
+					$this->Session->setFlash(__('Service has been created  '));
+					$yes = 1;
+			//		$this->redirect(array('action' => 'index',1));
+					
+					
+				} 
+			}
+			else 
+			{
+				//$this->Session->setFlash(__('The brands service could not be saved. Please, try again.'));
+			}
+			
+		}
+		$this->set(compact('flash'));
+		
+	}
+
+	function service_namecheck()
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		$details = null;
+		$details = $this->BrandsService->find('all',array('conditions'=>array('AND'=>array('BrandsService.active'=>'Y','BrandsService.service_name LIKE'=>$this->data['BrandsService']['service_name']))));
+		debug($details);
+		if(strlen($this->data['BrandsService']['service_name']) > 30)
+		{
+			$validate = 1;
+		}
+		
+		if($details)
+		{
+			$validate = 2;
+		}
+		
+		
+		
+		$this->set(compact('validatecount','validate'));
+	}
+	
+	function service_namecheckedit($def_servicename = null)
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		$details = null;
+		$details = $this->BrandsService->find('all',array('conditions'=>array('AND'=>array('BrandsService.active'=>'Y','BrandsService.service_name LIKE'=>$this->data['BrandsService']['service_name']))));
+		debug($details);
+		if(strlen($this->data['BrandsService']['service_name']) > 30)
+		{
+			$validate = 1;
+		}
+		
+		/*if($details)
+		{
+			$validate = 2;
+		}
+		*/
+		
+		
+		$this->set(compact('validatecount','validate','def_servicename'));
+	}
+	
+	function unitnamecheck()
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		if(strlen($this->data['BillingUnit']['unitname']) > 30)
+		{
+			$validatecount = 1;
+		}
+		
+		$this->set(compact('validatecount'));
+	}
+	
+	function ratecheck()
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		if(!is_numeric($this->data['BillingUnit']['rate']) || $this->data['BillingUnit']['rate']<=0 )
+		{
+			$validatecount = 1;
+		}
+		
+		$this->set(compact('validatecount'));
+	}
+	function brands()
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('Brand');
+		$brand_ajax =	$this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname'),'conditions' => array('Brand.company_id'=>$this->data['BrandsService']['company_id']) ));
+		debug($brand_ajax);
+		$this->set(compact('brand_ajax'));
+		
+	}
+	
+	function brandsedit()
+	{
+	//	Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('Brand');
+		$this->Brand->recursive = -1;
+		$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname'),'conditions' => array('Brand.company_id'=>$this->data['BrandsService']['company_id']) ));
+		debug($brands);
+		$this->set(compact('brands'));
+		
+	}
+	
+	function units()
+	{
+	//	Configure::write('debug',2);
+		$this->BillingUnit->recursive = -1;
+		debug($this->data);
+		$brandid = $this->data['BrandsService']['brand_id'];
+		$this->loadModel('BillingUnit');
+		$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'),'conditions' => array('BillingUnit.brand_id'=>$this->data['BrandsService']['brand_id']) ));
+		debug($bill_units);
+		
+		
+		$this->set(compact('bill_units','amount_for_tech','brandid'));
+	}
+	function units_edit()
+	{
+		//Configure::write('debug',2);
+		$this->BillingUnit->recursive = -1;
+		debug($this->data);
+		$brandid = $this->data['BrandsService']['brand_id'];
+		$this->loadModel('BillingUnit');
+		$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'),'conditions' => array('BillingUnit.brand_id'=>$this->data['BrandsService']['brand_id']) ));
+		debug($bill_units);
+		
+		
+		$this->set(compact('bill_units','amount_for_tech','brandid'));
+	}
+	
+
+	function rate2($rate = null,$resource_id = null,$deltax=null)
+	{
+		/*Configure::write('debug',2);
+		debug($this->data);
+		debug($deltax);*/
+		if(!$deltax)
+			{
+				$quantity=$this->data['0']['BrandsService']['quantity'];
+		
+				foreach($this->data as $key => $value)
+					{
+						
+								foreach($value['BrandsService']['quantity'] as $q1 => $q2)
+									{
+				
+										if($q1 == $resource_id)
+											{
+												$quan_check = $q2;
+											}
+				
+										foreach($value['BrandsService']['rate'] as $r1 => $r2)
+											{
+					
+												$amount += $q2 * $r2;
+												if($r1 == $resource_id)
+													{
+														$rate_check = $r2;
+													}
+											}
+									}
+							
+				
+					}
+		
+			
+			
+				if( (!is_numeric($rate_check) || $rate_check <= 0) )
+					{
+						$validaterate = 1;
+					}
+		
+		
+				$quan_checkexp = explode('.',$quan_check);
+		
+				if( (!is_numeric($quan_check) || $quan_check <= 0) ||  $quan_checkexp[1])
+					{
+						$validate = 1;
+					}
+			
+				
+			}
+		else
+			{
+				$quantity=$this->data['0']['BrandsService']['quantity'];
+				if($deltax=='zero')
+					{
+						$deltax=0;
+					}
+				foreach($this->data as $key => $value)
+					{
+						
+						if(($deltax!=$key) )
+							{
+								foreach($value['BrandsService']['quantity'] as $q1 => $q2)
+									{
+				
+										if($q1 == $resource_id)
+											{
+												$quan_check = $q2;
+											}
+				
+										foreach($value['BrandsService']['rate'] as $r1 => $r2)
+											{
+					
+												$amount += $q2 * $r2;
+												if($r1 == $resource_id)
+													{
+														$rate_check = $r2;
+													}
+											}
+									}
+							}
+				
+					}
+				
+			}
+		
+	//	$total=0;
+		
+		
+		debug($amount);
+		debug($validate);
+		debug($validaterate);
+		$this->set(compact('amount','validate','validaterate'));
+		
+		
+	}
+	
+	function cross_check()
+	{
+		
+	}
+	
+	function addmore($flag = null)
+	{
+		//Configure::write('debug',2);
+		$this->loadModel('BillingUnit');
+		$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'), 'order'=>'BillingUnit.name ASC'));
+		debug($bill_units);
+		$this->BillingUnit->recursive = -1;
+		debug($flag);
+		/*$this->loadModel('BillingUnit');
+		$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'),'conditions' => array('BillingUnit.brand_id'=>$brandid) ));
+		debug($bill_units);
+		$addmore = 1;
+		$this->set(compact('bill_units','addmore'));*/
+		$this->set(compact('flag','bill_units'));
+	
+	}
+	
+	function addmore2($flag = null)
+	{
+		//Configure::write('debug',2);
+		$this->loadModel('BillingUnit');
+		$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'), 'order'=>'BillingUnit.name ASC' ));
+		debug($bill_units);
+		$this->BillingUnit->recursive = -1;
+		debug($flag);
+		/*$this->loadModel('BillingUnit');
+		$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'),'conditions' => array('BillingUnit.brand_id'=>$brandid) ));
+		debug($bill_units);
+		$addmore = 1;
+		$this->set(compact('bill_units','addmore'));*/
+		$this->set(compact('flag','bill_units'));
+	
+	}
+	
+	
+	function rate()
+	{
+		/*Configure::write('debug',2);
+		debug($this->data);*/
+		
+		$resource_id = $this->data['BrandsService']['techs'];
+		
+		$this->BillingUnit->recursive = -1;
+		$this->loadModel('BillingUnit');
+		$details = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$resource_id)));
+		$amount_for_tech = /*$this->params['currency'].*/$details['BillingUnit']['amount'];
+		
+			
+		
+		
+		
+		$this->set(compact('amount_for_tech','resource_id'));
+	}
+	
+	function totaledit($resource_id = null)
+	{
+//		Configure::write('debug',2);
+		debug($this->data);
+		debug($this->data['0']['BrandsService']['quantity']);
+		foreach($this->data as $key => $value)
+		{
+			debug($value);
+			foreach($value['BrandsService']['quantity'] as $q1 => $q2)
+			{
+				if($q1 == $resource_id)
+				{
+					$quan_check = $q2;
+				}
+				foreach($value['BrandsService']['rate'] as $r1 => $r2)
+				{
+					debug($q2);
+					debug($r2);
+					if($r1 == $resource_id)
+					{
+						$rate_check = $r2;
+					}
+					$edittotal += $q2*$r2;
+					
+				}
+			}
+		}
+		debug($edittotal);
+		
+		debug($quan_check);
+		$quan_checkexp = explode('.',$quan_check);
+		debug($quan_checkexp[1]);
+		if( (!is_numeric($quan_check) || $quan_check <= 0) ||  $quan_checkexp[1])
+		{
+			$validate = 1;
+		}
+		
+		debug($rate_check);
+		if( (!is_numeric($rate_check) || $rate_check <= 0) )
+		{
+			$validaterate = 1;
+		}
+		
+		$this->set(compact('edittotal','validate','validaterate'));
+	}
+	
+	function ratenew($brandid)
+	{
+		debug($this->data);
+		debug($this->data['BrandsService']['techs'][$brandid]);
+		$resource_id = $this->data['BrandsService']['techs'][$brandid];
+		$this->BillingUnit->recursive = -1;
+		$this->loadModel('BillingUnit');
+		$details = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$this->data['BrandsService']['techs'][$brandid])));
+		$amount_for_tech = $details['BillingUnit']['amount'];
+		$amount_for_tech = $amount_for_tech;
+		debug($amount_for_tech);
+		debug($this->data['quantity']);
+			
+		
+		
+		
+		$this->set(compact('amount_for_tech','resource_id'));
+	}
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+
+
+	public function edit($id = null,$flash = null) 
+	{
+		$this->loadModel('StaffLevel');
+		$this->loadModel('BillingSlot');
+		$this->loadModel('BrandsServiceunit');
+		$this->loadModel('Company');
+		$this->loadModel('Brand');
+		$this->loadModel('BillingUnit');
+		$this->BrandsService->recursive = 0;
+		$this->BillingUnit->recursive = -1;
+		$this->BrandsServiceunit->recursive = -1;
+		
+		if($this->data)
+		{
+			if($this->data[0]['BrandsService'])
+			{
+				$done1 = 1;
+			}
+			
+			else
+			{
+				$done1 = 0;
+			}
+			$test1 = 0;
+			foreach($this->data[$test1]['BrandsService']['quantity'] as $testq1 => $testq2)
+			{
+				debug();
+				if($testq2)
+				{
+					debug('yes');
+					$done2 = 1;
+				}
+					
+				elseif( (!is_numeric($testq2) || $testq2 <= 0) )
+				{
+					$done2 = 0;
+					debug('No');
+				}
+				$test1++;
+			}
+			$test2 = 0;
+			foreach($this->data[$test2]['BrandsService']['rate'] as $testr1 => $testr2)
+			{
+				if($testr2)
+				{
+					debug('yes');
+					$done3 = 1;
+				}
+					
+				elseif( (!is_numeric($testr2) || $testr2 <= 0) )
+				{
+					$done3 = 0;
+					debug('No');
+				}
+				$test2++;
+			}
+			
+			debug($done1);
+			debug($done2);
+			debug($done3);
+			if(  ( $this->data['BrandsService']['service_name'] && $this->data['BrandsService']['company_id']) && ( ($done1 && $done2) && ($done3)  )   )
+			{
+				if ($this->request->is('post') || $this->request->is('put')) 
+				{
+					//save
+					foreach($this->data as $key => $value)
+					{
+						foreach($value['BrandsService']['quantity'] as $q1 => $q2)
+						{
+							foreach($value['BrandsService']['rate'] as $r1 => $r2)
+							{
+						
+								debug($q2);
+								debug($r2);
+								$total2 += $q2 * $r2;
+								debug($total2);
+								$save->data = null;
+								$save->data['BrandsService']['id'] = $id;
+								$save->data['BrandsService']['service_name'] = $this->data['BrandsService']['service_name'];
+								$save->data['BrandsService']['description'] = $this->data['BrandsService']['description'];
+								$save->data['BrandsService']['company_id'] = $this->data['BrandsService']['company_id'];
+								$save->data['BrandsService']['brand_id'] = $this->data['BrandsService']['brand_id'];
+								$save->data['BrandsService']['created_on'] =  date('Y-m-d',strtotime($this->data['BrandsService']['date']));
+								$save->data['BrandsService']['totalcost'] = $total2;
+								$save->data['BrandsService']['active'] = 'Y';
+							}
+						}
+					}
+					debug($save->data);
+					$this->BrandsService->save($save->data);
+					$x = 0;
+					foreach($this->data as $key1 => $value1)
+					{
+						foreach($value1['BrandsService']['quantity'] as $q11 => $q22)
+						{
+							debug($q11);
+							foreach($value1['BrandsService']['rate'] as $r11 => $r22)
+							{
+								$unit_details = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$id)));
+								debug($unit_details);
+								/*$unit_details = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$id)));
+								debug($unit_details);
+								foreach($unit_details as $kunit1 => $vunit1)
+								{
+									debug($vunit1['BrandsServiceunit']['id']);*/
+									$units2->data = null;
+									debug($unit_details[$x]['BrandsServiceunit']['id']);
+									
+									$units2->data['BrandsServiceunit']['id'] =$unit_details[$x]['BrandsServiceunit']['id'];
+									$units2->data['BrandsServiceunit']['brands_service_id'] = $id;
+									$units2->data['BrandsServiceunit']['billing_unit_id'] = $q11;
+									$units2->data['BrandsServiceunit']['quantity'] = $q22;
+									$units2->data['BrandsServiceunit']['rate'] = $r22;
+									$units2->data['BrandsServiceunit']['total'] = $q22 * $r22;
+									debug($units2->data);
+									
+									$x++;
+									$this->BrandsServiceunit->save($units2->data);
+					
+							//	}
+							
+							}
+						}
+					}
+								
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">Service has been created</div>'));
+					$this->redirect(array('action' => 'index'));
+				}
+			}
+			
+			
+			else
+			{
+				//list +error
+				
+				if(!$this->data['BrandsService']['service_name'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the service name</div>'));
+				}
+				elseif(!$this->data['BrandsService']['company_id'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any one company</div>'));
+				}
+				elseif(!$done1)
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any resource</div>'));
+				}
+				elseif(!$done2)
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter a valid quantity</div>'));
+				}
+				elseif(!$done3)
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter a valid rate</div>'));
+				}
+				
+				$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+				$this->set(compact('companies'));
+				$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+				$this->set(compact('brands'));
+				$this->set(compact('stafflevels','billingslots'));
+			
+				$details = $this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$id)));
+				$def_servicename = $details['BrandsService']['service_name'];
+				$def_company = $details['BrandsService']['company_id'];
+				
+				$brands2 = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname'),'conditions' => array('Brand.company_id'=>$details['BrandsService']['company_id']) ));
+				
+				$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+				
+			//	$brands2 = $this->Brand->find('list',array('conditions'=>array('Brand.company_id'=>$details['BrandsService']['company_id'])), array('fields' => array('Brand.id','Brand.brandname')));
+				debug($brands2);
+				$this->set(compact('def_servicename','def_company','brands2','brands'));
+				
+				$created = date('d M Y',strtotime($details['BrandsService']['created_on']));
+				$comp = $details['Company']['companyname'];
+				$brand = $details['Brand']['brandname'];
+				$total = $details['BrandsService']['totalcost'];
+				$this->set(compact('created','comp','brand','total'));
+				$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'), 'order'=>'BillingUnit.name ASC' ));
+				debug($bill_units);
+				
+				
+				$this->set(compact('bill_units'));
+				$unit_details = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$id)));
+				debug($unit_details);
+				
+				foreach($unit_details as $kunit => $vunit)
+				{
+					$billing_details = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$vunit['BrandsServiceunit']['billing_unit_id'])));
+					debug($billing_details);
+					/*foreach($billing_details as $billing_details1)
+					{*/
+						debug($vunit['BrandsServiceunit']['brands_service_id']);
+						$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['name'] = $billing_details['BillingUnit']['name'];
+						$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['rate'] = $vunit['BrandsServiceunit']['rate'];
+						$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['quantity'] = $vunit['BrandsServiceunit']['quantity'];
+						
+					//}
+				}
+				debug($final_details);
+				$this->set(compact('final_details','id','flash'));
+				$this->request->data = $this->BrandsService->read(null, $id);
+				
+				
+			}
+		}
+		
+		else
+		{
+			//list
+			
+			$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+			$this->set(compact('companies'));
+			$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+			$this->set(compact('brands'));
+			$this->set(compact('stafflevels','billingslots'));
+		
+			$details = $this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$id)));
+			$def_servicename = $details['BrandsService']['service_name'];
+			$def_company = $details['BrandsService']['company_id'];
+			
+			$brands2 = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname'),'conditions' => array('Brand.company_id'=>$details['BrandsService']['company_id']) ));
+			
+			$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+			
+		//	$brands2 = $this->Brand->find('list',array('conditions'=>array('Brand.company_id'=>$details['BrandsService']['company_id'])), array('fields' => array('Brand.id','Brand.brandname')));
+			debug($brands2);
+			$this->set(compact('def_servicename','def_company','brands2','brands'));
+			
+			$created = date('d M Y',strtotime($details['BrandsService']['created_on']));
+			$comp = $details['Company']['companyname'];
+			$brand = $details['Brand']['brandname'];
+			$total = $details['BrandsService']['totalcost'];
+			$this->set(compact('created','comp','brand','total'));
+			$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'), 'order'=>'BillingUnit.name ASC' ));
+			debug($bill_units);
+			
+			
+			$this->set(compact('bill_units'));
+			$unit_details = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$id)));
+			debug($unit_details);
+			
+			foreach($unit_details as $kunit => $vunit)
+			{
+				$billing_details = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$vunit['BrandsServiceunit']['billing_unit_id'])));
+				debug($billing_details);
+				/*foreach($billing_details as $billing_details1)
+				{*/
+					debug($vunit['BrandsServiceunit']['brands_service_id']);
+					$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['name'] = $billing_details['BillingUnit']['name'];
+					$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['rate'] = $vunit['BrandsServiceunit']['rate'];
+					$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['quantity'] = $vunit['BrandsServiceunit']['quantity'];
+					
+				//}
+			}
+			debug($final_details);
+			$this->set(compact('final_details','id','flash'));
+			$this->request->data = $this->BrandsService->read(null, $id);
+		}
+		
+	}
+
+
+	public function editold($id = null,$flash = null) 
+	{
+//		Configure::write('debug',2);
+		
+		//debug($this->params);
+		$this->loadModel('StaffLevel');
+		$this->loadModel('BillingSlot');
+		//$currencies = $this->BillingUnit->Currency->find('list');
+		$stafflevels =  $this->StaffLevel->find('list', array('fields' => array('StaffLevel.id','StaffLevel.staff_level'),'conditions'=>array('StaffLevel.active'=>'Y')));
+		$billingslots =  $this->BillingSlot->find('list', array('fields' => array('BillingSlot.id','BillingSlot.slot_name')));
+		
+		$this->set(compact('stafflevels','billingslots'));
+		
+		debug($this->data);
+		$this->BrandsService->recursive = 0;
+		$this->BillingUnit->recursive = -1;
+		$this->loadModel('BillingUnit');
+		$this->BrandsServiceunit->recursive = -1;
+		$this->loadModel('BrandsServiceunit');
+		$this->loadModel('Company');
+		$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+		$this->set(compact('companies'));
+		$this->loadModel('Brand');
+		$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+		$this->set(compact('brands'));
+		
+		$details = $this->BrandsService->find('first',array('conditions'=>array('BrandsService.id'=>$id)));
+		$def_servicename = $details['BrandsService']['service_name'];
+		$def_company = $details['BrandsService']['company_id'];
+		
+		$brands2 = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname'),'conditions' => array('Brand.company_id'=>$details['BrandsService']['company_id']) ));
+		
+		$brands = $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+		
+	//	$brands2 = $this->Brand->find('list',array('conditions'=>array('Brand.company_id'=>$details['BrandsService']['company_id'])), array('fields' => array('Brand.id','Brand.brandname')));
+		debug($brands2);
+		$this->set(compact('def_servicename','def_company','brands2','brands'));
+		
+		$created = date('d M Y',strtotime($details['BrandsService']['created_on']));
+		/*$date1=explode('-',$created2);
+		debug($date1);
+		if($date1[1] == 01) $month = "Jan";
+		if($date1[1] == 02) $month = "Feb";
+		if($date1[1] == 03) $month = "Mar";
+		if($date1[1] == 04) $month = "Apr";
+		if($date1[1] == 05) $month = "May";
+		if($date1[1] == 06) $month = "Jun";
+		if($date1[1] == 07) $month = "Jul";
+		if($date1[1] == 08) $month = "Aug";
+		if($date1[1] == 09) $month = "Sep";
+		if($date1[1] == 10) $month = "Oct";
+		if($date1[1] == 11) $month = "Nov";
+		if($date1[1] == 12) $month = "Dec";*/
+				
+			
+		/*$created = $date1[2].' '.$month.' '.$date1[0];
+		debug($created);*/
+		
+		$comp = $details['Company']['companyname'];
+		$brand = $details['Brand']['brandname'];
+		$total = $details['BrandsService']['totalcost'];
+		$this->set(compact('created','comp','brand','total'));
+		$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'), 'order'=>'BillingUnit.name ASC' ));
+		debug($bill_units);
+		
+		
+		$this->set(compact('bill_units'));
+		$unit_details = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$id)));
+		debug($unit_details);
+		
+		foreach($unit_details as $kunit => $vunit)
+		{
+			$billing_details = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$vunit['BrandsServiceunit']['billing_unit_id'])));
+			debug($billing_details);
+			/*foreach($billing_details as $billing_details1)
+			{*/
+				debug($vunit['BrandsServiceunit']['brands_service_id']);
+				$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['name'] = $billing_details['BillingUnit']['name'];
+				$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['rate'] = $vunit['BrandsServiceunit']['rate'];
+				$final_details[$vunit['BrandsServiceunit']['billing_unit_id']]['quantity'] = $vunit['BrandsServiceunit']['quantity'];
+				
+			//}
+		}
+		debug($final_details);
+		$this->set(compact('final_details','id'));
+		
+		$this->BrandsService->id = $id;
+		if (!$this->BrandsService->exists()) 
+		{
+			throw new NotFoundException(__('Invalid brands service'));
+		}
+		
+		$creatededit = $this->data['BrandsService']['date'];
+		$dateedit=explode('',$creatededit);
+		debug($dateedit);
+		if($dateedit[1] == "Jan") $monthe = "01";
+		if($dateedit[1] == "Feb") $monthe = "02";
+		if($dateedit[1] == "Mar") $monthe = "03";
+		if($dateedit[1] == "Apr") $monthe = "04";
+		if($dateedit[1] == "May") $monthe = "05";
+		if($dateedit[1] == "Jun") $monthe = "06";
+		if($dateedit[1] == "Jul") $monthe = "07";
+		if($dateedit[1] == "Aug") $monthe = "08";
+		if($dateedit[1] == "Sep") $monthe = "09";
+		if($dateedit[1] == "Oct") $monthe = "10";
+		if($dateedit[1] == "Nov") $monthe = "11";
+		if($dateedit[1] == "Dec") $monthe = "12";
+		$creatededit2 = $dateedit[2].'-'.$monthe.'-'.$dateedit[0];
+		debug($creatededit2);
+		
+		if ($this->request->is('post') || $this->request->is('put')) 
+		{
+			if(!empty($this->data))
+			{
+				if(1)
+				{
+					foreach($this->data as $key => $value)
+					{
+						foreach($value['BrandsService']['quantity'] as $q1 => $q2)
+						{
+							foreach($value['BrandsService']['rate'] as $r1 => $r2)
+							{
+						
+								debug($q2);
+								debug($r2);
+								$total2 += $q2 * $r2;
+								debug($total2);
+								$save->data = null;
+								$save->data['BrandsService']['id'] = $id;
+								$save->data['BrandsService']['service_name'] = $this->data['BrandsService']['service_name'];
+								$save->data['BrandsService']['description'] = $this->data['BrandsService']['description'];
+								$save->data['BrandsService']['company_id'] = $this->data['BrandsService']['company_id'];
+								$save->data['BrandsService']['brand_id'] = $this->data['BrandsService']['brand_id'];
+								$save->data['BrandsService']['created_on'] = $creatededit2;
+								$save->data['BrandsService']['totalcost'] = $total2;
+								$save->data['BrandsService']['active'] = 'Y';
+							}
+						}
+					}
+					debug($save->data);
+					$this->BrandsService->save($save->data);
+					$x = 0;
+					foreach($this->data as $key1 => $value1)
+					{
+						foreach($value1['BrandsService']['quantity'] as $q11 => $q22)
+						{
+							debug($q11);
+							foreach($value1['BrandsService']['rate'] as $r11 => $r22)
+							{
+								$unit_details = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$id)));
+								debug($unit_details);
+								/*$unit_details = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$id)));
+								debug($unit_details);
+								foreach($unit_details as $kunit1 => $vunit1)
+								{
+									debug($vunit1['BrandsServiceunit']['id']);*/
+									$units2->data = null;
+									debug($unit_details[$x]['BrandsServiceunit']['id']);
+									
+									$units2->data['BrandsServiceunit']['id'] =$unit_details[$x]['BrandsServiceunit']['id'];
+									$units2->data['BrandsServiceunit']['brands_service_id'] = $id;
+									$units2->data['BrandsServiceunit']['billing_unit_id'] = $q11;
+									$units2->data['BrandsServiceunit']['quantity'] = $q22;
+									$units2->data['BrandsServiceunit']['rate'] = $r22;
+									$units2->data['BrandsServiceunit']['total'] = $q22 * $r22;
+									debug($units2->data);
+									
+									$x++;
+									$this->BrandsServiceunit->save($units2->data);
+					
+							//	}
+							
+							}
+						}
+					}
+								
+					$this->Session->setFlash(__('Service has been saved '));
+					
+					$this->redirect(array('action' => 'index',1));
+				
+			}
+			}
+			else 
+			{
+				//$this->Session->setFlash(__('<font color = "red">The brands service could not be saved. Please, try again.</font>'));
+			}
+		/*	foreach($this->data as $kdata => $vdata)
+			{
+				debug($vdata['techs']);
+				foreach($vdata['techs'] as $rate1 => $rate2)
+				{
+					$billing_details2 = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$rate2)));
+					debug($billing_details2);
+					$totalcost += $billing_details2['BillingUnit']['amount'];
+				}
+				debug($totalcost);
+					
+				$save->data = null;
+				$save->data['BrandsService']['id'] = $id;
+				$save->data['BrandsService']['service_name'] = $this->data['BrandsService']['service_name'];
+				$save->data['BrandsService']['description'] = $this->data['BrandsService']['description'];
+				$save->data['BrandsService']['company_id'] = $this->data['BrandsService']['company_id'];
+				$save->data['BrandsService']['brand_id'] = $this->data['BrandsService']['brand_id'];
+				$save->data['BrandsService']['created_on'] = $this->data['BrandsService']['date'];
+				$save->data['BrandsService']['active'] = 'Y';
+				$save->data['BrandsService']['totalcost'] = $totalcost;
+			//	$this->BrandsService->save($save->data);
+					
+					
+				
+			}
+			$unit_details = $this->BrandsServiceunit->find('all',array('conditions'=>array('BrandsServiceunit.brands_service_id'=>$id)));
+			debug($unit_details);
+			
+				foreach($this->data['BrandsService']['techs'] as $v1 => $vt)
+				{
+					foreach($unit_details as $kunit => $vunit)
+					{
+					foreach($vunit as $v1 => $v2)
+					{
+						debug($v2);
+				
+						
+					debug($vunit['BrandsServiceunit']['id']);
+							$units->data = null;
+							$units->data['BrandsServiceunit']['id'] = $vunit['BrandsServiceunit']['id'];
+							$units->data['BrandsServiceunit']['brands_service_id'] = $id;
+							$units->data['BrandsServiceunit']['billing_unit_id'] = $vt;
+							$units->data['BrandsServiceunit']['quantity'] = $vunit['BrandsServiceunit']['quantity'];
+							$units->data['BrandsServiceunit']['rate'] = $vunit['BrandsServiceunit']['rate'];
+							$units->data['BrandsServiceunit']['total'] = $vunit['BrandsServiceunit']['total'];
+						//	$this->BrandsServiceunit->save($units->data);
+					}
+					}
+					
+				}
+					
+				
+			
+			debug($units->data);
+			debug($save->data);
+			
+		*/	
+			
+			
+				
+			
+			
+			/*if ($this->BrandsService->save($save->data)) 
+			{
+				$this->Session->setFlash(__('<font color = "#74B511">The brand service has been saved </font>'));
+					$yes = 1;
+					$this->redirect(array('action' => 'index',$yes));
+					
+			} 
+			
+			else 
+			{
+				$this->Session->setFlash(__('<font color = "red">The brands service could not be saved. Please, try again.</font>'));
+			}*/
+		}
+		
+		else 
+		{
+			$this->request->data = $this->BrandsService->read(null, $id);
+		}
+		/*$companies = $this->BrandsService->Company->find('list');
+		$brands = $this->BrandsService->Brand->find('list');
+		$this->set(compact('companies', 'brands'));*/
+		
+		
+		$this->set(compact('flash'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) 
+	{
+		$this->loadModel('BrandsServiceunit');
+		if (!$id) 
+		{
+			throw new MethodNotAllowedException();
+		}
+		$this->BrandsService->id = $id;
+		if (!$this->BrandsService->exists()) 
+		{
+			throw new NotFoundException(__('Invalid brands service'));
+		}
+		if ($this->BrandsService->delete()) 
+		{
+			if($this->BrandsServiceunit->deleteAll(array('BrandsServiceunit.brands_service_id'=>$id)));
+		
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Brand Service deleted</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('<div class="flashMessageError">Brand Service was not deleted</div>'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	public function resource_unit($flag,$brandid)
+	{
+		$this->BillingUnit->recursive = -1;
+		$this->loadModel('BillingUnit');
+		$bill_units = $this->BillingUnit->find('list', array('fields' => array('BillingUnit.id','BillingUnit.name'),'conditions' => array('BillingUnit.brand_id'=>$brandid) ));
+		$this->set(compact('bill_units','brandid'));
+		$this->set(compact('flag'));
+	}
+	
+	public function cancel_resource($resource_id)
+	{
+		Configure::write('debug',2);
+		debug($resource_id);
+		debug($this->data);
+		
+	}
+	public function rateedit($flag = null,$qnty = null,$amount_for_tech = null)
+	{
+	//	Configure::write('debug',2);
+		debug($this->data);
+		debug($flag);
+		$this->BillingUnit->recursive = -1;
+		$this->loadModel('BillingUnit');
+		$resource_id = $this->data['BrandsService']['techs'];
+		$details = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$this->data['BrandsService']['techs'])));
+		debug($details);
+		$amount_for_tech = $details['BillingUnit']['amount'];
+		/*if($flag != 1)
+		{
+			foreach($this->data['BrandsService']['techs'] as $key => $value)
+			{
+				
+			
+			$resource_id = $value;
+			debug($resource_id);
+			
+			$details = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$this->data['BrandsService']['techs'])));
+			debug($details);
+			$amount_for_tech = $details['BillingUnit']['amount'];
+			//}
+		}
+		else 
+		{
+			
+			$details = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$this->data['BrandsService']['techs'])));
+			debug($details);
+			$amount_for_tech = $details['BillingUnit']['amount'];
+		}
+		debug($resource_id);*/
+		$this->set(compact('amount_for_tech','resource_id','flag','qnty'));
+		
+	}
+	public function quantity_edit($flag = null,$quantity = null,$resource_id = null)
+	{
+		Configure::write('debug',2);
+		
+		debug($this->data);
+		debug($resource_id);
+		
+		$this->set(compact('quantity','resource_id'));
+	}
+	
+	
+	public function rateedit2($flag = null)
+	{
+		//Configure::write('debug',2);
+		
+		debug($this->data);
+		debug($flag);
+	}
+	
+}

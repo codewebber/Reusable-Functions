@@ -1,0 +1,709 @@
+<?php
+App::uses('AppController', 'Controller');
+CakePlugin::load('Uploader');
+App::import('Vendor', 'Uploader.Uploader');
+/**
+ * Brands Controller
+ *
+ * @property Brand $Brand
+ * @property RequestHandlerComponent $RequestHandler
+ */
+class BrandsController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	var $helpers = array('Ajax', 'Javascript');
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('RequestHandler');
+
+	function beforeFilter() {
+		parent :: beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Brands';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+
+	}
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index($yes = null,$search_field=NULL,$search_data=NULL) 
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('BrandsService');
+		$this->Brand->recursive = 0;
+		
+		if($this->data['Brands']['from'])
+		{
+			$from = date('Y-m-d',strtotime($this->data['Brands']['from']));
+			$to = date('Y-m-d',strtotime($this->data['Brands']['to']));
+			$this->paginate = array('conditions'=>array('AND'=>array('Brand.created_date between ? and ? '=> array($from,$to))));
+			
+			$this->set('brands', $this->paginate());
+			$final = $this->paginate();
+			debug($final);
+			foreach($final as $key => $value)
+				{
+					debug($key);
+					debug($value['Brand']['id']);
+					$service_details = $this->BrandsService->find('count',array('conditions'=>array('BrandsService.brand_id'=>$value['Brand']['id'])));
+					debug($service_details);
+					$service_count[$value['Brand']['id']] = $service_details;
+					
+				}
+		}
+		
+		
+		elseif(($this->data['Search']['brand_name']) && ($this->data['Search']['brand_name'] != "-Brand Name-"))
+		{
+			
+			$finding = $this->Brand->find('first',array('conditions'=>array('AND'=>array('Brand.brandname LIKE'=>$this->data['Search']['brand_name']))));
+			debug($finding);
+			$this->paginate = array('conditions'=>array('Brand.id'=>$finding['Brand']['id']) );
+			$this->set('brands', $this->paginate());
+			$final = $this->paginate();
+			debug($final);
+		}
+		//This elseif block is for global search
+		elseif (!empty($search_field)) {
+			$this->paginate = array('conditions'=>array('Brand.brandname LIKE'=>$search_data.'%') );
+			foreach ($this->paginate()  as $index_key => $array_value) {
+				$service_details = $this->BrandsService->find('count',array('conditions'=>array('BrandsService.brand_id'=>$array_value['Brand']['id'])));
+				$service_count[$array_value['Brand']['id']] = $service_details;
+			}
+			$this->set('brands', $this->paginate());
+			$this->set(compact('service_count'));
+		}
+		//End of global search
+		else
+		{
+			if(!$final = Cache::read('final'))
+			{	
+				Cache::write('final', $final, 86400);
+				
+				 $this->paginate = array('order' => array('Brand.brandname' => 'ASC') );
+		
+				$this->set('brands', $this->paginate());
+				$final = $this->paginate();
+				debug($final);
+				foreach($final as $key => $value)
+				{
+					debug($key);
+					debug($value['Brand']['id']);
+					$service_details = $this->BrandsService->find('count',array('conditions'=>array('BrandsService.brand_id'=>$value['Brand']['id'])));
+					debug($service_details);
+					$service_count[$value['Brand']['id']] = $service_details;
+					
+				}
+			}
+		}
+		debug($service_count);
+		
+		if(count($final) < 20) $no_pagination = 1;
+		else $no_pagination = 0;
+		$this->set(compact('yes','no_pagination','service_count'));
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) 
+	{
+		//	Configure::write('debug',2);
+		$this->Brand->recursive = 0;
+		$this->BrandsService->recursive = -1;
+		$this->loadModel('BrandsService');
+		$this->Brand->id = $id;
+		if (!$this->Brand->exists()) {
+			throw new NotFoundException(__('Invalid brand'));
+		}
+		$this->set('brand', $this->Brand->read(null, $id));
+		$created1 = $this->Brand->find('first',array('conditions'=>array('Brand.id'=>$id)));
+		$icon = $created1['Brand']['icon_imagepath_url'].'/'.$created1['Brand']['icon_imagepath'];
+		$service_details = $this->BrandsService->find('all',array('conditions'=>array('BrandsService.brand_id'=>$id)));
+		debug($service_details);
+		foreach($service_details as $k => $v)
+		{
+			$final_services[$v['BrandsService']['id']]['service_name'] = $v['BrandsService']['service_name'];
+				
+		}
+		debug($final_services);
+		$this->set(compact('id','icon','final_services'));
+	
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+ 
+ 	public function add()
+ 	{
+ 		//Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('Company');
+		$this->loadModel('AccountsAccount');
+		if($this->data)
+		{
+			if( ($this->data['Brand']['brandname'] && $this->data['Brand']['company_id']) && $this->data['Brand']['email'])
+			{
+				if($this->request->is('post'))
+				{
+					//configure::write('debug',2);
+					//save + redirect
+					debug($this->data);
+					$this->AccountsAccount->create();
+					$income_details=$this->AccountsAccount->find('first',array('conditions'=>array('account_name'=>'Income')));
+					$account->data=null;
+					$account->data['AccountsAccount']['account_name']    = $this->data['Brand']['brandname'].' '."Sale";
+					$account->data['AccountsAccount']['company_id']      = $this->data['Brand']['company_id'];
+					$account->data['AccountsAccount']['account_type_id'] = $income_details['AccountsAccount']['account_type_id'];
+					$account->data['AccountsAccount']['description']     = $this->data['Brand']['brandname'].' '."Sale";
+					$account->data['AccountsAccount']['level']           = $income_details['AccountsAccount']['level']+1;
+					$account->data['AccountsAccount']['parent_id']       = $income_details['AccountsAccount']['id'];
+					$account->data['AccountsAccount']['opening_balance'] = 0;
+					$account->data['AccountsAccount']['active']          = 'Y';
+					if($this->AccountsAccount->save($account->data))
+						{
+							$accounts_accountId=$this->AccountsAccount->getLastInsertID();
+							$save->data = null;
+							$save->data['Brand']['brandname'] = $this->data['Brand']['brandname'];
+							$save->data['Brand']['description'] = $this->data['Brand']['description'];
+							$save->data['Brand']['signature'] = $this->data['Brand']['signature'];
+							$save->data['Brand']['created_date'] = date('Y-m-d',strtotime($this->data['Brand']['created_on']));
+							$save->data['Brand']['accounts_account_id'] = $accounts_accountId;
+							$save->data['Brand']['company_id'] = $this->data['Brand']['company_id'];
+							$save->data['Brand']['email'] = $this->data['Brand']['email'];
+							$save->data['Brand']['url'] = $this->data['Brand']['url'];
+							$this->Uploader = new Uploader(); 
+							$this->Uploader = new Uploader(array('tempDir' => TMP));
+							if($this->data['Brand']['icon_imagepath'])
+							{
+								$this->Uploader->uploadDir = 'files/uploads/vendors';
+								$data = $this->Uploader->uploadAll(array('icon_imagepath'));
+								debug($data);
+								if($data)
+								{
+									$save->data['Brand']['icon_imagepath_url'] = 'files/uploads/vendors';
+									$save->data['Brand']['icon_imagepath'] = $data['icon_imagepath']['name'];
+									
+								}
+							}
+							debug($save->data);
+							$this->Brand->save($save->data);
+							$this->Session->setFlash(__('<div class="flashMessageSuccess">The brand has been added</div>'));
+							$this->redirect(array('action' => 'index'));
+						}
+					
+				}
+			}
+			
+			else
+			{
+				//list + error
+				if(!$this->data['Brand']['company_id'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any one company</div>'));
+				}
+				
+				elseif(!$this->data['Brand']['brandname'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the brand name</div>'));
+				}
+				elseif(!$this->data['Brand']['email'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter an email address</div>'));
+				}
+				
+				
+				$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+				$this->set(compact('companies'));
+				
+			}
+			
+		}
+		
+		else
+		{
+			//list
+			$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+			$this->set(compact('companies'));
+		}
+ 	}
+ 
+ 
+ 
+ 
+	public function addold() 
+	{
+		
+	//	Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('Company');
+		$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+		$this->set(compact('companies'));
+		
+		if ($this->request->is('post')) 
+		{
+			if(!empty($this->data))
+			{
+				$this->Brand->create();
+				if(1)
+				{
+					debug($this->data);
+					$save->data = null;
+					
+					$save->data['Brand']['brandname'] = $this->data['Brand']['brandname'];
+					$save->data['Brand']['description'] = $this->data['Brand']['description'];
+					$save->data['Brand']['signature'] = $this->data['Brand']['signature'];
+					$save->data['Brand']['created_date'] = date('Y-m-d',strtotime($this->data['Brand']['created_on']));
+					$save->data['Brand']['company_id'] = $this->data['Brand']['company_id'];
+					$save->data['Brand']['email'] = $this->data['Brand']['email'];
+					$save->data['Brand']['url'] = $this->data['Brand']['url'];
+					$this->Uploader = new Uploader(); 
+					$this->Uploader = new Uploader(array('tempDir' => TMP));
+					if($this->data['Brand']['icon_imagepath'])
+					{
+						$this->Uploader->uploadDir = 'files/uploads/vendors';
+						$data = $this->Uploader->uploadAll(array('icon_imagepath'));
+						debug($data);
+						if($data)
+						{
+							$save->data['Brand']['icon_imagepath_url'] = 'files/uploads/vendors';
+							$save->data['Brand']['icon_imagepath'] = $data['icon_imagepath']['name'];
+							
+						}
+					}
+					debug($save->data);
+					$this->Brand->save($save->data);
+					$this->Session->setFlash(__('The brand has been saved'));
+					$yes = 1;
+					$this->redirect(array('action' => 'index',$yes));
+					
+				}
+			}
+			else 
+			{
+				$this->Session->setFlash(__('<font color = "red">The brand could not be saved. Please, try again.</font>'));
+			}
+		}
+		
+	}
+
+	public function brandnamecheck($flagfromedit = null)
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		debug(strlen($this->data['Brand']['brandname']));
+		if(strlen($this->data['Brand']['brandname']) > 30)
+		{
+			$validatecount = 1;
+		}
+		
+		$details = $this->Brand->find('first',array('conditions'=>array('AND'=>array('Brand.brandname LIKE'=>$this->data['Brand']['brandname']))));
+		if($flagfromedit == 0)
+		{
+			if($details)
+			{
+				
+				$validate = 2;
+			}
+		}
+		if($flagfromedit == 1)
+		{
+			$validate = 0;
+		}
+		$this->set(compact('validate','validatecount','flagfromedit'));
+	}
+	public function brandnamecheckedit($flagfromedit = null,$brandname = null)
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		debug(strlen($this->data['Brand']['brandname']));
+		if(strlen($this->data['Brand']['brandname']) > 30)
+		{
+			$validatecount = 1;
+		}
+		
+		$details = $this->Brand->find('first',array('conditions'=>array('AND'=>array('Brand.brandname LIKE'=>$this->data['Brand']['brandname']))));
+		if($flagfromedit == 0)
+		{
+			if($details)
+			{
+				
+				$validate = 2;
+			}
+		}
+		if($flagfromedit == 1)
+		{
+			$validate = 0;
+		}
+		$this->set(compact('validate','validatecount','flagfromedit','brandname'));
+	}
+	public function emailcheck()
+	{
+	//	Configure::write('debug',2);
+		debug($this->data);
+		$email = $this->data['Brand']['email'];
+		
+		
+		if (preg_match("/^([a-zA-Z0-9])+([\.a-zA-Z0-9_-])*@([a-zA-Z0-9_-])+(\.[a-zA-Z0-9_-]+)*\.([a-zA-Z]{2,6})$/", $email))
+		{
+			debug('Yes');
+			$validate = 0;
+		}
+		
+		else
+		{
+			debug('NO');
+			$validate = 1;
+		}
+	
+		$this->set(compact('validate'));
+	}
+	public function emailcheckedit()
+	{
+		//Configure::write('debug',2);
+		$email = $this->data['Brand']['default_email'];
+		debug($this->data);
+		$email2 = $this->data['Brand']['email'];
+		
+		
+		if (preg_match("/^([a-zA-Z0-9])+([\.a-zA-Z0-9_-])*@([a-zA-Z0-9_-])+(\.[a-zA-Z0-9_-]+)*\.([a-zA-Z]{2,6})$/", $email2))
+		{
+			debug('Yes');
+			$validate = 0;
+		}
+		
+		else
+		{
+			debug('NO');
+			$validate = 1;
+		}
+	
+		$this->set(compact('validate','email'));
+	}
+	public function urlcheck()
+	{
+	//	Configure::write('debug',2);
+		debug($this->data);
+		$url = $this->data['Brand']['url'];
+		
+		if (preg_match("#^[a-z0-9-_.]+\.[a-z]{2,4}$#i",$url))
+		{
+			debug('yrs');
+			$validate = 0;
+		}
+		else
+		{
+			debug('NO');
+			$validate = 1;
+		}
+		$this->set(compact('validate'));
+	}
+	public function urlcheckedit()
+	{
+	//	Configure::write('debug',2);
+		$default_url = $this->data['Brand']['default_url'];
+		debug($this->data);
+		$url = $this->data['Brand']['url'];
+		
+		if (preg_match("#^www\.[a-z0-9-_.]+\.[a-z]{2,4}$#i",$url))
+		{
+			debug('yrs');
+			$validate = 0;
+		}
+		else
+		{
+			debug('NO');
+			$validate = 1;
+		}
+		$this->set(compact('validate','default_url'));
+	}
+	
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+ 
+ 
+ 	public function edit($id = null)
+ 	{
+ 		
+		$this->loadModel('Company');
+		if($this->data)
+		{
+			if( ($this->data['Brand']['brandname'] && $this->data['Brand']['company_id']) && $this->data['Brand']['email'])
+			{
+				debug($this->data);
+				if($this->request->is('post') || $this->request->is('put'))
+				{
+					debug($this->data);
+					//save + redirect
+					$save->data = null;
+					$this->Brand->create();
+					$save->data['Brand']['id'] = $id;
+					$save->data['Brand']['brandname'] = $this->data['Brand']['brandname'];
+					$save->data['Brand']['description'] = $this->data['Brand']['description'];
+					$save->data['Brand']['signature'] = $this->data['Brand']['signature'];
+					$save->data['Brand']['created_date'] = date('Y-m-d',strtotime($this->data['Brand']['createddate']));
+					$save->data['Brand']['company_id'] = $this->data['Brand']['company_id'];
+					$save->data['Brand']['email'] = $this->data['Brand']['email'];
+					$save->data['Brand']['url'] = $this->data['Brand']['url'];
+					$this->Uploader = new Uploader(); 
+					$this->Uploader = new Uploader(array('tempDir' => TMP));
+					if($this->data['Brand']['icon_imagepath'])
+					{
+						$this->Uploader->uploadDir = 'files/uploads/vendors';
+						$data = $this->Uploader->uploadAll(array('icon_imagepath'));
+						debug($data);
+						if($data)
+						{
+							$save->data['Brand']['icon_imagepath_url'] = 'files/uploads/vendors';
+							$save->data['Brand']['icon_imagepath'] = $data['icon_imagepath']['name'];
+						}
+				    }
+				    debug($save->data);
+				    if($this->Brand->save($save->data))
+				    	{
+				    		$this->loadModel('AccountsAccount');
+				    		$account->data=null;
+				    		$accountInfo=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$id)));
+				    		$account->data['AccountsAccount']['id'] = $accountInfo['Brand']['accounts_account_id'];
+				    		$account->data['AccountsAccount']['account_name'] = $this->data['Brand']['brandname'].' '."Sale";
+				    		$this->AccountsAccount->save($account->data);
+				    	}
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">The brand has been updated</div>'));
+					$this->redirect(array('action' => 'index'));
+					
+				}
+			}
+			
+			else
+			{
+				//list + error
+				if(!$this->data['Brand']['company_id'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any one company</div>'));
+				}
+				
+				elseif(!$this->data['Brand']['brandname'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the brand name</div>'));
+				}
+				elseif(!$this->data['Brand']['email'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter an email address</div>'));
+				}
+				
+				
+				
+				$this->Brand->id = $id;
+				$created1 = $this->Brand->find('first',array('conditions'=>array('Brand.id'=>$id)));
+				$comp = $created1['Brand']['company_id'];
+				$brandname = $created1['Brand']['brandname'];
+				$email = $created1['Brand']['email'];
+				$default_url =  $created1['Brand']['url'];
+				$icon = $created1['Brand']['icon_imagepath_url'].'/'.$created1['Brand']['icon_imagepath'];
+				$created = date('d M Y',strtotime($created1['Brand']['created_date']));
+				$this->set(compact('comp','default_url','email','brandname','created','icon'));
+				$this->request->data = $this->Brand->read(null, $id);
+				$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+				$this->set(compact('companies','id'));
+			}
+		}
+		
+		else
+		{
+			//list
+			$this->Brand->id = $id;
+			
+			$created1 = $this->Brand->find('first',array('conditions'=>array('Brand.id'=>$id)));
+			$comp = $created1['Brand']['company_id'];
+				
+			$brandname = $created1['Brand']['brandname'];
+			$email = $created1['Brand']['email'];
+			$default_url =  $created1['Brand']['url'];
+			$icon = $created1['Brand']['icon_imagepath_url'].'/'.$created1['Brand']['icon_imagepath'];
+			$created = date('d M Y',strtotime($created1['Brand']['created_date']));
+			$this->set(compact('comp','default_url','email','brandname','created','icon'));
+			$this->request->data = $this->Brand->read(null, $id);
+			$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+			$this->set(compact('companies','id'));
+		}
+		
+ 		
+ 	}
+ 	
+	public function editold($id = null) 
+	{
+	//	Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('Company');
+		$this->Brand->id = $id;
+		
+		$created1 = $this->Brand->find('first',array('conditions'=>array('Brand.id'=>$id)));
+		$brandname = $created1['Brand']['brandname'];
+		$email = $created1['Brand']['email'];
+		$default_url =  $created1['Brand']['url'];
+		$icon = $created1['Brand']['icon_imagepath_url'].'/'.$created1['Brand']['icon_imagepath'];
+		$created = date('d M Y',strtotime($created1['Brand']['created_date']));
+		$this->set(compact('default_url','email','brandname','created','icon'));
+		if(!empty($this->data))
+		{
+			$brandname = $this->data['Brand']['brandname'];
+			if(!$brandname)
+			{
+				$this->Session->setFlash(__('<div class="flashMessageError">Please enter a brand name</div>', true));
+				$this->redirect(array('controller'=>'brands','action' => 'edit',$id));
+			}
+			
+			$companyname = $this->data['Brand']['company_id'];
+			if(!$companyname)
+			{
+				$this->Session->setFlash(__('<div class="flashMessageError">Company not selected</div>', true));
+				$this->redirect(array('controller'=>'brands','action' => 'edit',$id));
+			}
+			
+			
+		}
+	
+		if (!$this->Brand->exists()) 
+		{
+			throw new NotFoundException(__('Invalid brand'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) 
+		{
+			$save->data = null;
+			$this->Brand->create();
+			$save->data['Brand']['id'] = $id;
+			$save->data['Brand']['brandname'] = $this->data['Brand']['brandname'];
+			$save->data['Brand']['description'] = $this->data['Brand']['description'];
+			$save->data['Brand']['signature'] = $this->data['Brand']['signature'];
+			$save->data['Brand']['created_date'] = date('Y-m-d',strtotime($this->data['Brand']['createddate']));
+			$save->data['Brand']['company_id'] = $this->data['Brand']['company_id'];
+			$save->data['Brand']['email'] = $this->data['Brand']['email'];
+			$save->data['Brand']['url'] = $this->data['Brand']['url'];
+			$this->Uploader = new Uploader(); 
+			$this->Uploader = new Uploader(array('tempDir' => TMP));
+			if($this->data['Brand']['icon_imagepath'])
+			{
+				$this->Uploader->uploadDir = 'files/uploads/vendors';
+				$data = $this->Uploader->uploadAll(array('icon_imagepath'));
+				debug($data);
+				if($data)
+				{
+					$save->data['Brand']['icon_imagepath_url'] = 'files/uploads/vendors';
+					$save->data['Brand']['icon_imagepath'] = $data['icon_imagepath']['name'];
+				}
+		    }
+		    debug($save->data);
+		//    $this->Brand->save($save->data);
+			if($this->Brand->save($save->data))
+			{
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The brand has been saved</div>'));
+				$yes = 1;
+				$this->redirect(array('action' => 'index',$yes));
+			}
+			
+			else 
+			{
+				$this->Session->setFlash(__('<div class="flashMessageError">The brand could not be saved. Please, try again.</div>'));
+			}
+			
+			
+		} 
+		else 
+		{
+			$this->request->data = $this->Brand->read(null, $id);
+		}
+		$companies = $this->Company->find('list', array('fields' => array('Company.id','Company.companyname')));
+		$this->set(compact('companies','id'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) 
+	{
+	//	Configure::write('debug',2);
+		debug($id);
+		debug($this->data);
+		if (!$id) 
+		{
+			debug($this->data);
+			throw new MethodNotAllowedException();
+		}
+		$this->Brand->id = $id;
+		if (!$this->Brand->exists()) 
+		{
+			debug($this->data);
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid brand</div>'));
+		}
+		if ($this->Brand->delete())
+		{
+			debug($this->data);
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Brand deleted</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		else $this->Session->setFlash(__('<div class="flashMessageError">Brand was not deleted</div>'));
+		$this->redirect(array('action' => 'index'));
+	}
+	public function deletemultiple() 
+	{
+	//	Configure::write('debug',2);
+		
+		debug($this->data);
+		foreach($this->data['Delete'] as $k => $v)
+ 		{
+ 			if($v == 1)
+ 			{
+ 				
+ 				$this->Brand->delete($k);
+ 			}
+ 		}
+ 		$this->Session->setFlash(__('<div class="flashMessageSuccess">Brands Deleted</div>'));
+ 		$this->redirect(array('action'=>'index',1));
+ 		
+	}
+}

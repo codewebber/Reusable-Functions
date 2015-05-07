@@ -1,0 +1,303 @@
+<?php echo $this->Session->flash(); ?>
+<?php echo $this->Form->create('User');?>
+<?php if(isset($_SERVER['HTTPS'] ) && $_SERVER['HTTPS'] != 'off' ){
+$protocol_final = 'https';
+} else {
+$protocol_final = 'http';
+} ?>
+<div class="main-wrapper">
+   <div class="main-wrapper-center" >
+      <div class="imported-resume-main minheightnew" >
+        
+        <div class="resumeList" >
+          <div class="resume-logs" >
+            <div class="resume-logs-top" >
+              <h3> Sign Up</h3>
+            </div>
+            
+            <div class="addcandidate_full">
+              <div class="addcandidate_inner">
+             
+                  <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label style="font-size: 14px ! important;"> First Name </label>
+                    </div>
+                    <div class="inputdiv" >
+                      
+                      <?php echo $this->Form->input('first_name',array('type'=>'text','class'=>'required','id'=>'firstname','label'=>false,'div'=>false));?>
+                    
+                    </div>
+                  </div>
+                  
+                   <div class="candidate_add_input" >
+                    <div class="lablediv">
+                      <label style="font-size: 14px ! important;"> Last Name </label>
+                    </div>
+                    <div class="inputdiv">
+                      <?php echo $this->Form->input('last_name',array('type'=>'text','class'=>'required','id'=>'lastname','label'=>false,'div'=>false));?>
+                    </div>
+                  </div>
+                  <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label style="font-size: 14px ! important;"> Email</label>
+                    </div>
+                    <div class="inputdiv">
+                      <?php echo $this->Form->input('email',array('type'=>'text','class'=>'required','id'=>'emailid','label'=>false,'div'=>false,'onblur'=>"for_email_check()"));?>
+                    </div>
+                  </div>
+                  <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label style="font-size: 14px ! important;">Username</label>
+                    </div>
+                    <div class="inputdiv">
+                      <?php echo $this->Form->input('username',array('type'=>'text','class'=>'required','id'=>'username','label'=>false,'div'=>false,'placeholder'=>'Username'));?>
+                    </div>
+                  </div>
+                 
+                 <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label style="font-size: 14px ! important;">Password</label>
+                    </div>
+                    <div class="inputdiv">
+                      <?php echo $this->Form->input('password',array('type'=>'password','class'=>'required','id'=>'password','label'=>false,'div'=>false,'placeholder'=>'Password'));?>
+                    </div>
+                  </div>
+                  <div class="candidate_add_input">
+                    <div class="lablediv">
+                      <label style="font-size: 14px ! important;">Confirm Password</label>
+                    </div>
+                    <div class="inputdiv">
+                      <?php echo $this->Form->input('confirm_password',array('type'=>'password','class'=>'required','id'=>'confirm_password','label'=>false,'div'=>false));?>
+                    </div>
+                  </div>
+                  <!--<div class="candidate_add_input">
+                    <div class="lablediv">&nbsp;</div>
+                    <div class="inputdiv">
+                      <div class="floatleft">
+                       <?php echo $this->Form->submit('Submit',array('id'=>'submit','class'=>'greenButton1','div' => false)); ?>
+                      </div>
+                      <div class="floatleft">
+                         
+                         <?php echo $this->Html->link('Reset',array('controller'=>'users','action'=>'add'),array('class'=>'greenButton','div' => false,'style'=>'height:7px;width:40px;line-height:7px;')); ?>
+                        </div>
+                    </div>
+                  </div>-->
+                  <div class="clear" ></div>
+                  <div  style="float: left; width: 100%; margin-bottom: 2%;">
+                  	<span style="width: 13%; float: left;"><?php echo $this->Form->submit('Submit',array('id'=>'submit','class'=>'greenButton1','div' => false,'style'=>'float: left !important; margin-left: 0 !important;')); ?></span>
+                  	<span style="width: 15%; float: left;"><?php echo $this->Html->link('Reset',array('controller'=>'users','action'=>'add'),array('class'=>'greyButton','div' => false,'style'=>'margin-left: 0px ! important; float: left ! important; height: 9px; font-size: 13px; line-height: 12px; width: 50px;')); ?></span>
+                  </div>	
+              </div>
+            </div>
+          </div>
+        </div>
+       <div class="clear" ></div>
+      </div>
+  </div>
+</div>
+<style>
+a:hover{
+	color:#FFF;
+}
+ form div{
+ 	margin-bottom:0px;
+ 	 padding:0px;
+ }
+ form .required{
+ 	font-weight:normal;
+ }
+ .addcandidate_inner input, .addcandidate_inner textarea {
+ 	font-size:13px;
+ 	height:17px;
+ }
+ .addcandidate_full {
+  font-size:14px !important;
+}
+</style>
+
+<script type="text/javascript">
+	/*
+	function for_email_check() {
+				 var x = $('#emailid').val();
+				 var atpos=x.indexOf("@");
+				 var dotpos=x.lastIndexOf(".");
+				 var already_exists= $.ajax({
+						url: "<?php echo $protocol_final.'://'.$_SERVER['SERVER_NAME'].$this->webroot;?>users/email_already_exits",
+						type: 'GET',
+						async: false,
+						data: "email=" + x +"&checking=true",
+					 }).responseText;
+				var res = x.split("@");
+														 if(x == '')  
+					{
+					  alert("Enter your Email");  
+					  $('#emailid').focus();
+				   } 
+									 else if (atpos<1 || dotpos<atpos+2 || dotpos+2>=x.length)
+				   {
+					 alert("Not a valid e-mail address");
+					 $('#emailid').focus();
+				   }
+									   else if(already_exists == "true"){
+						alert("You already registerd to the site. Please login");	 
+						$('#emailid').focus();
+					} 
+										else if (res[1] != 'carmatec.com')
+				   {
+					 alert("Not a valid e-mail address");
+					 $('input[name="email"]').focus();
+					 $('#emailid').focus();
+				   }
+										else  
+				   {  
+					  return true;  
+				   }   
+			}*/
+	
+	
+	$(document).ready(function(){
+	  
+	  $("#UserAddForm").validate({
+	  		onkeyup: false,
+			rules:{
+				"data[User][first_name]":"required",
+				"data[User][last_name]":"required",
+				"data[User][email]":{
+					required: true,
+					email: true,
+					email_forcarma: true,
+					existsemail: true
+				},
+				"data[User][username]":{
+					required: true,
+					user_nameexists: true
+				},
+				"data[User][password]":{
+					required: true,
+					password_length: true,
+					password_format_upper: true,
+					password_number: true
+				},
+				"data[User][confirm_password]":{
+					required: true,
+					password_matc: true
+				}
+			},
+				
+			messages: {
+					"data[User][first_name]":"Please enter your First Name",
+					"data[User][last_name]":"Please enter your Last Name",
+					"data[User][email]":{
+						required: "Please enter your Email",
+						email: "Not a valid e-mail address",
+						email_forcarma: "Not a valid e-mail address",
+						existsemail:"Email already exists"
+					},
+					"data[User][username]":{
+						required: "Please enter your Username",
+						user_nameexists: "User name already exists"
+					},
+					"data[User][password]":{
+						required: "Please enter the password",
+						password_length: "Atleast 6 characters needed",
+						password_format_upper: "Atleast one upper character is needed",
+						password_number: "Atleast one number is needed"
+					},
+					"data[User][confirm_password]":{
+						required: "Please enter the confirm_password",
+						password_matc: "Password and Confirm Password is different"
+					}
+				}
+			
+	});
+	
+	 $.validator.addMethod("existsemail",function(value,element){
+			 	var already_exists1= $.ajax({
+				    url: "<?php echo $protocol_final.'://'.$_SERVER['SERVER_NAME'].$this->webroot;?>users/email_already_exits",
+				    type: 'GET',
+				    async: false,
+				    data: "email=" + value +"&checking=true",
+				 }).responseText;
+				 	
+				
+		    	if(already_exists1=='true'){
+				 	 return false;				  	
+				}
+				else {
+					return true;	   	
+			    }
+			 
+		},"Sorry, this DB name is not available");
+	  
+	   $.validator.addMethod("user_nameexists",function(value,element){
+			 	var already_exists1= $.ajax({
+				    url: "<?php echo $protocol_final.'://'.$_SERVER['SERVER_NAME'].$this->webroot;?>users/user_already_exits",
+				    type: 'GET',
+				    async: false,
+				    data: "user=" + value +"&checking=true",
+				 }).responseText;
+				 	
+				
+		    	if(already_exists1=='true'){
+				 	 return false;				  	
+				}
+				else {
+					return true;	   	
+			    }
+			 
+		},"Sorry, this DB name is not available");
+	  
+	  $.validator.addMethod("email_forcarma",function(value,element){
+			 	var res1 = value.split("@");
+				
+				if (res1[1] != 'carmatec.com'){
+					return false;
+				}else{
+					return true;
+				}
+			
+			 
+		},"Sorry, this DB name is not available");
+		
+		 $.validator.addMethod("password_length",function(value,element){
+			 	if (value.length < 6) {
+			       return false;
+				}else{
+					return true;
+				}
+		},"Sorry, password is not matching");
+		 $.validator.addMethod("password_format_upper",function(value,element){
+			 	var upperCaseRegex = /[A-Z]+/;
+				if(!value.match(upperCaseRegex)) {
+			       return false;
+				}else{
+					return true;
+				}
+		},"Sorry, password is not matching");
+		
+		 $.validator.addMethod("password_number",function(value,element){
+			 	var numberRegex = /[0-9]+/
+				if(!value.match(numberRegex)) {
+			        return false;
+				}else{
+					return true;
+				}
+		},"Sorry, password is not matching");
+		
+		$.validator.addMethod("password_matc",function(value,element){
+			 	var old_pass = $('#password').val();
+				if(value != old_pass) {
+			        return false;
+				}else{
+					return true;
+				}
+		},"Sorry, password is not matching");
+	  
+	}); 
+	</script> 
+
+<?php echo $this->Form->end();?> 
+
+
+<?php echo $this->Js->writeBuffer();?>
+

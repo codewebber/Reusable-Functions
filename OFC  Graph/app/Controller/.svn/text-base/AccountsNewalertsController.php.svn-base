@@ -1,0 +1,102 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * AccountsNewalerts Controller
+ *
+ * @property AccountsNewalert $AccountsNewalert
+ */
+class AccountsNewalertsController extends AppController {
+
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->AccountsNewalert->recursive = 0;
+		$this->set('accountsNewalerts', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsNewalert->id = $id;
+		if (!$this->AccountsNewalert->exists()) {
+			throw new NotFoundException(__('Invalid accounts newalert'));
+		}
+		$this->set('accountsNewalert', $this->AccountsNewalert->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->AccountsNewalert->create();
+			if ($this->AccountsNewalert->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts newalert has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts newalert could not be saved. Please, try again.'));
+			}
+		}
+		$accountsBills = $this->AccountsNewalert->AccountsBill->find('list');
+		$accountsBillalerts = $this->AccountsNewalert->AccountsBillalert->find('list');
+		$this->set(compact('accountsBills', 'accountsBillalerts'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->AccountsNewalert->id = $id;
+		if (!$this->AccountsNewalert->exists()) {
+			throw new NotFoundException(__('Invalid accounts newalert'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsNewalert->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts newalert has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts newalert could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->AccountsNewalert->read(null, $id);
+		}
+		$accountsBills = $this->AccountsNewalert->AccountsBill->find('list');
+		$accountsBillalerts = $this->AccountsNewalert->AccountsBillalert->find('list');
+		$this->set(compact('accountsBills', 'accountsBillalerts'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsNewalert->id = $id;
+		if (!$this->AccountsNewalert->exists()) {
+			throw new NotFoundException(__('Invalid accounts newalert'));
+		}
+		if ($this->AccountsNewalert->delete()) {
+			$this->Session->setFlash(__('Accounts newalert deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Accounts newalert was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

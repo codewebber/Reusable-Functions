@@ -1,0 +1,5 @@
+<div class="mainContent accessDeniedBodyWrap">
+	<div class="accessdeniedImagWrap">
+		<?php echo $this->Html->image('access-forbidden.jpg');?>
+	</div>
+</div>

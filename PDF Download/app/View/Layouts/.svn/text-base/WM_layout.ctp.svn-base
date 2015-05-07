@@ -1,0 +1,238 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<title>
+			WORK MANAGER
+		</title>
+		
+		<?php
+		echo $this -> Html -> meta('icon');
+		echo $this -> Html -> css('style_WM');
+		echo $this -> Html -> css('selectbox');
+		echo $this -> Html -> css('style_slide');
+		echo $this -> Html -> css('popupcss');
+		
+		echo $this -> Html -> script('jquery_1.7.1.js');
+		echo $this -> Html -> css('jquery.ui.datepicker');
+        echo $this->Html->script('jquery-ui.min.js'); 
+		echo $this -> Html -> script('jquery.validate.js');
+		
+		echo $this -> Html -> script('jquery.custom_radio_checkbox.js');
+		echo $this -> Html -> script('jquerySelectbox.js');
+		echo $this -> Html -> script('tabs.js');
+		echo $this -> Html -> script('slidetounlock.js');
+		echo $this -> Html -> script('popupscript.js');
+		?> 
+	
+	
+	<!-- Submit Script-->
+
+<script type="text/javascript">
+$(function(){
+// Attach a submit handler to the form
+	$( "#ourwish" ).submit(function( event ) {   
+	event.preventDefault();   
+	var $form = $( this ),term = $form.find( "input[name='data[Spamrecord][shift]']" ).val(),term1 = $form.find( "input[name='data[Spamrecord][details]']" ).val(),url = $form.attr( "action" );
+	var checkdet=$('#stepdetails').val();
+	var checkdet1 = $('#stepdetails1').val();
+	var firstval = 'data[Spamrecord][details]';
+	var secval = 'data[Spamrecord][shift]';
+	var posting = $.post( url, { 'data[Spamrecord][details]':checkdet , 'data[Spamrecord][shift]':checkdet1 } ); 
+	posting.done(function( data ) {    var content = $( data );
+	$( "#stepout" ).empty().append( content ); 
+	 });
+	});
+	});
+</script>	
+<!-- Submit Script-->
+	
+	</head>
+	<body>
+	
+		<div class="WM_layout" id="bodyMainDiv">
+			<div class="WM_header_layout">
+				<div class="WM_header_container">
+					
+					<div class="WM_header_bg_left">
+						
+					</div>
+					<div class="WM_header_bg_mid">
+						
+						<div class="WM_logo">
+							<?php echo $this -> Html -> image('logo_wm.png'); ?>
+            			</div>
+            			<div class="WM_line"></div>
+            			
+		                <div class="WM_mainlinks">
+		                	<?php echo $this -> Html -> link($this -> Html -> image('ticket_overview.png', array('border' => '0')) . '<h2> Ticket Overview </h2>', "../client_ticketdetails/ticket_interface", array('update' => '#pageContent', 'escape' => false)); ?>
+		          	  	</div>
+		               	<div class="WM_line"></div>
+		               
+		               	<div class="WM_mainlinks">
+		               			<?php echo $this -> Html -> link($this -> Html -> image('client_update.png', array('border' => '0')) . '<h2> Client/Server Update </h2>', "../client_updates/index", array('update' => '#pageContent', 'escape' => false)); ?>
+		              	</div>
+		              	<div class="WM_line"></div>
+		              	
+		              	<div class="WM_mainlinks">
+		            		<?php echo $this -> Html -> link($this -> Html -> image('daily_report.png', array('border' => '0')) . '<h2>Daily Report</h2>', "../work_entrylogs/wmDailyReport", array('escape' => false)); ?>
+		            	</div>
+		                <div class="WM_line"></div>
+		                
+		               	<div class="client_interface Team_drop">
+		                   <h2>Welcome <?php echo $this -> Session -> read('User.username'); ?></h2>
+		                   <h2><span class="leftFloated_span">Team : </span><?php echo $this->element('select_team');?></h2>
+		               	</div>
+	               		<div class="client_interface_slide">
+	               			<?php echo $this -> Html -> image('slide.jpg'); ?>
+	                        <div id="page-wrap">
+			                  	<div id="well">
+				                   	<h2><strong id="slider"></strong> <span></span></h2>
+		   		                </div>
+		                    </div>
+	                     </div>
+	                    <div class="power_mode">
+	                    		<span><a href="#" class="power_resume"><?php echo $this -> Html -> link($this -> Html -> image('cdb_icon.png', array('alt' => 'logout')), '../client_updates/clientdb_homepage', array('escape' => FALSE,'title'=>'Client Db','target' => '_blank')); ?></a></span>
+	                    		<span><a href="#" class="power_off"><?php echo $this -> Html -> link($this -> Html -> image('poweroff.png', array('alt' => 'logout')), '../users/logout', array('escape' => FALSE,'title'=>'Logout')); ?></a></span> 
+	                     		<span> <?php echo $this -> Html -> image('header_line_ico.jpg'); ?></span>      
+	                      		<span>
+	                      			<a href="#" class="power_resume">
+	                      				<?php /*echo $this -> Html -> link($this -> Html -> image('resume.png', array('alt' => 'logout')), '../workdelegation_categories/index/', array('escape' => FALSE,'title'=>'Switch to VC'));*/
+										$role_name = $this->requestAction('users/rolename');
+										 
+										if(($role_name == 'Admin') || ($role_name == 'Executive Team Member')){	
+										 
+	                      		 		echo $this -> Html -> link($this -> Html -> image('wm_newicon.png', array('alt' => 'Switch to VC')), '../visioncarma_newscategories/exec_dashboard/', array('escape' => FALSE,'title'=>'Switch to VC'));
+										}else{
+										echo $this -> Html -> link($this -> Html -> image('wm_newicon.png', array('alt' => 'Switch to VC')), '../workdelegation_categories/index/', array('escape' => FALSE,'title'=>'Switch to VC'));	
+										}
+	                      		 		?>
+	                      		 	</a>
+	                      		 </span>           
+	                   	</div>
+		     		</div>
+		        	<div class="WM_header_bg_right">
+		        		
+		        	</div>
+		        	
+				</div><!--WM_header_container--> 
+			</div>
+			<div class="WM_layout_inner">
+				<div class="WM_middle_containerH">
+					<?php
+					if($this->params['action'] != 'wmDailyReport'):?>
+					<div id = "ticket_leftpanel">
+						 <?php echo $this -> element('ticket'); ?> 
+					</div>
+					<?php endif; ?>
+					<?php echo $this->Html->image('VC-preloader.png', array('id' => 'loading_div','align'=>'middle', 'style'=>'display:none; position: relative;right: -350px;')); ?>
+					<div id="pageContent">
+						<?php echo $this -> Session -> flash(); ?>
+						<?php echo $this -> fetch('content'); ?>
+					</div>
+				</div>
+				<div class="copyrights">
+			      	<p>&copy;<?php echo date('Y');?>, VisionCarma. All rights reserved.</p>
+			    </div>
+			</div>
+		</div>
+		
+		<script type="text/javascript">		   		
+		   		setTimeout(function(){
+					$(".flash_message_top").hide();
+				},20000);
+			function startCycle() {
+				cycleTimer = setInterval(function() {
+					var openedTab = $(".cloud_tabs > li.selected_tab").index();
+					if(openedTab == 1)
+					{
+						$.ajax({
+							url: '<?php echo $this -> webroot; ?>work_taskdetails/refreshTask',
+				    		dataType :'html',
+							success: function(data) {
+							$('#ticket_leftpanel').html(data);
+							}
+					    });
+					}
+					else if (openedTab == 0)
+					{	
+						$.ajax({
+						url: '<?php echo $this -> webroot; ?>client_ticketdetails/refreshTicket',
+						    dataType :'html',
+							success: function(data) {
+							$('#ticket_leftpanel').html(data);
+							}
+						});	
+					}
+					else if (openedTab == 2) 
+					{
+						$.ajax({
+						url: '<?php echo $this -> webroot; ?>client_ticketdetails/refreshChat',
+						    dataType :'html',
+							success: function(data) {
+							$('#ticket_leftpanel').html(data);
+							}
+						});
+					};
+					},240000);
+			}
+			startCycle();
+			
+				
+					
+					setInterval(function() {
+					$.ajax({
+					url: '<?php echo $this -> webroot; ?>work_entrylogs/wmInactivityLog',
+				    dataType :'html',
+					success: function(data) {
+					$("#inactive-state").html(data);
+					}
+					});
+					},330000);
+					
+
+					
+
+					
+		</script>
+		
+		<div id="inactive-state" ></div>
+		
+<div class="step_out simple_overlay" id="stepout" style="display:none;width: 539px;">
+<?php echo $this->Form->create('ShiftCurrentstatuslog',array('id'=>'ourwish','url'=>array('controller'=>'Users','action'=>'updateStatus')));?>
+<?php $statuses = $this->Session->read('User.breakOptions');?>
+
+	<div class="step_out_timimgDetails">
+		<h2>Please Select the break option</h2>
+ 	</div>
+  	<div class="step_out_timimgDetails">
+  		<div class="Reason_updates">
+        	<?php echo $this->Form->input('shift',array('options'=>array($statuses),'div'=>FALSE,'label'=>FALSE,'id'=>'stepdetails1'));?>
+    	</div>
+	</div>
+ 	<div class="step_out_Comments">
+ 		<?php echo $this->Form->textarea('details',array('div'=>FALSE,'id'=>'stepdetails','label'=>FALSE,'class'=>'step_outReason','cols'=>'','rows'=>''));?>
+		<!--<textarea name="" cols="" rows="" class="step_outReason"  value="" onblur="if (this.value == '') this.value = 'Reason';" onfocus="if (this.value == 'Reason') this.value = '';">Reason</textarea>-->
+ 	</div>
+ 	<div class="Btn_func">
+    	<div class="Btn_func_layout">
+        	<span class="btn_left"></span>
+        	<span style="padding:1px 5px 0 5px;">
+        		<input type="submit" value="Submit" class="btn_mid" />
+        	</span>
+            <span class="btn_right"></span>
+   		</div>                   
+	</div>  
+	
+
+	<?php echo $this->Form->end();?>    
+	
+</div>
+
+	
+	
+	
+	
+<?php echo $this->Js->writeBuffer();?>
+	</body>
+</html>

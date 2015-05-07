@@ -1,0 +1,578 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<title>
+			WORK MANAGER
+		</title>
+		
+		<?php
+		echo $this -> Html -> meta('icon');
+		echo $this -> Html -> css('selectbox');
+		echo $this -> Html -> css('style_slide');
+		echo $this -> Html -> css('popupcss');
+		echo $this->Html->css('style_WM.css');
+		echo $this->Html->css('style_vc.css');
+		echo $this->Html->css('selectbox');
+		echo $this->Html->css('style_slide');
+		echo $this->Html->css('popupcss');
+		
+		
+		
+		echo $this -> Html -> script('jquery_1.7.1.js');
+		echo $this -> Html -> css('jquery.ui.datepicker');
+        echo $this->Html->script('jquery-ui.min.js'); 
+		echo $this -> Html -> script('jquery.validate.js');
+		
+		echo $this -> Html -> script('jquery.custom_radio_checkbox.js');
+		echo $this -> Html -> script('jquerySelectbox.js');
+		echo $this -> Html -> script('tabs.js');
+		echo $this -> Html -> script('slidetounlock.js');
+		echo $this -> Html -> script('popupscript.js');
+		
+		
+		
+		
+		echo $this -> Html -> css('jquery-ui');
+		
+		
+		?> 
+		
+		
+	
+	
+	<!-- Submit Script-->
+
+<script type="text/javascript">
+$(function(){
+// Attach a submit handler to the form
+	$( "#ourwish" ).submit(function( event ) {   
+	event.preventDefault();   
+	var $form = $( this ),term = $form.find( "input[name='data[Spamrecord][shift]']" ).val(),term1 = $form.find( "input[name='data[Spamrecord][details]']" ).val(),url = $form.attr( "action" );
+	var checkdet=$('#stepdetails').val();
+	var checkdet1 = $('#stepdetails1').val();
+	var firstval = 'data[Spamrecord][details]';
+	var secval = 'data[Spamrecord][shift]';
+	var posting = $.post( url, { 'data[Spamrecord][details]':checkdet , 'data[Spamrecord][shift]':checkdet1 } ); 
+	posting.done(function( data ) {    var content = $( data );
+	$( "#stepout" ).empty().append( content ); 
+	 });
+	});
+	});
+</script>
+
+
+<script type="text/javascript">
+	$(function(){
+	// Attach a submit handler to the form
+		$( "#for_idea_popup" ).submit(function( event ) {   
+		event.preventDefault();   
+		var $form = $( this ),term = $form.find( "input[name='data[NewIdeas][ideas]']" ).val(),url = $form.attr( "action" );
+		var checkdet=$('#ideas1').val();
+		var firstval = 'data[NewIdeas][ideas]';
+		$('#ideas1').val(' ');
+		var posting = $.post( url, { 'data[NewIdeas][ideas]':checkdet} ); 
+		posting.done(function( data ) {    var content = $( data );
+		$( "#stepoutfor_new_idea" ).empty().append( content ); 
+		 });
+		});
+		});
+</script>	
+<!-- Submit Script-->
+	
+	</head>
+	<body>
+	
+		<div class="WM_layout" id="bodyMainDiv">
+			<div class="WM_header_layout">
+				<div class="WM_header_container">
+					
+					<div class="WM_header_bg_left">
+						
+					</div>
+					<div class="WM_header_bg_mid">
+						
+						<div class="WM_logo">
+							<?php echo $this -> Html -> image('logo_wm.png'); ?>
+            			</div>
+            			<div class="WM_line"></div>
+            			
+		                <div class="WM_mainlinks">
+		                	<?php echo $this -> Html -> link($this -> Html -> image('ticket_overview.png', array('border' => '0')) . '<h2> Ticket Overview </h2>', "../client_ticketdetails/ticket_interface_new", array('update' => '#pageContent', 'escape' => false)); ?>
+		          	  	</div>
+		               	<div class="WM_line"></div>
+		               
+		               	<div class="WM_mainlinks">
+		               			<?php echo $this -> Html -> link($this -> Html -> image('client_update.png', array('border' => '0')) . '<h2> Client/Server Update </h2>', "../client_updates/index", array('update' => '#pageContent', 'escape' => false)); ?>
+		              	</div>
+		              	<div class="WM_line"></div>
+		              	
+		              	<div class="WM_mainlinks">
+		            		<?php echo $this -> Html -> link($this -> Html -> image('daily_report.png', array('border' => '0')) . '<h2>Daily Report</h2>', "../work_entrylogs/wmDailyReportNew", array('update' => '#pageContent','escape' => false)); ?>
+		            	</div>
+		                <div class="WM_line"></div>
+		                
+		               	<div class="client_interface Team_drop" style="width:184px;">
+		                   <h2>Welcome <?php echo $this -> Session -> read('User.username'); ?></h2>
+		                   <h2><span class="leftFloated_span">Team : </span><?php echo $this->element('select_team');?></h2>
+		               	</div>
+	               		<div class="client_interface_slide">
+	               			<?php echo $this -> Html -> image('slide.jpg'); ?>
+	                        <div id="page-wrap">
+			                  	<div id="well">
+				                   	<h2><strong id="slider"></strong> <span></span></h2>
+		   		                </div>
+		                    </div>
+	                     </div>
+	                     
+	                     <div class="client_interface_slide"  style="cursor: pointer; margin-left: 7px; margin-top: 12px;">
+               			   	<div id="for_idea">
+			                   	<?php echo $this->Html->image('ideator.png',array('title'=>'Ideator','style'=>'height: 28px;'));?>
+	   		                </div>
+		                </div>
+		                
+		                <script type="text/javascript" >
+							$(document).ready(function(){
+								$('#for_idea').click(function(){
+									slidepopup("stepoutfor_new_idea");	
+								});
+								
+								function slidepopup(getPopid){
+								    console.log(getPopid);
+									var popID = getPopid;//Get Popup Name
+									var popMargTop = ($('#' + popID).height() + 30) / 2;
+									var popMargLeft = ($('#' + popID).width() + 80) / 2;
+									$('#' + popID).css({ 
+										'margin-top' : -popMargTop,
+										'margin-left' : -popMargLeft
+									}).fadeIn();
+									$('body').append('<div id="fade"></div>'); //Add the fade layer to bottom of the body tag.
+									$('#fade').css({'filter' : 'alpha(opacity=80)'}).fadeIn(); //Fade in the fade layer 
+								    //return false;
+							   }
+								
+							});
+							
+						</script>
+	                    
+	                    <div class="power_mode">
+	                    		<span><a href="#" class="power_resume"><?php echo $this -> Html -> link($this -> Html -> image('cdb_icon.png', array('alt' => 'logout')), '../client_updates/clientdb_homepage', array('escape' => FALSE,'title'=>'Client Db','target' => '_blank')); ?></a></span>
+	                    		<span><a href="#" class="power_off"><?php echo $this -> Html -> link($this -> Html -> image('poweroff.png', array('alt' => 'logout')), '../users/logout', array('escape' => FALSE,'title'=>'Logout')); ?></a></span> 
+	                     		<span> <?php echo $this -> Html -> image('header_line_ico.jpg'); ?></span>      
+	                      		<span>
+	                      			<a href="#" class="power_resume">
+	                      				<?php /*echo $this -> Html -> link($this -> Html -> image('resume.png', array('alt' => 'logout')), '../workdelegation_categories/index/', array('escape' => FALSE,'title'=>'Switch to VC'));*/
+										$role_name = $this->requestAction('users/rolename');
+										 
+										if(($role_name == 'Admin') || ($role_name == 'Executive Team Member')){	
+										 
+	                      		 		echo $this -> Html -> link($this -> Html -> image('wm_newicon.png', array('alt' => 'Switch to VC')), '../visioncarma_newscategories/exec_dashboard/', array('escape' => FALSE,'title'=>'Switch to VC'));
+										}else{
+										echo $this -> Html -> link($this -> Html -> image('wm_newicon.png', array('alt' => 'Switch to VC')), '../workdelegation_categories/index/', array('escape' => FALSE,'title'=>'Switch to VC'));	
+										}
+	                      		 		?>
+	                      		 	</a>
+	                      		 </span>           
+	                   	</div>
+		     		</div>
+		        	<div class="WM_header_bg_right">
+		        		
+		        	</div>
+		        	
+				</div><!--WM_header_container--> 
+			</div>
+			<div class="WM_layout_inner">
+				<div class="WM_middle_containerH">
+					<?php
+					if($this->params['action'] != 'wmDailyReportNew'):?>
+					<div class="WM_middle_ticketprocess_outer" >
+						<div id = "ticket_leftpanel">
+							 <?php echo $this -> element('ticket_new'); ?> 
+						</div>
+					</div>
+					<?php endif; ?>
+					<?php echo $this->Html->image('VC-preloader.png', array('id' => 'loading_div','align'=>'middle', 'style'=>'display:none; position: relative;right: -350px;')); ?>
+					<div id="pageContent">
+						<?php echo $this -> Session -> flash(); ?>
+						<?php echo $this -> fetch('content'); ?>
+					</div>
+				</div>
+				<div class="copyrights">
+			      	<p>&copy;<?php echo date('Y');?>, VisionCarma. All rights reserved.</p>
+			    </div>
+			</div>
+		</div>
+		
+		<script type="text/javascript">		   		
+		   		setTimeout(function(){
+					$(".flash_message_top").hide();
+				},20000);
+			function startCycle() {
+				cycleTimer = setInterval(function() {
+					var openedTab = $(".cloud_tabs > li.selected_tab").index();
+					if(openedTab == 1)
+					{
+						$.ajax({
+							url: '<?php echo $this -> webroot; ?>work_taskdetails/refreshChatNew',
+				    		dataType :'html',
+							success: function(data) {
+							$('#ticket_leftpanel').html(data);
+							}
+					    });
+					}
+					else if (openedTab == 0)
+					{	
+						$.ajax({
+						url: '<?php echo $this -> webroot; ?>client_ticketdetails/refreshTicketNew',
+						    dataType :'html',
+							success: function(data) {
+							$('#ticket_leftpanel').html(data);
+							}
+						});	
+					}
+					else if (openedTab == 2) 
+					{
+						$.ajax({
+						url: '<?php echo $this -> webroot; ?>client_ticketdetails/refreshTaskNew',
+						    dataType :'html',
+							success: function(data) {
+							$('#ticket_leftpanel').html(data);
+							}
+						});
+					};
+					},240000);
+			}
+			startCycle();
+			
+				
+					
+					setInterval(function() {
+					$.ajax({
+					url: '<?php echo $this -> webroot; ?>work_entrylogs/wmInactivityLog',
+				    dataType :'html',
+					success: function(data) {
+					$("#inactive-state").html(data);
+					}
+					});
+					},330000);
+					
+
+					
+
+					
+		</script>
+		
+		<div id="inactive-state" ></div>
+		
+<div class="step_out simple_overlay" id="stepout" style="display:none;width: 539px;">
+<?php echo $this->Form->create('ShiftCurrentstatuslog',array('id'=>'ourwish','url'=>array('controller'=>'Users','action'=>'updateStatus')));?>
+<?php $statuses = $this->Session->read('User.breakOptions');?>
+
+	<div class="step_out_timimgDetails">
+		<h2>Please Select the break option</h2>
+ 	</div>
+  	<div class="step_out_timimgDetails">
+  		<div class="Reason_updates">
+        	<?php echo $this->Form->input('shift',array('options'=>array($statuses),'div'=>FALSE,'label'=>FALSE,'id'=>'stepdetails1'));?>
+    	</div>
+	</div>
+ 	<div class="step_out_Comments">
+ 		<?php echo $this->Form->textarea('details',array('div'=>FALSE,'id'=>'stepdetails','label'=>FALSE,'class'=>'step_outReason','cols'=>'','rows'=>''));?>
+		<!--<textarea name="" cols="" rows="" class="step_outReason"  value="" onblur="if (this.value == '') this.value = 'Reason';" onfocus="if (this.value == 'Reason') this.value = '';">Reason</textarea>-->
+ 	</div>
+ 	<div class="Btn_func">
+    	<div class="Btn_func_layout">
+        	<span class="btn_left"></span>
+        	<span style="padding:1px 5px 0 5px;">
+        		<input type="submit" value="Submit" class="btn_mid" />
+        	</span>
+            <span class="btn_right"></span>
+   		</div>                   
+	</div>  
+	
+
+	<?php echo $this->Form->end();?>    
+	
+</div>
+
+	
+<!-- Added By Abdul Hameed for New Ideas -->
+
+<div class="step_out simple_overlay" id="stepoutfor_new_idea" style="display:none;width: 539px;">
+<?php echo $this->Form->create('NewIdeas',array('id'=>'for_idea_popup','url'=>array('controller'=>'Users','action'=>'new_ideas')));?>
+
+	<div class="popup_close_bar ">
+		<img class="right pointer popup_close_bar_cross forclosestepin" src="<?php echo $this->webroot;?>img/close_popup.png" title="Close"/>
+	</div>
+	<div class="step_out_timimgDetails">
+		<h2 style="margin-left: 45px;">Share your ideas and start something good...</h2>
+ 	</div>
+  	
+ 	<div class="step_out_Comments">
+ 		<?php echo $this->Form->textarea('ideas',array('div'=>FALSE,'label'=>FALSE,'id'=>'ideas1','class'=>'step_outReason','cols'=>'','rows'=>''));?>
+		<!--<textarea name="" cols="" rows="" class="step_outReason"  value="" onblur="if (this.value == '') this.value = 'Reason';" onfocus="if (this.value == 'Reason') this.value = '';">Reason</textarea>-->
+ 	</div>
+ 	<div class="Btn_func" style="margin-bottom: 29px;">
+    	<div class="Btn_func_layout">
+        	<span class="btn_left"></span>
+        	<span style="padding:1px 5px 0 5px;">
+        		<input type="submit" value="Submit" class="btn_mid" />
+        	</span>
+            <span class="btn_right"></span>
+   		</div>                   
+	</div>  
+	<div class="step_out_timimgDetails" style="width: 98%;">
+		<span style="margin-left: 17px; font-size: 11px; text-align: center;">
+			"You can have brilliant ideas, but if you can't get them across, your ideas won't get you anywhere."<br /> - Lee Iacocca
+		</span>
+ 	</div>
+	<?php echo $this->Form->end();?>   
+</div>
+
+
+<script type="text/javascript" >
+	$(document).keydown(function(e) {
+		// ESCAPE key pressed
+		if (e.keyCode == 27) {      
+            $('#inactive-state').fadeOut();
+			$('#inactive-state').fadeOut(function() {
+				$('#stepout').hide(1);
+				$('#stepoutfor_new_idea').hide(1);
+				$("#fade").remove();
+				$('#slider').delay(500).animate({
+						left: 0
+				});
+				$('#well').delay(5).fadeIn();
+				
+			});
+        }
+        
+        $(document).ready(function(){
+			$('.forclosestepin').click(function(){
+				$('#inactive-state').fadeOut();
+				$('#inactive-state').fadeOut(function() {
+					$('#stepoutfor_new_idea').hide(1);
+					$("#fade").remove();
+				});
+			});
+		});
+    });
+</script>
+
+<!-- Ends ---->	
+	
+<style>
+	.WM_middle_rightContainer {
+	    width: 747px;
+	}
+	
+	.WM_middle_ticketprocess_outer {
+	    width: 350px;
+	}
+	.WM_middle_ticketprocess {
+	    margin-top: 76px;
+	    min-height: 663px;
+	    width: 332px;
+	}
+	.client_ticketdetails {
+	    min-height: 674px !important;
+	}
+	.ticket_task {
+	    margin-left: 19px;
+	    margin-top: 2px;
+	    width: 90%;
+	}
+	
+	.Search_dropdown {
+	    margin-bottom: 8px;
+	    margin-left: 21px;
+	}
+	
+	.ticket_hr_line {
+	    margin-left: 22px;
+	    width: 90%;
+	}
+	
+	.ticket_progress {
+	    margin-left: 21px;
+	    width: 90%;
+	}
+	
+	.tickets_Buttons_green {
+	    border-radius: 5px;
+	    margin-bottom: 10px;
+	    margin-right: 9px;
+	}
+	
+	.TicketNew_time {
+	    margin: 7px 18px 0 0;
+	}
+	
+	.tickets_Buttons_blue {
+	    border-radius: 5px;
+	    margin-bottom: 10px;
+	    margin-right: 9px;
+	}
+	
+	.tickets_Buttons {
+	    border-radius: 5px;
+	    margin-bottom: 10px;
+	    margin-right: 9px;
+	}
+	
+	
+	.TicketNew_id {
+	    clear: both;
+	    max-width: 77%;
+	    width: auto;
+	}
+	
+	.ticket_customcheck {
+	    margin-left: -14px;
+	}
+	
+	.TicketNew_clientName {
+	    margin-left: 10px;
+	}
+	
+	.Search_txt {
+	    margin-left: 11px;
+	}
+	
+	
+	.WM_layout {
+	    width: 100%;
+	}
+	
+	.WM_header_layout{
+		width: 100%;
+	}
+	
+	.WM_header_container {
+	    width: 100%;
+	}
+	
+	.WM_header_bg_left{
+		width: 1%;
+	}
+	.WM_header_bg_mid{
+		width: 98%;
+	}
+	.WM_header_bg_right{
+		width: 1%;
+	}
+	
+	.WM_layout_inner{
+		width: 100%;
+	}
+	.WM_middle_containerH{
+		width: 100%;
+	}
+	.WM_middle_ticketprocess_outer{
+		width: 37%;
+	}
+	.WM_middle_ticketprocess{
+		margin-left: 7%;
+		width: 90%;
+	}
+	.WM_middle_rightContainer{
+		width: 59%;
+	}
+	.client_ticketdetails{
+		width: 105%;
+	}
+	.ticket_tabs_top li{
+		background-color: #EAEAEA;
+		margin-right: 4px;
+	}
+	.ticket_tabs_top li a{
+		color: #333333;
+	}
+	.ticket_tabs_top li.selected_tab a{
+		color: #1E93C5;
+	}
+	
+	
+	.Client_task_details_top li.selected_tab{
+		background: none repeat scroll 0 0 #FFFFFF !important;
+	}
+	
+	.Client_task_details_top {
+	    margin-top: 47px;
+	}
+	.client_ticketdetails{
+		margin-top: 0px;
+	}
+	
+	.Client_task_details_top li.selected_tab a{
+		color: #1E93C5;
+	}
+	
+	.claimed_Ticket{
+		margin-bottom: 23px;
+		margin-top: 22px;
+		margin-left: 10px;
+	}
+	
+	
+	.ticket_tabs_top {
+	    margin-left: 23px;
+	    margin-top: -54px;
+	}
+	
+	.WM_logo {
+	    width: 34%;
+	}
+	
+	.client_interface.Team_drop {
+	    margin-left: 5px;
+	}
+	
+	.client_interface_slide {
+	    margin-left: 0;
+	}
+	
+	.tabs_container {
+	    width: 100%;
+	}
+	
+	.cloud_panes {
+	    width: 100%;
+	}
+	
+	.cloud_tabs.tabs {
+	    width: 100%;
+	}
+	.ticket_tabs_bottom {
+		width: 100%;
+	}
+	.search_client {
+	    width: 44%;
+	}
+	.claimed_Ticket {
+	    margin-bottom: 10px;
+	    margin-left: 10px;
+	    margin-top: 10px;
+	}
+	.Client_task_details_top a {
+	    padding: 7px 11px;
+	}
+	.ticket_tabs_top li a {
+	    padding: 7px 20px;
+	}
+	.ticket_tabs_top li a {
+	    padding: 7px 2px;
+	}
+	.forspan_change {
+	    font-family: verdana;
+	    font-size: 14px;
+	}
+	.claimed_Ticket h2 {
+	    font-family: verdana;
+	    font-size: 14px;
+	}
+</style>	
+<?php echo $this->Js->writeBuffer();?>
+	</body>
+</html>
+

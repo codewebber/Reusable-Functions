@@ -1,0 +1,109 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * CandidatePreviousProjects Controller
+ *
+ * @property CandidatePreviousProject $CandidatePreviousProject
+ * @property PaginatorComponent $Paginator
+ * @property SessionComponent $Session
+ */
+class CandidatePreviousProjectsController extends AppController {
+
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('Paginator', 'Session');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->CandidatePreviousProject->recursive = 0;
+		$this->set('candidatePreviousProjects', $this->Paginator->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		if (!$this->CandidatePreviousProject->exists($id)) {
+			throw new NotFoundException(__('Invalid candidate previous project'));
+		}
+		$options = array('conditions' => array('CandidatePreviousProject.' . $this->CandidatePreviousProject->primaryKey => $id));
+		$this->set('candidatePreviousProject', $this->CandidatePreviousProject->find('first', $options));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->CandidatePreviousProject->create();
+			if ($this->CandidatePreviousProject->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate previous project has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate previous project could not be saved. Please, try again.'));
+			}
+		}
+		$candidatePreviousDetails = $this->CandidatePreviousProject->CandidatePreviousDetail->find('list');
+		$this->set(compact('candidatePreviousDetails'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		if (!$this->CandidatePreviousProject->exists($id)) {
+			throw new NotFoundException(__('Invalid candidate previous project'));
+		}
+		if ($this->request->is(array('post', 'put'))) {
+			if ($this->CandidatePreviousProject->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate previous project has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate previous project could not be saved. Please, try again.'));
+			}
+		} else {
+			$options = array('conditions' => array('CandidatePreviousProject.' . $this->CandidatePreviousProject->primaryKey => $id));
+			$this->request->data = $this->CandidatePreviousProject->find('first', $options);
+		}
+		$candidatePreviousDetails = $this->CandidatePreviousProject->CandidatePreviousDetail->find('list');
+		$this->set(compact('candidatePreviousDetails'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		$this->CandidatePreviousProject->id = $id;
+		if (!$this->CandidatePreviousProject->exists()) {
+			throw new NotFoundException(__('Invalid candidate previous project'));
+		}
+		$this->request->allowMethod('post', 'delete');
+		if ($this->CandidatePreviousProject->delete()) {
+			$this->Session->setFlash(__('The candidate previous project has been deleted.'));
+		} else {
+			$this->Session->setFlash(__('The candidate previous project could not be deleted. Please, try again.'));
+		}
+		return $this->redirect(array('action' => 'index'));
+	}
+}

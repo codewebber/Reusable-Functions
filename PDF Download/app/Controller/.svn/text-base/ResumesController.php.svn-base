@@ -1,0 +1,229 @@
+<?php
+
+
+
+App::uses('AppController', 'Controller');
+CakePlugin::load('Uploader');
+App::import('Vendor', 'Uploader.Uploader');
+App::uses('AppModel', 'Model');
+App::uses('AppHelper', 'View', 'helper');
+
+
+/**
+ * Resumes Controller
+ *
+ * @property Resume $Resume
+ */
+class ResumesController extends AppController {
+
+	public $components = array('Session','Email', 'RequestHandler');	
+	
+	var $helpers = array('Html', 'Form','Js');
+	public $actsAs = array('Uploader.Attachment');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {	 	
+		
+		
+		
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->Resume->id = $id;
+		if (!$this->Resume->exists()) {
+			throw new NotFoundException(__('Invalid resume'));
+		}
+		$this->set('resume', $this->Resume->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->Resume->create();
+			if ($this->Resume->save($this->request->data)) {
+				$this->Session->setFlash(__('The resume has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The resume could not be saved. Please, try again.'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->Resume->id = $id;
+		if (!$this->Resume->exists()) {
+			throw new NotFoundException(__('Invalid resume'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->Resume->save($this->request->data)) {
+				$this->Session->setFlash(__('The resume has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The resume could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->Resume->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->Resume->id = $id;
+		if (!$this->Resume->exists()) {
+			throw new NotFoundException(__('Invalid resume'));
+		}
+		if ($this->Resume->delete()) {
+			$this->Session->setFlash(__('Resume deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Resume was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	/*
+	 *  Import zip file containing resume
+	 */
+	 
+	 
+	  function importResume (){
+	 			//configure::write('debug',2);	
+			 $this->loadModel('CandidateJobdescriptionmapping');
+			 $this->loadModel('Candidate');
+			 $this->loadModel('JobDescription');			
+			 //$this->autoRender = false;
+			 $dpath = 'files/uploads/resumeZipped';	 
+			 $jd = $this->JobDescription->find('list',array('fields'=>'title'));
+			 if ($this->request->is('post')) {
+			 						 
+				if ($this->data['importForm']['jobdesc'] && trim($this->data['importForm']['fileName']['name'])) {	
+					 $this->Uploader = new Uploader(); 
+					 $this->Uploader = new Uploader(array('tempDir' => TMP));
+					 $this->Uploader->setup(array('tempDir' => TMP));
+					 $this->Uploader->uploadDir = 'files/uploads/resumeZipped';
+					 $this->doc2txt = $this->Components->load('Doc2Txt');			 
+					 $jobdesc = $this->data['importForm']['jobdesc'];
+					 if ($data = $this->Uploader->uploadAll(array('fileName')))
+					 {			 	
+					 	 $resumePath   = explode('.',$data['fileName']['path']);	
+						 $resume_path  = $resumePath[0];
+						 $dir_name     = basename($data['fileName']['path']);				 
+					 	 
+						 $zipFile = ROOT."/app/webroot/".$dpath.'/'.$dir_name;							 
+						 $zip = new ZipArchive; 				
+						 
+						 if ($zip->open($zipFile) === TRUE) 
+						 {
+						 	  $zip->extractTo(ROOT."/app/webroot/".$dpath.'/');
+							  $foldername = $zip->getNameIndex(0);					  
+							  $zip->close();
+							  unlink($zipFile);					  
+							  chmod(ROOT."/app/webroot/".$dpath.'/'.$foldername, 0777);
+							  
+							 if ($handleDir = opendir(ROOT."/app/webroot/".$dpath.'/'.$foldername)) {
+								    $chkEmptyDir = 0;
+								    $errFileLog  = array();
+								    /* This is the correct way to loop over the directory. */
+								  while (false !== ($filename = readdir($handleDir)) ) {
+								  									  	     						    
+								     if ($filename != '.' && $filename != '..') {
+								     	 $chkEmptyDir ++;
+										 $this->doc2txt->setFilePath(ROOT."/app/webroot/".$dpath.'/'.$foldername.$filename);
+										 $txt = $this->doc2txt->convertToText();										
+										 if ($txt) {
+											 $email_pattern = '/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}\b/i';
+											 preg_match($email_pattern,$txt,$email_match);	
+											 $emailid = $email_match[0];						 
+											 $mobile_pattern = "/[789][0-9]{9,11}/";							
+											 preg_match($mobile_pattern,$txt,$mobile_match);
+											 $mobile = $mobile_match[0];
+											 
+											 $save->data = null;
+											 $this->Resume->create();
+											 $save->data['Resume']['resume_path']         = $resume_path."/$filename";
+											 $save->data['Resume']['resume_username']     = $emailid;
+											 $save->data['Resume']['resume_useremail']    = $emailid;
+											 $save->data['Resume']['resume_user_contact'] = $mobile;
+											 $this->Resume->save($save->data);
+											 
+											 $lastResumeId = $this->Resume->getLastInsertID();
+											 $save1->data = null;
+											 $this->Candidate->create();
+											 $save1->data['Candidate']['first_name'] = 'Siddharth';
+											 $save1->data['Candidate']['last_name']  = 'Jain';
+											 $save1->data['Candidate']['resume_id']  = $lastResumeId;	
+											 $this->Candidate->save($save1->data);
+											 
+											 $lastCandidateId = $this->Candidate->getLastInsertID();
+											 $save2->data = null;
+											 $this->CandidateJobdescriptionmapping->create();
+											 $save2->data['CandidateJobdescriptionmapping']['job_description_id'] = $jobdesc;
+											 $save2->data['CandidateJobdescriptionmapping']['candidate_id']       = $lastCandidateId;
+											 $this->CandidateJobdescriptionmapping->save($save2->data);
+										}
+										else {
+											$errFileLog[] = $filename;
+										}								 
+									 } 
+								  }
+										 closedir($handleDir);
+							  }
+										if(!$chkEmptyDir){
+											$delFolder = ROOT."/app/webroot/".$dpath.'/'.$foldername;
+											rmdir($delFolder);
+											$this->Session->setFlash('<div class="flashMessageSuccess">Zip file was Empty!</div>');
+										}
+										else {
+											$this->Session->setFlash('<div class="flashMessageSuccess">The Zip file has imported</div>');					
+							 			    $this->redirect(array('controller'=>'resumes','action' => 'importResume'));
+							 		    }
+										//debug($errFileLog);
+						 } 
+						 else 
+						 { 
+						   $this->Session->setFlash('<div class="flashMessageSuccess">Error reading zip-archive!</div>');
+						 } 
+					}	
+					else {
+						   $this->Session->setFlash('<div class="flashMessageSuccess">Error Occured Try Again!</div>');
+					}
+				}
+				else {
+						   $this->Session->setFlash('<div class="flashMessageError">Enter All Fields</div>');
+				}
+			}	
+			$this->set(compact('jd'));		 	     
+		  }
+	 
+}

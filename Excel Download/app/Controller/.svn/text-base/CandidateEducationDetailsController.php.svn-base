@@ -1,0 +1,109 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * CandidateEducationDetails Controller
+ *
+ * @property CandidateEducationDetail $CandidateEducationDetail
+ * @property PaginatorComponent $Paginator
+ * @property SessionComponent $Session
+ */
+class CandidateEducationDetailsController extends AppController {
+
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('Paginator', 'Session');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->CandidateEducationDetail->recursive = 0;
+		$this->set('candidateEducationDetails', $this->Paginator->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		if (!$this->CandidateEducationDetail->exists($id)) {
+			throw new NotFoundException(__('Invalid candidate education detail'));
+		}
+		$options = array('conditions' => array('CandidateEducationDetail.' . $this->CandidateEducationDetail->primaryKey => $id));
+		$this->set('candidateEducationDetail', $this->CandidateEducationDetail->find('first', $options));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->CandidateEducationDetail->create();
+			if ($this->CandidateEducationDetail->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate education detail has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate education detail could not be saved. Please, try again.'));
+			}
+		}
+		$candidates = $this->CandidateEducationDetail->Candidate->find('list');
+		$this->set(compact('candidates'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		if (!$this->CandidateEducationDetail->exists($id)) {
+			throw new NotFoundException(__('Invalid candidate education detail'));
+		}
+		if ($this->request->is(array('post', 'put'))) {
+			if ($this->CandidateEducationDetail->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate education detail has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate education detail could not be saved. Please, try again.'));
+			}
+		} else {
+			$options = array('conditions' => array('CandidateEducationDetail.' . $this->CandidateEducationDetail->primaryKey => $id));
+			$this->request->data = $this->CandidateEducationDetail->find('first', $options);
+		}
+		$candidates = $this->CandidateEducationDetail->Candidate->find('list');
+		$this->set(compact('candidates'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		$this->CandidateEducationDetail->id = $id;
+		if (!$this->CandidateEducationDetail->exists()) {
+			throw new NotFoundException(__('Invalid candidate education detail'));
+		}
+		$this->request->allowMethod('post', 'delete');
+		if ($this->CandidateEducationDetail->delete()) {
+			$this->Session->setFlash(__('The candidate education detail has been deleted.'));
+		} else {
+			$this->Session->setFlash(__('The candidate education detail could not be deleted. Please, try again.'));
+		}
+		return $this->redirect(array('action' => 'index'));
+	}
+}

@@ -1,0 +1,115 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * AccountsClientinvoicedetails Controller
+ *
+ * @property AccountsClientinvoicedetail $AccountsClientinvoicedetail
+ */
+class AccountsClientinvoicedetailsController extends AppController {
+
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->AccountsClientinvoicedetail->recursive = 0;
+		$this->set('accountsClientinvoicedetails', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsClientinvoicedetail->id = $id;
+		if (!$this->AccountsClientinvoicedetail->exists()) {
+			throw new NotFoundException(__('Invalid accounts clientinvoicedetail'));
+		}
+		$this->set('accountsClientinvoicedetail', $this->AccountsClientinvoicedetail->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->AccountsClientinvoicedetail->create();
+			if ($this->AccountsClientinvoicedetail->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts clientinvoicedetail has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts clientinvoicedetail could not be saved. Please, try again.'));
+			}
+		}
+		$accountsClientinvoices = $this->AccountsClientinvoicedetail->AccountsClientinvoice->find('list');
+		$brandsPackages = $this->AccountsClientinvoicedetail->BrandsPackage->find('list');
+		$brandsServices = $this->AccountsClientinvoicedetail->BrandsService->find('list');
+		$billingUnits = $this->AccountsClientinvoicedetail->BillingUnit->find('list');
+		$this->set(compact('accountsClientinvoices', 'brandsPackages', 'brandsServices', 'billingUnits'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->AccountsClientinvoicedetail->id = $id;
+		if (!$this->AccountsClientinvoicedetail->exists()) {
+			throw new NotFoundException(__('Invalid accounts clientinvoicedetail'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsClientinvoicedetail->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts clientinvoicedetail has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts clientinvoicedetail could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->AccountsClientinvoicedetail->read(null, $id);
+		}
+		$accountsClientinvoices = $this->AccountsClientinvoicedetail->AccountsClientinvoice->find('list');
+		$brandsPackages = $this->AccountsClientinvoicedetail->BrandsPackage->find('list');
+		$brandsServices = $this->AccountsClientinvoicedetail->BrandsService->find('list');
+		$billingUnits = $this->AccountsClientinvoicedetail->BillingUnit->find('list');
+		$this->set(compact('accountsClientinvoices', 'brandsPackages', 'brandsServices', 'billingUnits'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null,$invoiceid=null,$recurringid=null) {
+		/*configure::write('debug',2);
+		debug($id);*/
+		/*if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}*/
+		$this->AccountsClientinvoicedetail->id = $id;
+		if (!$this->AccountsClientinvoicedetail->exists()) {
+			throw new NotFoundException(__('Invalid accounts clientinvoicedetail'));
+		}
+		if ($this->AccountsClientinvoicedetail->delete()) {
+			$this->Session->setFlash(__('Unit deleted from the invoice'));
+			if($recurringid)
+				{
+					$this->redirect(array('controller'=>'accounts_clientrecurringinvoices','action' => 'edit',$invoiceid));
+				}
+			else
+				{
+					$this->redirect(array('controller'=>'accounts_clientinvoices','action' => 'edit',$invoiceid));
+				}
+			
+		}
+		
+	}
+}

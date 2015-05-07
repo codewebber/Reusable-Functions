@@ -1,0 +1,129 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * CandidateJobdescriptionmappings Controller
+ *
+ * @property CandidateJobdescriptionmapping $CandidateJobdescriptionmapping
+ */
+class CandidateJobdescriptionmappingsController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	public $components = array('Session','Email', 'RequestHandler');
+	var $helpers = array('Html', 'Form','Js');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->CandidateJobdescriptionmapping->recursive = 0;
+		$this->set('candidateJobdescriptionmappings', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->CandidateJobdescriptionmapping->id = $id;
+		if (!$this->CandidateJobdescriptionmapping->exists()) {
+			throw new NotFoundException(__('Invalid candidate jobdescriptionmapping'));
+		}
+		$this->set('candidateJobdescriptionmapping', $this->CandidateJobdescriptionmapping->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->CandidateJobdescriptionmapping->create();
+			if ($this->CandidateJobdescriptionmapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate jobdescriptionmapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate jobdescriptionmapping could not be saved. Please, try again.'));
+			}
+		}
+		$jobDescriptions = $this->CandidateJobdescriptionmapping->JobDescription->find('list');
+		$candidates = $this->CandidateJobdescriptionmapping->Candidate->find('list');
+		$this->set(compact('jobDescriptions', 'candidates'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->CandidateJobdescriptionmapping->id = $id;
+		if (!$this->CandidateJobdescriptionmapping->exists()) {
+			throw new NotFoundException(__('Invalid candidate jobdescriptionmapping'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->CandidateJobdescriptionmapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate jobdescriptionmapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate jobdescriptionmapping could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->CandidateJobdescriptionmapping->read(null, $id);
+		}
+		$jobDescriptions = $this->CandidateJobdescriptionmapping->JobDescription->find('list');
+		$candidates = $this->CandidateJobdescriptionmapping->Candidate->find('list');
+		$this->set(compact('jobDescriptions', 'candidates'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->CandidateJobdescriptionmapping->id = $id;
+		if (!$this->CandidateJobdescriptionmapping->exists()) {
+			throw new NotFoundException(__('Invalid candidate jobdescriptionmapping'));
+		}
+		if ($this->CandidateJobdescriptionmapping->delete()) {
+			$this->Session->setFlash(__('Candidate jobdescriptionmapping deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Candidate jobdescriptionmapping was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	function candidate_home(){
+		
+		//Configure::write('debug','2');
+		//debug($this->Session->read('Auth.Candidate.id'));
+		
+		$this->layout = 'candidate_layout';
+		$candidate_id=$this->Session->read('Auth.Candidate.id');
+		
+		$candidate_jobs=$this->CandidateJobdescriptionmapping->find('all',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate_id)));
+		debug($candidate_jobs);
+		
+		$this->set(compact('candidate_jobs'));
+		
+	}
+	
+}

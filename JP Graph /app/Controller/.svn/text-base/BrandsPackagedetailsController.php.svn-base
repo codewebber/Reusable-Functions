@@ -1,0 +1,119 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * BrandsPackagedetails Controller
+ *
+ * @property BrandsPackagedetail $BrandsPackagedetail
+ * @property AclComponent $Acl
+ * @property SecurityComponent $Security
+ * @property RequestHandlerComponent $RequestHandler
+ */
+class BrandsPackagedetailsController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	var $helpers = array('Ajax', 'Javascript', 'Time');
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('Acl', 'Security', 'RequestHandler');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->BrandsPackagedetail->recursive = 0;
+		$this->set('brandsPackagedetails', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->BrandsPackagedetail->id = $id;
+		if (!$this->BrandsPackagedetail->exists()) {
+			throw new NotFoundException(__('Invalid brands packagedetail'));
+		}
+		$this->set('brandsPackagedetail', $this->BrandsPackagedetail->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->BrandsPackagedetail->create();
+			if ($this->BrandsPackagedetail->save($this->request->data)) {
+				$this->Session->setFlash(__('The brands packagedetail has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The brands packagedetail could not be saved. Please, try again.'));
+			}
+		}
+		$brandsPackages = $this->BrandsPackagedetail->BrandsPackage->find('list');
+		$brandsServices = $this->BrandsPackagedetail->BrandsService->find('list');
+		$billingUnits = $this->BrandsPackagedetail->BillingUnit->find('list');
+		$this->set(compact('brandsPackages', 'brandsServices', 'billingUnits'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->BrandsPackagedetail->id = $id;
+		if (!$this->BrandsPackagedetail->exists()) {
+			throw new NotFoundException(__('Invalid brands packagedetail'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->BrandsPackagedetail->save($this->request->data)) {
+				$this->Session->setFlash(__('The brands packagedetail has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The brands packagedetail could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->BrandsPackagedetail->read(null, $id);
+		}
+		$brandsPackages = $this->BrandsPackagedetail->BrandsPackage->find('list');
+		$brandsServices = $this->BrandsPackagedetail->BrandsService->find('list');
+		$billingUnits = $this->BrandsPackagedetail->BillingUnit->find('list');
+		$this->set(compact('brandsPackages', 'brandsServices', 'billingUnits'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->BrandsPackagedetail->id = $id;
+		if (!$this->BrandsPackagedetail->exists()) {
+			throw new NotFoundException(__('Invalid brands packagedetail'));
+		}
+		if ($this->BrandsPackagedetail->delete()) {
+			$this->Session->setFlash(__('Brands packagedetail deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Brands packagedetail was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

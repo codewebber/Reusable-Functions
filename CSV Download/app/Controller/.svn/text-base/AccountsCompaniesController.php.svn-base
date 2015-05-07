@@ -1,0 +1,129 @@
+<?php
+App::uses('AppController', 'Controller');
+App::uses('AppHelper', 'View/Helper');
+/**
+ * AccountsCompanies Controller
+ *
+ * @property AccountsCompany $AccountsCompany
+ */
+App::import('Helper', 'Ajax'); 
+class AccountsCompaniesController extends AppController {
+
+public $helpers = array('Html', 'Form','Ajax','Js');
+//var $components = array('Autocomplete');
+/*public $helpers = array(
+        'Ajax' => array(
+            'className' => 'Ajax'
+        )
+    );*/
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->AccountsCompany->recursive = 0;
+		$this->set('accountsCompanies', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		
+		$this->AccountsCompany->id = $id;
+		if (!$this->AccountsCompany->exists()) {
+			throw new NotFoundException(__('Invalid accounts company'));
+		}
+		$this->set('accountsCompany', $this->AccountsCompany->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->AccountsCompany->create();
+			if ($this->AccountsCompany->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts company has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts company could not be saved. Please, try again.'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->AccountsCompany->id = $id;
+		if (!$this->AccountsCompany->exists()) {
+			throw new NotFoundException(__('Invalid accounts company'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsCompany->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts company has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts company could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->AccountsCompany->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsCompany->id = $id;
+		if (!$this->AccountsCompany->exists()) {
+			throw new NotFoundException(__('Invalid accounts company'));
+		}
+		if ($this->AccountsCompany->delete()) {
+			$this->Session->setFlash(__('Accounts company deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Accounts company was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	
+	
+	/*public function autocomplete()
+	{
+			Configure::write('debug',2);
+		debug($this->data);
+		   $this->AccountsCompany->recursive = 0;
+    	   $this->set('posts', $this->AccountsCompany->find('list', array('conditions' => array('AccountsCompany.company_name LIKE' => $this->data['AccountsCompany']['company_name'].'%' ),'fields' => array('company_name'))));
+   		 	
+   		   $this->layout = 'ajax';
+   		
+	  	
+	}*/
+	
+	function auto_complete() {
+		Configure::write('debug',2);
+    	   $this->set('posts', $this->AccountsCompany->find('list', array('conditions' => array('AccountsCompany.company_name LIKE' => $this->data['AccountsCompany']['comp_name'].'%' ),'fields' => array('emp_name'))));
+   		  
+   		   $this->layout = 'ajax';
+   		}
+	
+	
+}

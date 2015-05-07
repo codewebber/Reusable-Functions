@@ -1,0 +1,958 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * AccountsClientpaymentdetails Controller
+ *
+ * @property AccountsClientpaymentdetail $AccountsClientpaymentdetail
+ */
+class AccountsClientpaymentdetailsController extends AppController {
+
+
+var $helpers = array('Html', 'Form','Ajax','Js','Javascript');
+	public $components = array('Email', 'RequestHandler','Session');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->AccountsClientpaymentdetail->recursive = 0;
+		$this->set('accountsClientpaymentdetails', $this->paginate());
+	}
+	/**
+	 * clientpay method
+	 */
+function clientpay($flag,$due,$clientid,$currencyid)
+	{
+		$this->loadModel('AccountsClientinvoice');
+		$this->loadModel('Client');
+		$this->loadModel('Brand');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountsLedger');
+		$this->loadModel('AccountsClientpaymentdetail');
+		$this->loadModel('Currency');
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsGoldenrule');
+		$this->AccountsClientpaymentdetail->recursive=0;
+		if($this->data)
+		{
+			if($this->data['ClientPay']['paymode'][$flag] && $this->data['ClientPay']['rcved'][$flag] &&$this->data['ClientPay']['paydate'][$flag] &&$this->data['ClientPay']['accoun'][$flag])
+				{
+					if($this->data['ClientPay']['convrate'][$flag])
+						{
+							$converted_amount=$this->data['ClientPay']['convrate'][$flag]*$this->data['ClientPay']['rcved'][$flag];
+						}
+					else
+						{
+							/*
+							 ***********************************Spot Conversion Logic ****************************************************** 
+							 ***************************************************************************************************************
+						   */
+								 	$invoice_currency=$this->AccountsClientinvoice->find('first',array('conditions'=>array('AccountsClientinvoice.id'=>$flag)));
+								 	$billingcurrency=$this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+								 	if(($billingcurrency['Currency']['id']!=$this->data['AccountsClientinvoice']['currency']) && (($this->data['AccountsClientinvoice']['currency']!=null)))
+										{
+											$fromcur=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$invoice_currency['AccountsClientinvoice']['currency_id']),'fields'=>array('Currency.name','Currency.symbol')));
+											$from=$fromcur['Currency']['name'];
+											$to=$billingcurrency['Currency']['name'];
+											
+											$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+											$handle = @fopen($url, 'r');
+		 									debug($handle);
+											if ($handle) 
+												{
+		    											$result = fgets($handle, 4096);
+		    											fclose($handle);
+												}
+											
+											$allData = explode(',',$result);  //Get all the contents to an array 
+											if($allData['1']==0)
+												{
+													$allData['1']=1;
+												}
+											$converted_amount=$this->data['ClientPay']['rcved'][$flag]*$allData['1'];
+											$symbol=$fromcur['Currency']['symbol'];
+											$this->set(compact('symbol'));
+											
+										}
+										else
+										{
+											$converted_amount=$this->data['ClientPay']['rcved'][$flag];
+										}
+								 	
+								 	/**************************************************************************************************************
+								 	 **********************************Spot Conversion Logic ****************************************************** 
+								 	***************************************************************************************************************
+								 	*/
+						}
+					$client_paymentdesc=$this->Client->find('first',array('conditions'=>array('Client.id'=>$clientid)));
+					$client_payment=$client_paymentdesc['Client']['client_companyname'];
+					$accounts_accounts=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Receivable')));
+					$accountsdetail = 	$accounts_accounts['AccountsAccount']['closing_balance'];		 	
+					if(!empty($accountsdetail)){
+						$bbaalance_pay = $accounts_accounts['AccountsAccount']['closing_balance'];
+					}else{
+						$bbaalance_pay = $accounts_accounts['AccountsAccount']['opening_balance'];
+					}
+					$this->AccountsLedger->create();
+					$saveaccount->data=null;
+					$saveaccount->data['AccountsLedger']['accounts_account_id']=$accounts_accounts['AccountsAccount']['id'];;
+					$saveaccount->data['AccountsLedger']['date']=date('Y-m-d',strtotime($this->data['ClientPay']['paydate'][$flag]));
+					$saveaccount->data['AccountsLedger']['debit']=$converted_amount;
+					$bal=$bbaalance_pay-$converted_amount;
+					$saveaccount->data['AccountsLedger']['is_neutral']='Y';
+					$saveaccount->data['AccountsLedger']['accounts_clientinvoice_id']=$flag;
+					$saveaccount->data['AccountsLedger']['cheque_no']=$client_payment." Invoice #".$flag." received via ".$this->data['ClientPay']['paymode'][$flag];
+					if($this->AccountsLedger->save($saveaccount->data)){
+						$ledgerLastEntry1 = $this->AccountsLedger->getLastInsertID();
+						$ledgerPay->data['AccountsLedger']['id']=$ledgerLastEntry1;
+						$ledgerPay->data['AccountsLedger']['transaction_id']=$ledgerLastEntry1;
+						$this->AccountsLedger->save($ledgerPay->data);
+						$closingBalance->data = null;
+						$closingBalance->data['AccountsAccount']['id'] = $accounts_accounts['AccountsAccount']['id'];
+						$closingBalance->data['AccountsAccount']['closing_balance'] = $bal;
+						$this->AccountsAccount->save($closingBalance->data);
+						
+						/**Log Code**/
+							$this->requestAction(array('controller'=>'ClientContacts','action'=>'log_entries',$closingBalance->data['AccountsAccount']['id'],0,$saveaccount->data['AccountsLedger']['debit'],$bbaalance_pay,$closingBalance->data['AccountsAccount']['closing_balance'],$ledgerLastEntry1,0,0,'Accounts Client payment details Controller','Accounts Client payment details Controller, clientpay action'));
+						/**Log Code**/
+						
+					}
+					$accounts_accounts_bank=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$this->data['ClientPay']['accoun'][$flag])));
+					$ledgeraccount = $accounts_accounts_bank['AccountsAccount']['closing_balance'];
+					$paydetail=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.accounts_clientinvoice_id'=>$flag),'fields'=>array('AccountsClientpaymentdetail.id','AccountsClientpaymentdetail.paid_amount')));
+					debug($paydetail);
+					foreach($paydetail as $keypay =>$valpay)
+						{
+							$paid=$paid+$valpay['AccountsClientpaymentdetail']['paid_amount'];
+						}
+					
+					$this->AccountsLedger->create();
+					$savearray->data=null;
+					$savearray->data['AccountsLedger']['accounts_account_id']=$this->data['ClientPay']['accoun'][$flag];
+					$savearray->data['AccountsLedger']['date']=date('Y-m-d',strtotime($this->data['ClientPay']['paydate'][$flag]));
+					$savearray->data['AccountsLedger']['credit']=$converted_amount;
+					if($ledgeraccount)
+					{
+							$bal=$ledgeraccount + $converted_amount;
+					}
+					
+					else
+					{
+						$openingbal=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$this->data['ClientPay']['accoun'][$flag]),'fields'=>array('AccountsAccount.opening_balance')));
+						$bal=$openingbal['AccountsAccount']['opening_balance']+$converted_amount;
+					}
+					$savearray->data['AccountsLedger']['accounts_clientinvoice_id']=$flag;
+					$savearray->data['AccountsLedger']['cheque_no']=$client_payment." Invoice #".$flag." received via ".$this->data['ClientPay']['paymode'][$flag];
+					if($this->AccountsLedger->save($savearray->data))
+					{
+						$ledgerLastInserttttID = $this->AccountsLedger->getLastInsertid();
+						$closingBalance->data = null;
+						$closingBalance->data['AccountsAccount']['id'] = $this->data['ClientPay']['accoun'][$flag];
+						$closingBalance->data['AccountsAccount']['closing_balance'] = $bal;
+						$this->AccountsAccount->save($closingBalance->data);
+						
+						/**Log Code**/
+							$this->requestAction(array('controller'=>'ClientContacts','action'=>'log_entries',$closingBalance->data['AccountsAccount']['id'],$savearray->data['AccountsLedger']['credit'],0,$accounts_accounts_bank['AccountsAccount']['closing_balance'],$closingBalance->data['AccountsAccount']['closing_balance'],$ledgerLastInserttttID,0,0,'Accounts Client payment details Controller','Accounts Client payment details Controller, clientpay action'));
+						/**Log Code**/
+						
+						$savearray1->data['AccountsClientinvoice']['id']=$flag;
+						$savearray1->data['AccountsClientinvoice']['paid_on']=date('Y-m-d',strtotime($this->data['ClientPay']['paydate'][$flag]));
+						$savearray1->data['AccountsClientinvoice']['payment_recieveddate']=date('Y-m-d',strtotime($this->data['ClientPay']['paydate'][$flag]));
+						$savearray1->data['AccountsClientinvoice']['amount_recieved']=$paid+$this->data['ClientPay']['rcved'][$flag];
+						if($this->AccountsClientinvoice->save($savearray1->data))
+						{
+							$this->AccountsClientpaymentdetail->create();
+							$savearray11->data['AccountsClientpaymentdetail']['client_id']=$clientid;
+							$savearray11->data['AccountsClientpaymentdetail']['accounts_clientinvoice_id']=$flag;
+							if($due<=$this->data['ClientPay']['rcved'][$flag])
+							{
+								$savearray11->data['AccountsClientpaymentdetail']['paid']='Y';
+							}
+							$savearray11->data['AccountsClientpaymentdetail']['paid_amount']=$this->data['ClientPay']['rcved'][$flag];
+							$savearray11->data['AccountsClientpaymentdetail']['received_date']=date('Y-m-d',strtotime($this->data['ClientPay']['paydate'][$flag]));
+							$savearray11->data['AccountsClientpaymentdetail']['paymode']=$this->data['ClientPay']['paymode'][$flag];
+							$savearray11->data['AccountsClientpaymentdetail']['paymentdetails']=$this->data['ClientPay']['details'][$flag];
+							$savearray11->data['AccountsClientpaymentdetail']['accounts_ledger_id']=$ledgerLastEntry1;
+							if($this->AccountsClientpaymentdetail->save($savearray11->data))
+							{
+								$invoicePaymentdetailStatus =  $this->AccountsClientinvoice->find('first',array('conditions'=>array('AccountsClientinvoice.id'=>$flag)));
+								$savearray111->data['AccountsClientinvoice']['id']=$flag;
+								if($invoicePaymentdetailStatus['AccountsClientinvoice']['amount_recieved'] >= $invoicePaymentdetailStatus['AccountsClientinvoice']['ajusted_invoiceamount'])
+									{
+										$savearray111->data['AccountsClientinvoice']['paid']='Y';
+										$savearray111->data['AccountsClientinvoice']['status']='closed';
+									}
+								else
+									{
+										$savearray111->data['AccountsClientinvoice']['paid']='N';
+									}
+								$this->AccountsClientinvoice->save($savearray111->data);
+								$this->Session->setFlash(__('The Payment  Updated.'));
+							}
+							else
+							{
+								
+								$this->Session->setFlash(__('The Payment  Updation Failed.Please Try Again.'));
+							}
+							$this->Session->setFlash(__('The accounts clientinvoice  saved.'));
+						}
+						else
+						{
+							
+							$this->Session->setFlash(__('The accounts clientinvoice could not be saved. Please, try again.'));
+						}
+					}
+					else
+					{
+						
+						$this->Session->setFlash(__('Ledger Not Updated'));
+					}
+					
+				}
+			else
+				{
+					
+					$this->Session->setFlash(__('Compulsory Fields Missing.'));
+				}
+		}
+		if($this->data['sort']['sortbybrand'])
+		{
+			//$this->paginate = array('conditions'=>array('AccountsClientpaymentdetail.paid !='=>'Y','AccountsClientpaymentdetail.brand_id'=>$this->data['sort']['sortbybrand']));
+			$paymentdetail=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.paid !='=>'Y','AccountsClientpaymentdetail.brand_id'=>$this->data['sort']['sortbybrand'])));
+		}
+		else
+		{
+			//$this->paginate = array('conditions'=>array('AccountsClientpaymentdetail.paid !='=>'Y'));
+		
+			if($clientid)
+				{
+					
+					$paymentdetail=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.paid !='=>'Y'/*,'AccountsClientpaymentdetail.client_id'=>$clientid*/)));
+					foreach($paymentdetail as $k=>$v)
+						{
+							$currencySym=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$v['AccountsClientpaymentdetail']['currency_id'])));
+							$reqdetails[$v['AccountsClientpaymentdetail']['accounts_clientinvoice_id']]['symbol']=$currencySym['Currency']['symbol'];
+							$reqdetails[$v['AccountsClientpaymentdetail']['accounts_clientinvoice_id']]['currencyid']=$currencySym['Currency']['id'];
+						}
+					$this->paginate = array('conditions'=>array('AccountsClientpaymentdetail.paid !='=>'Y'/*,'AccountsClientpaymentdetail.client_id !='=>null*/));
+					$controller='accounts_clientinvoices';
+					$view='view';
+					$this->set(compact('controller','view'));
+					debug($paymentdetail);
+					if(!$paymentdetail)
+						{
+								$error=1;
+								$this->set(compact('error'));
+								$this->Session->setFlash(_('<div classs="flashMessageError">No Records Found</div>'),true);
+								return;							
+						}
+				}
+			else
+				{
+					$controller='clients';
+					$view='index';
+					$this->set(compact('controller','view'));
+					$this->paginate = array('conditions'=>array('AccountsClientpaymentdetail.paid !='=>'Y','AccountsClientpaymentdetail.client_id !='=>null));
+					$paymentdetail=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.paid !='=>'Y','AccountsClientpaymentdetail.client_id !='=>null)));
+					foreach($paymentdetail as $k=>$v)
+						{
+							$currencySym=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$v['AccountsClientpaymentdetail']['currency_id'])));
+							$reqdetails[$v['AccountsClientpaymentdetail']['accounts_clientinvoice_id']]['symbol']=$currencySym['Currency']['symbol'];
+							$reqdetails[$v['AccountsClientpaymentdetail']['accounts_clientinvoice_id']]['currencyid']=$currencySym['Currency']['id'];
+						}
+				}
+			
+		}
+		
+		foreach($paymentdetail as $kp=>$vp)
+		{
+			
+			if($this->data['sort']['sortbystatus'])
+			{
+				$invoice_details=$this->AccountsClientinvoice->find('first',array('conditions'=>array('AccountsClientinvoice.void'=>'N','AccountsClientinvoice.paid !='=>'Y','AccountsClientinvoice.id'=>$vp['AccountsClientpaymentdetail']['accounts_clientinvoice_id'],'AccountsClientinvoice.status'=>$this->data['sort']['sortbystatus'])));
+			}
+			else
+			{
+				$invoice_details=$this->AccountsClientinvoice->find('first',array('conditions'=>array('AccountsClientinvoice.void'=>'N','AccountsClientinvoice.paid !='=>'Y','AccountsClientinvoice.id'=>$vp['AccountsClientpaymentdetail']['accounts_clientinvoice_id'])));
+			}
+					$currency=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$vp['AccountsClientpaymentdetail']['currency_id'])));
+					$branddetail=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$invoice_details['AccountsClientinvoice']['brand_id'])));
+					$clientdetail=$this->Client->find('first',array('conditions'=>array('Client.id'=>$invoice_details['AccountsClientinvoice']['client_id'])));
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['brandid']=$branddetail['Brand']['id'];
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['brandname']=$branddetail['Brand']['brandname'];
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['clientid']=$clientdetail['Client']['id'];
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['clientname']=$clientdetail['Client']['client_companyname'];
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['invoicedate']=$invoice_details['AccountsClientinvoice']['invoiced_date'];
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['invoiceamount']=$invoice_details['AccountsClientinvoice']['invoice_amount'];
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['duedate']=$invoice_details['AccountsClientinvoice']['due_date'];
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['amount']=$vp['AccountsClientpaymentdetail']['due'];
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['symbol']=$currency['Currency']['symbol'];
+					$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['currencyid']=$currency['Currency']['id'];
+					
+					 /**********************************Spot Conversion Logic ****************************************************** 
+					  ***************************************************************************************************************
+					 */
+					$billingcurrency=$this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+					if(($billingcurrency['Currency']['id']!=$vp['AccountsClientpaymentdetail']['currency_id']) && (($vp['AccountsClientpaymentdetail']['currency_id']!=null)))
+						{
+							$fromcur=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$vp['AccountsClientpaymentdetail']['currency_id']),'fields'=>array('Currency.name','Currency.symbol')));
+							$from=$fromcur['Currency']['name'];
+							$to=$billingcurrency['Currency']['name'];
+							$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+							$handle = @fopen($url, 'r');
+							if ($handle) 
+								{
+										$result = fgets($handle, 4096);
+										fclose($handle);
+								}
+							$allData = explode(',',$result);  //Get all the contents to an array 
+							$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['convrate']=$allData['1'];
+							
+							
+						}
+					else
+						{
+							$reqdetails[$invoice_details['AccountsClientinvoice']['id']]['convrate']=1;
+							
+						}
+			/**************************************************************************************************************
+			 **********************************Spot Conversion Logic ******************************************************
+			 */ 
+		}
+		$this->set('invdetail',$this->paginate());
+		$allbrand=$this->Brand->find('list',array('fields'=>array('Brand.id','Brand.brandname')));
+		$accountlist=$this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.asset_type'=>'Bank'),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+		$this->set(compact('reqdetails','accountlist','allbrand'));
+		
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountsClientpaymentdetail->id = $id;
+		if (!$this->AccountsClientpaymentdetail->exists()) {
+			throw new NotFoundException(__('Invalid accounts clientpaymentdetail'));
+		}
+		$this->set('accountsClientpaymentdetail', $this->AccountsClientpaymentdetail->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->AccountsClientpaymentdetail->create();
+			if ($this->AccountsClientpaymentdetail->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts clientpaymentdetail has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts clientpaymentdetail could not be saved. Please, try again.'));
+			}
+		}
+		$clients = $this->AccountsClientpaymentdetail->Client->find('list');
+		$accountsClientinvoices = $this->AccountsClientpaymentdetail->AccountsClientinvoice->find('list');
+		$this->set(compact('clients', 'accountsClientinvoices'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->AccountsClientpaymentdetail->id = $id;
+		if (!$this->AccountsClientpaymentdetail->exists()) {
+			throw new NotFoundException(__('Invalid accounts clientpaymentdetail'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->AccountsClientpaymentdetail->save($this->request->data)) {
+				$this->Session->setFlash(__('The accounts clientpaymentdetail has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The accounts clientpaymentdetail could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->AccountsClientpaymentdetail->read(null, $id);
+		}
+		$clients = $this->AccountsClientpaymentdetail->Client->find('list');
+		$accountsClientinvoices = $this->AccountsClientpaymentdetail->AccountsClientinvoice->find('list');
+		$this->set(compact('clients', 'accountsClientinvoices'));
+	}
+	/**
+	 * Ajax update method for view invoice payment history 
+	 */
+	public function change_amount($clientPaymentId = null,$debitAmount = null,$debitDate = null,$debitBy = null,$symbol = null,$details = null){
+		/*configure::write('debug',2);
+		debug($details);*/
+		$this->set(compact('clientPaymentId','debitAmount','debitDate','debitBy','symbol','details'));
+	}
+	
+	public function editPayment($clientPaymentId = null,$controller = null , $action = null ,$invoiceId = null,$transactionId = null){
+		/*configure::write('debug',2);*/
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountsClientinvoice');
+		$this->loadModel('Currency');
+		$this->loadModel('AccountsclientpaymentLedgermapping');
+		$this->loadModel('AccountsLedger');
+		$this->AccountsClientpaymentdetail->recursive = 0;
+		if(($this->data['EditPayment']['paymode'])&& ($this->data['EditPayment']['accoun']) && ($this->data['EditPayment']['rcved'])){
+			$saveArray->data = null;
+			$saveArray->data['AccountsClientpaymentdetail']['id'] 			 		= $clientPaymentId;
+			$saveArray->data['AccountsClientpaymentdetail']['currency_rate']  		= $this->data['EditPayment']['convrate'];
+			$saveArray->data['AccountsClientpaymentdetail']['paymode'] 		 		= $this->data['EditPayment']['paymode'];
+			$saveArray->data['AccountsClientpaymentdetail']['bank_id'] 		 		= $this->data['EditPayment']['accoun'];
+			$saveArray->data['AccountsClientpaymentdetail']['bank_charges']  		= $this->data['EditPayment']['bankcharges'];
+			$saveArray->data['AccountsClientpaymentdetail']['paid_amount']   		= $this->data['EditPayment']['rcved'];
+			$saveArray->data['AccountsClientpaymentdetail']['received_date'] 		= $this->data['EditPayment']['paydate'];
+			$saveArray->data['AccountsClientpaymentdetail']['flexible_rate_sign'] 	= $this->data['EditPayment']['flexible_rate_sign'];
+			$saveArray->data['AccountsClientpaymentdetail']['flexible_rate'] 		= $this->data['EditPayment']['flexible_rate'];
+			$saveArray->data['AccountsClientpaymentdetail']['paymentdetails'] 		= $this->data['EditPayment']['details'];
+			if($this->AccountsClientpaymentdetail->save($saveArray->data)){
+				$invoiceLogs = $this->AccountsClientinvoice->find('first',array('conditions'=>array('AccountsClientinvoice.id'=>$invoiceId)));
+				if((!$this->data['EditPayment']['lastflexible_rate']) && ($this->data['EditPayment']['flexible_rate'])){
+					$accounts_accounts_chargesflex = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Receivable')));
+					$accountsdetail_chargesflex    = 	$accounts_accounts_chargesflex['AccountsAccount']['closing_balance']; 
+					if(!empty($accountsdetail_chargesflex)){
+						$bbaalance_pay = $accounts_accounts_chargesflex['AccountsAccount']['closing_balance'];
+					}else{
+						$bbaalance_pay = $accounts_accounts_chargesflex['AccountsAccount']['opening_balance'];
+					}	
+					$this->AccountsLedger->create();
+					$savechargesaccountflex->data=null;
+					$savechargesaccountflex->data['AccountsLedger']['accounts_account_id'] = $accounts_accounts_chargesflex['AccountsAccount']['id'];;
+					$savechargesaccountflex->data['AccountsLedger']['transaction_id']      = $transactionId;
+					$savechargesaccountflex->data['AccountsLedger']['date']                = date('Y-m-d',strtotime($this->data['EditPayment']['paydate']));
+					if($this->data['EditPayment']['flexible_rate_sign'] == '+'){
+						$savechargesaccountflex->data['AccountsLedger']['credit']=$this->data['EditPayment']['flexible_rate'];
+						$bal=$bbaalance_pay - $this->data['EditPayment']['flexible_rate'];
+					}elseif($this->data['EditPayment']['flexible_rate_sign'] == '-'){
+						$savechargesaccountflex->data['AccountsLedger']['debit']=$this->data['EditPayment']['flexible_rate'];
+						$bal=$bbaalance_pay + $this->data['EditPayment']['flexible_rate'];
+					}
+					$savechargesaccountflex->data['AccountsLedger']['is_neutral']='Y';
+					$savechargesaccountflex->data['AccountsLedger']['accounts_clientinvoice_id']=$invoiceId;
+					$savechargesaccountflex->data['AccountsLedger']['cheque_no']="Invoice #".$invoiceId." received via ". $this->data['EditPayment']['paymode'];
+					if($this->AccountsLedger->save($savechargesaccountflex->data)){	
+						$ledgerLastEntry5 = $this->AccountsLedger->getLastInsertID();
+						$mapcreate->data = null;
+						$this->AccountsclientpaymentLedgermapping->create();
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['accounts_ledger_id'] = $ledgerLastEntry5;
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['accounts_clientpaymentdetail_id'] = $clientPaymentId;
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['entrytype'] = 'rate';
+						$this->AccountsclientpaymentLedgermapping->save($mapcreate->data);
+						
+						
+						
+						$accounts_accounts_bank_charges = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Bank Interest')));
+						$this->AccountsLedger->create();
+						$savechargearrayflex1->data=null;
+						$savechargearrayflex1->data['AccountsLedger']['transaction_id'] = $transactionId;
+						$savechargearrayflex1->data['AccountsLedger']['accounts_account_id'] = $accounts_accounts_bank_charges['AccountsAccount']['id'];
+						$savechargearrayflex1->data['AccountsLedger']['date'] = date('Y-m-d',strtotime($this->data['EditPayment']['paydate']));
+						if($this->data['EditPayment']['flexible_rate_sign'] == '+'){
+							$savechargearrayflex1->data['AccountsLedger']['debit'] =$this->data['EditPayment']['flexible_rate'];
+						}elseif($this->data['EditPayment']['flexible_rate_sign'] == '-'){
+							$savechargearrayflex1->data['AccountsLedger']['credit'] = $this->data['EditPayment']['flexible_rate'];
+						}
+						$ledgeraccount_interestflex = $accounts_accounts_bank_charges['AccountsAccount']['closing_balance'];
+						if($ledgeraccount_interestflex){
+							$ledgerbal = $ledgeraccount_interestflex;
+							$bal = $accounts_accounts_bank_charges['AccountsAccount']['closing_balance']+$this->data['EditPayment']['flexible_rate'];
+						}else{
+							$openingbal_interestflex=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Bank Interest'),'fields'=>array('AccountsAccount.opening_balance')));
+							$bal_interest=$openingbal_interestflex['AccountsAccount']['opening_balance']+$this->data['EditPayment']['flexible_rate'];
+						}
+						$savechargearrayflex1->data['AccountsLedger']['accounts_clientinvoice_id'] = $invoiceId;
+						$savechargearrayflex1->data['AccountsLedger']['cheque_no'] = " Invoice #".$invoiceId." received via ".$this->data['EditPayment']['paymode'];
+						$this->AccountsLedger->save($savechargearrayflex1->data);
+						$ledgerLastEntry6 = $this->AccountsLedger->getLastInsertID();
+						$mapcreate->data = null;
+						$this->AccountsclientpaymentLedgermapping->create();
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['accounts_ledger_id'] = $ledgerLastEntry6;
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['accounts_clientpaymentdetail_id'] = $clientPaymentId;
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['entrytype'] = 'rate';
+						$this->AccountsclientpaymentLedgermapping->save($mapcreate->data);
+						
+					}			
+									
+					
+				}if((!$this->data['EditPayment']['lastbankcharges']) && ($this->data['EditPayment']['bankcharges'])){
+					
+					
+					$accounts_accounts_charges=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Receivable')));
+					$accountsdetail_charges = 	$accounts_accounts_charges['AccountsAccount']['closing_balance']; 	
+					if(!empty($accountsdetail_charges)){
+						$bbaalance_pay = $accounts_accounts_charges['AccountsAccount']['closing_balance'];
+					}else{
+						$bbaalance_pay = $accounts_accounts_charges['AccountsAccount']['opening_balance'];
+					}
+					$this->AccountsLedger->create();
+					$savechargesaccount->data=null;
+					$savechargesaccount->data['AccountsLedger']['accounts_account_id']=$accounts_accounts_charges['AccountsAccount']['id'];;
+					$savechargesaccount->data['AccountsLedger']['transaction_id']=$transactionId;
+					$savechargesaccount->data['AccountsLedger']['date']=date('Y-m-d',strtotime($this->data['EditPayment']['paydate']));
+					$savechargesaccount->data['AccountsLedger']['debit']=$this->data['EditPayment']['bankcharges'];
+					$savechargesaccount->data['AccountsLedger']['is_neutral']='Y';
+					$bal=$bbaalance_pay-$this->data['EditPayment']['bankcharges'];
+					$savechargesaccount->data['AccountsLedger']['accounts_clientinvoice_id']=$invoiceId;
+					$savechargesaccount->data['AccountsLedger']['cheque_no']=" Invoice #".$invoiceId." received via ".$this->data['EditPayment']['paymode'];
+					if($this->AccountsLedger->save($savechargesaccount->data)){
+						$ledgerLastEntry3 = $this->AccountsLedger->getLastInsertID();
+						$mapcreate->data = null;
+						$this->AccountsclientpaymentLedgermapping->create();
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['accounts_ledger_id'] = $ledgerLastEntry3;
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['accounts_clientpaymentdetail_id'] = $clientPaymentId;
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['entrytype'] = 'rate';
+						$this->AccountsclientpaymentLedgermapping->save($mapcreate->data);
+						$accounts_accounts_bank_charges = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Bank Interest')));
+						$this->AccountsLedger->create();
+						$savechargearray->data=null;
+						$savechargearray->data['AccountsLedger']['transaction_id'] = $transactionId;
+						$savechargearray->data['AccountsLedger']['accounts_account_id'] = $accounts_accounts_bank_charges['AccountsAccount']['id'];
+						$savechargearray->data['AccountsLedger']['date'] = date('Y-m-d',strtotime($this->data['EditPayment']['paydate']));
+						$savechargearray->data['AccountsLedger']['credit'] = $this->data['EditPayment']['bankcharges'];
+						$ledgeraccount_interest = $accounts_accounts_bank_charges['AccountsAccount']['closing_balance'];
+						if($ledgeraccount_interest){
+							$ledgerbal = $ledgeraccount_interest;
+							$bal = $accounts_accounts_bank_charges['AccountsAccount']['closing_balance']+$this->data['EditPayment']['bankcharges'];
+						}else{
+							$openingbal_interest=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Bank Interest'),'fields'=>array('AccountsAccount.opening_balance')));
+							$bal_interest=$openingbal_interest['AccountsAccount']['opening_balance']+$this->data['EditPayment']['bankcharges'];
+						}
+						$savechargearray->data['AccountsLedger']['accounts_clientinvoice_id'] = $invoiceId;
+						$savechargearray->data['AccountsLedger']['cheque_no'] = " Invoice #".$invoiceId." received via ".$this->data['EditPayment']['paymode'];
+						$this->AccountsLedger->save($savechargearray->data);
+						$ledgerLastEntry4 = $this->AccountsLedger->getLastInsertID();
+						$mapcreate->data = null;
+						$this->AccountsclientpaymentLedgermapping->create();
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['accounts_ledger_id'] = $ledgerLastEntry4;
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['accounts_clientpaymentdetail_id'] = $clientPaymentId;
+						$mapcreate->data['AccountsclientpaymentLedgermapping']['entrytype'] = 'rate';
+						$this->AccountsclientpaymentLedgermapping->save($mapcreate->data);
+					}
+				}
+				$lastPaid   = $this->requestAction('/accounts_clientinvoices/accountingCurrencyToClientCurrency/'.$invoiceLogs['AccountsClientinvoice']['currency_id'].'/'.$this->data['EditPayment']['lastPaid']);
+				$newPayment = $this->requestAction('/accounts_clientinvoices/accountingCurrencyToClientCurrency/'.$invoiceLogs['AccountsClientinvoice']['currency_id'].'/'.$this->data['EditPayment']['rcved']);
+				$receivedAmount = $invoiceLogs['AccountsClientinvoice']['amount_recieved'] - $lastPaid + $newPayment;
+				$saveInvoice->data = null;
+				$saveInvoice->data['AccountsClientinvoice']['id'] = $invoiceId;
+				$saveInvoice->data['AccountsClientinvoice']['amount_recieved'] = $receivedAmount;
+				if($this->AccountsClientinvoice->save($saveInvoice->data)){
+					$this->loadModel('AccountsLedger');
+					$this->loadModel('AccountsclientpaymentLedgermapping');
+					$mappedRecordForPayment = $this->AccountsclientpaymentLedgermapping->find('all',array('conditions'=>array('AccountsclientpaymentLedgermapping.accounts_clientpaymentdetail_id'=>$clientPaymentId),'fields'=>array('AccountsclientpaymentLedgermapping.accounts_ledger_id','AccountsclientpaymentLedgermapping.entrytype')));
+					foreach($mappedRecordForPayment as $mappedRecordForPayment){
+						$ledgerRecord = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.id'=>$mappedRecordForPayment['AccountsclientpaymentLedgermapping']['accounts_ledger_id'])));
+						if($mappedRecordForPayment['AccountsclientpaymentLedgermapping']['entrytype'] == 'payment'){
+							$editLedgerPayment->data = null;
+							$editLedgerPayment->data['AccountsLedger']['id'] = $mappedRecordForPayment['AccountsclientpaymentLedgermapping']['accounts_ledger_id'];
+							if(($ledgerRecord['AccountsLedger']['debit']) && ($ledgerRecord['AccountsLedger']['debit'] != $this->data['EditPayment']['rcved'])){
+								$editLedgerPayment->data['AccountsLedger']['debit']    				  = $this->data['EditPayment']['rcved'];
+								$editLedgerPayment->data['AccountsLedger']['date']      			  = $this->data['EditPayment']['paydate'];
+								$editLedgerPayment->data['AccountsLedger']['accounts_account_id']     = $this->data['EditPayment']['accoun'];
+								if($this->AccountsLedger->save($editLedgerPayment->data)){
+									$this->loadModel('AccountsAccount');
+									$accountsBalance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$ledgerRecord['AccountsLedger']['accounts_account_id']),'fields'=>array('AccountsAccount.closing_balance')));
+									$closingBalance->data = null;
+									$closingBalance->data['AccountsAccount']['id'] = $ledgerRecord['AccountsLedger']['accounts_account_id'];
+									$closingBalance->data['AccountsAccount']['closing_balance'] = $accountsBalance['AccountsAccount']['closing_balance'] + $ledgerRecord['AccountsLedger']['debit'] - $this->data['EditPayment']['rcved'];
+									$this->AccountsAccount->save($closingBalance->data);
+									
+									
+									/**Log Code**/
+										$this->requestAction(array('controller'=>'ClientContacts','action'=>'log_entries',$closingBalance->data['AccountsAccount']['id'],0,$editLedgerPayment->data['AccountsLedger']['debit'],$accountsBalance['AccountsAccount']['closing_balance'],$closingBalance->data['AccountsAccount']['closing_balance'],$editLedgerPayment->data['AccountsLedger']['id'],0,0,'Accounts Client payment details Controller','Accounts Client payment details Controller, editPayment action'));
+									/**Log Code**/
+									
+									
+								}
+							}if(($ledgerRecord['AccountsLedger']['credit']) && ($ledgerRecord['AccountsLedger']['credit'] != $this->data['EditPayment']['rcved'])){
+								$editLedgerPayment->data['AccountsLedger']['credit']    = $this->data['EditPayment']['rcved'];
+								$editLedgerPayment->data['AccountsLedger']['date']      = $this->data['EditPayment']['paydate'];
+								$editLedgerPayment->data['AccountsLedger']['accounts_account_id']     = $this->data['EditPayment']['accoun'];
+								if($this->AccountsLedger->save($editLedgerPayment->data)){
+									$this->loadModel('AccountsAccount');
+									$accountsBalance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$ledgerRecord['AccountsLedger']['accounts_account_id']),'fields'=>array('AccountsAccount.closing_balance')));
+									$closingBalance->data = null;
+									$closingBalance->data['AccountsAccount']['id'] = $ledgerRecord['AccountsLedger']['accounts_account_id'];
+									$closingBalance->data['AccountsAccount']['closing_balance'] = $accountsBalance['AccountsAccount']['closing_balance'] - $ledgerRecord['AccountsLedger']['credit'] + $this->data['EditPayment']['rcved'];
+									if($this->AccountsAccount->save($closingBalance->data)){
+										
+										/*******Doubt Clarify it with saurabh --> Clarified**************/
+										/**Log Code**/
+											$this->requestAction(array('controller'=>'ClientContacts','action'=>'log_entries',$closingBalance->data['AccountsAccount']['id'],$editLedgerPayment->data['AccountsLedger']['credit'],0,$accountsBalance['AccountsAccount']['closing_balance'],$closingBalance->data['AccountsAccount']['closing_balance'],$editLedgerPayment->data['AccountsLedger']['id'],0,0,'Accounts Client payment details Controller','Accounts Client payment details Controller, editPayment action'));
+										/**Log Code**/
+										
+										
+										$accountsBalanceNew = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$this->data['EditPayment']['accoun']),'fields'=>array('AccountsAccount.closing_balance','AccountsAccount.id')));
+										$closingBalanceNewAccount->data = null;
+										$closingBalanceNewAccount->data['AccountsAccount']['id'] = $accountsBalanceNew['AccountsAccount']['id'];
+										$closingBalanceNewAccount->data['AccountsAccount']['closing_balance'] = $accountsBalanceNew['AccountsAccount']['closing_balance'] + $this->data['EditPayment']['rcved'];
+										$this->AccountsAccount->save($closingBalanceNewAccount->data);
+										
+										
+										/**Log Code**/
+											$this->requestAction(array('controller'=>'ClientContacts','action'=>'log_entries',$closingBalanceNewAccount->data['AccountsAccount']['id'],$editLedgerPayment->data['AccountsLedger']['credit'],0,$accountsBalanceNew['AccountsAccount']['closing_balance'],$closingBalanceNewAccount->data['AccountsAccount']['closing_balance'],$editLedgerPayment->data['AccountsLedger']['id'],0,0,'Accounts Client payment details Controller','Accounts Client payment details Controller, editPayment action'));
+										/**Log Code**/
+										
+									}
+								}
+							}
+						}if($mappedRecordForPayment['AccountsclientpaymentLedgermapping']['entrytype'] == 'bank'){
+							$editLedgerBank->data = null;
+							$editLedgerBank->data['AccountsLedger']['id'] = $mappedRecordForPayment['AccountsclientpaymentLedgermapping']['accounts_ledger_id'];
+							if(($ledgerRecord['AccountsLedger']['debit']) && ($ledgerRecord['AccountsLedger']['debit'] != $this->data['EditPayment']['rcved'])){
+								$editLedgerBank->data['AccountsLedger']['debit']    = $this->data['EditPayment']['bankcharges'];
+								$editLedgerBank->data['AccountsLedger']['date']     = $this->data['EditPayment']['paydate'];
+								if($this->AccountsLedger->save($editLedgerBank->data)){
+									$this->loadModel('AccountsAccount');
+									$accountsBalance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$ledgerRecord['AccountsLedger']['accounts_account_id']),'fields'=>array('AccountsAccount.closing_balance')));
+									$closingBalance->data = null;
+									$closingBalance->data['AccountsAccount']['id'] = $ledgerRecord['AccountsLedger']['accounts_account_id'];
+									$closingBalance->data['AccountsAccount']['closing_balance'] = $accountsBalance['AccountsAccount']['closing_balance'] + $ledgerRecord['AccountsLedger']['debit'] - $this->data['EditPayment']['bankcharges'];
+									$this->AccountsAccount->save($closingBalance->data);
+									
+									
+									
+									
+									
+									
+									/*******Doubt Clarify it with saurabh---> Clarified**************/
+									/**Log Code**/
+										$this->requestAction(array('controller'=>'ClientContacts','action'=>'log_entries',$closingBalance->data['AccountsAccount']['id'],0,$editLedgerBank->data['AccountsLedger']['debit'],$accountsBalance['AccountsAccount']['closing_balance'],$closingBalance->data['AccountsAccount']['closing_balance'],$editLedgerBank->data['AccountsLedger']['id'],0,0,'Accounts Client payment details Controller','Accounts Client payment details Controller, editPayment action'));
+									/**Log Code**/
+									
+								}
+							}if(($ledgerRecord['AccountsLedger']['credit']) && ($ledgerRecord['AccountsLedger']['credit'] != $this->data['EditPayment']['rcved'])){
+								$editLedgerBank->data['AccountsLedger']['credit']    = $this->data['EditPayment']['bankcharges'];
+								$editLedgerBank->data['AccountsLedger']['date']     = $this->data['EditPayment']['paydate'];
+								if($this->AccountsLedger->save($editLedgerBank->data)){
+									$this->loadModel('AccountsAccount');
+									$accountsBalance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$ledgerRecord['AccountsLedger']['accounts_account_id']),'fields'=>array('AccountsAccount.closing_balance')));
+									$closingBalance->data = null;
+									$closingBalance->data['AccountsAccount']['id'] = $ledgerRecord['AccountsLedger']['accounts_account_id'];
+									$closingBalance->data['AccountsAccount']['closing_balance'] = $accountsBalance['AccountsAccount']['closing_balance'] - $ledgerRecord['AccountsLedger']['debit'] + $this->data['EditPayment']['bankcharges'];
+									$this->AccountsAccount->save($closingBalance->data);
+									
+									
+									/*******Doubt Clarify it with saurabh --> Clarified**************/
+									/**Log Code**/
+										$this->requestAction(array('controller'=>'ClientContacts','action'=>'log_entries',$closingBalance->data['AccountsAccount']['id'],$editLedgerBank->data['AccountsLedger']['credit'],0,$accountsBalance['AccountsAccount']['closing_balance'],$closingBalance->data['AccountsAccount']['closing_balance'],$editLedgerBank->data['AccountsLedger']['id'],0,0,'Accounts Client payment details Controller','Accounts Client payment details Controller, editPayment action'));
+									/**Log Code**/
+									
+									
+								}
+							}
+						}if($mappedRecordForPayment['AccountsclientpaymentLedgermapping']['entrytype'] == 'rate'){
+							$editLedgerRate->data = null;
+							$editLedgerRate->data['AccountsLedger']['id'] = $mappedRecordForPayment['AccountsclientpaymentLedgermapping']['accounts_ledger_id'];
+							if(($ledgerRecord['AccountsLedger']['debit']) && ($ledgerRecord['AccountsLedger']['debit'] != $this->data['EditPayment']['rcved'])){
+								$editLedgerRate->data['AccountsLedger']['debit']    = $this->data['EditPayment']['flexible_rate'];
+								$editLedgerRate->data['AccountsLedger']['date']     = $this->data['EditPayment']['paydate'];
+								if($this->AccountsLedger->save($editLedgerRate->data)){
+									$this->loadModel('AccountsAccount');
+									$accountsBalance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$ledgerRecord['AccountsLedger']['accounts_account_id']),'fields'=>array('AccountsAccount.closing_balance')));
+									$closingBalance->data = null;
+									$closingBalance->data['AccountsAccount']['id'] = $ledgerRecord['AccountsLedger']['accounts_account_id'];
+									$closingBalance->data['AccountsAccount']['closing_balance'] = $accountsBalance['AccountsAccount']['closing_balance'] + $ledgerRecord['AccountsLedger']['debit'] - $this->data['EditPayment']['flexible_rate'];
+									$this->AccountsAccount->save($closingBalance->data);
+									
+									/*******Doubt Clarify it with saurabh --> Clarified**************/
+									/**Log Code**/
+										$this->requestAction(array('controller'=>'ClientContacts','action'=>'log_entries',$closingBalance->data['AccountsAccount']['id'],0,$editLedgerRate->data['AccountsLedger']['debit'],$accountsBalance['AccountsAccount']['closing_balance'],$closingBalance->data['AccountsAccount']['closing_balance'],$editLedgerRate->data['AccountsLedger']['id'],0,0,'Accounts Client payment details Controller','Accounts Client payment details Controller, editPayment action'));
+									/**Log Code**/
+									
+									
+								}
+							}if(($ledgerRecord['AccountsLedger']['credit']) && ($ledgerRecord['AccountsLedger']['credit'] != $this->data['EditPayment']['rcved'])){
+								$editLedgerBank->data['AccountsLedger']['credit']    = $this->data['EditPayment']['flexible_rate'];
+								$editLedgerBank->data['AccountsLedger']['date']     = $this->data['EditPayment']['paydate'];
+								if($this->AccountsLedger->save($editLedgerBank->data)){
+									$this->loadModel('AccountsAccount');
+									$accountsBalance = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$ledgerRecord['AccountsLedger']['accounts_account_id']),'fields'=>array('AccountsAccount.closing_balance')));
+									$closingBalance->data = null;
+									$closingBalance->data['AccountsAccount']['id'] = $ledgerRecord['AccountsLedger']['accounts_account_id'];
+									$closingBalance->data['AccountsAccount']['closing_balance'] = $accountsBalance['AccountsAccount']['closing_balance'] - $ledgerRecord['AccountsLedger']['credit'] + $this->data['EditPayment']['rcved'];
+									$this->AccountsAccount->save($closingBalance->data);
+									
+									
+									/*******Doubt Clarify it with saurabh --> Clarified**************/
+									/**Log Code**/
+										$this->requestAction(array('controller'=>'ClientContacts','action'=>'log_entries',$closingBalance->data['AccountsAccount']['id'],$editLedgerBank->data['AccountsLedger']['credit'],0,$accountsBalance['AccountsAccount']['closing_balance'],$closingBalance->data['AccountsAccount']['closing_balance'],$editLedgerRate->data['AccountsLedger']['id'],0,0,'Accounts Client payment details Controller','Accounts Client payment details Controller, editPayment action'));
+									/**Log Code**/
+									
+									
+								}
+							}
+						}
+					}
+				}
+			}
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Payment Details Saved</div>'));
+			$this->redirect(array('controller'=>$controller,'action' => $action,$invoiceId));
+			$success=1;
+			$this->set(compact('success'));
+		}
+		
+		$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+		$paymentLog = $this->AccountsClientpaymentdetail->find('first',array('conditions'=>array('AccountsClientpaymentdetail.id'=>$clientPaymentId)));
+		//debug($paymentLog);
+		
+		$accountlist = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.asset_type'=>'Bank'),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+		
+		$this->set(compact('accountlist','controller','action','paymentLog','accountingCurrency'));
+		
+	}
+public function add_changes($clientPaymentId = null,$debitAmount = null,$debitDate = null,$debitBy = null,$symbol = null,$details = null){
+		$this->loadModel('AccountsClientpaymentdetail');
+		$this->loadModel('Currency');
+		$this->loadModel('AccountsLedger');
+		$this->loadModel('AccountsClientinvoice');
+		$this->AccountsClientpaymentdetail->recursive = 0;
+		$clientpaymentdetail = $this->AccountsClientpaymentdetail->find('first',array('conditions'=>array('AccountsClientpaymentdetail.id'=>$clientPaymentId)));
+		$newPaidAmount = $clientpaymentdetail['AccountsClientinvoice']['amount_recieved']+$this->numberconversion($this->data['PaymentEdit']['paid_amount'][$clientPaymentId])-$debitAmount;
+		if($clientpaymentdetail){
+			$paymentLog->data = null;
+			$paymentLog->data['AccountsClientpaymentdetail']['id'] = $clientPaymentId;
+			$paymentLog->data['AccountsClientpaymentdetail']['paid_amount'] = $this->numberconversion($this->data['PaymentEdit']['paid_amount'][$clientPaymentId]);
+			$paymentLog->data['AccountsClientpaymentdetail']['received_date'] = $this->data['PaymentEdit']['paid_date'][$clientPaymentId];
+			$paymentLog->data['AccountsClientpaymentdetail']['paymode'] = $debitBy;
+			$paymentLog->data['AccountsClientpaymentdetail']['paymentdetails'] = $this->data['PaymentEdit']['description'][$clientPaymentId];
+			if($newPaidAmount >= $clientpaymentdetail['AccountsClientinvoice']['ajusted_invoiceamount']){
+				$paymentLog->data['AccountsClientpaymentdetail']['paid'] = 'Y';
+				$logAtInvoice->data['AccountsClientinvoice']['paid'] = 'Y';
+				$logAtInvoice->data['AccountsClientinvoice']['status'] = 'closed';
+			}else{
+				$paymentLog->data['AccountsClientpaymentdetail']['paid'] = 'N';	
+				$logAtInvoice->data['AccountsClientinvoice']['paid'] = 'N';
+				if($clientpaymentdetail['AccountsClientinvoice']['due_date']>date('Y-m-d')){
+					$logAtInvoice->data['AccountsClientinvoice']['status'] = 'open';
+				}else{
+					$logAtInvoice->data['AccountsClientinvoice']['status'] = 'overdue';
+				}
+			}
+			if($this->AccountsClientpaymentdetail->save($paymentLog->data)){
+				
+				$logAtInvoice->data['AccountsClientinvoice']['id'] = $clientpaymentdetail['AccountsClientinvoice']['id'];
+				$logAtInvoice->data['AccountsClientinvoice']['amount_recieved'] = $newPaidAmount;
+				if($this->AccountsClientinvoice->save($logAtInvoice->data)){
+					$accountsLedgerInfo = $this->AccountsLedger->find('all',array('conditions'=>array('AccountsLedger.transaction_id'=>$clientpaymentdetail['AccountsClientpaymentdetail']['accounts_ledger_id'])));
+					debug($accountsLedgerInfo);
+					$billingcurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+					if($billingcurrency['Currency']['id'] == $clientpaymentdetail['AccountsClientpaymentdetail']['currency_id']){
+					$latestAmountEntry = $this->data['PaymentEdit']['paid_amount'][$clientPaymentId];
+					}else{
+					$fromcur = $this->Currency->find('first',array('conditions'=>array('Currency.id'=>$clientpaymentdetail['AccountsClientpaymentdetail']['currency_id']),'fields'=>array('Currency.name','Currency.symbol')));
+					$from = $fromcur['Currency']['name'];
+					$to = $billingcurrency['Currency']['name'];
+					$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+					$handle = @fopen($url, 'r');
+					if ($handle) 
+						{
+							$result = fgets($handle, 4096);
+							fclose($handle);
+						}
+					$allData = explode(',',$result); //Get all the contents to an array 
+					$latestAmountEntry = $this->data['PaymentEdit']['paid_amount'][$clientPaymentId]*$allData['1'];
+					}
+				}
+				foreach($accountsLedgerInfo as $accountsLedgerInfoKey =>$accountsLedgerInfoVal){
+					$ledgerLog->data = null;
+					$ledgerLog->data['AccountsLedger']['id'] = $accountsLedgerInfoVal['AccountsLedger']['id'];
+					if($accountsLedgerInfoVal['AccountsLedger']['debit']){
+						$ledgerLog->data['AccountsLedger']['debit'] = $latestAmountEntry;
+					}else{
+						$ledgerLog->data['AccountsLedger']['credit'] = $latestAmountEntry;
+					}
+					$ledgerLog->data['AccountsLedger']['date'] = $this->data['PaymentEdit']['paid_date'][$clientPaymentId];
+					$this->AccountsLedger->save($ledgerLog->data);
+				}
+				$this->redirect(array('controller'=>'accounts_clientinvoices','action' => 'view',$clientpaymentdetail['AccountsClientpaymentdetail']['accounts_clientinvoice_id']));
+			}
+			
+		}
+		else{
+			$this->Session->setFlash(__('<div class="flashMessageError"> Sorry!!! Payment details do not exist.</div>',true));
+			return;
+		}
+		
+	}
+	public function numberconversion($data=null)
+	{
+		//$data='10,000.50';
+		$numz=explode('.',$data);
+		$base=explode(',',$numz[0]);
+		$i=0;
+		while($base[$i])
+		{
+			$i++;
+		}
+		
+		$kbc=2*$i-1;
+		$num=0;
+		for($j=0;$j<=$i-1;$j++)
+			{
+				$mul=1;
+				if($kbc != 1)
+					{
+						for($pow=1;$pow<=$kbc;$pow++)
+							{
+								$mul=$mul*10;
+							}
+					}
+				else
+					{
+						$mul=$mul*1;
+					}
+				$num=$num+$base[$j]*$mul;
+				$kbc=$kbc-2;
+				
+				
+			}
+			$dec=$numz[1]/100;
+			
+			$num1=$num+$dec;
+		
+		return $num1;
+	}
+	
+	public function delete_payment($id = null, $controller = null , $view = null , $invoiceid = null){
+		$this->autoRender = false;
+		
+		$this->AccountsClientpaymentdetail->id = $id;
+		if($id){
+			
+			$this->loadModel('AccountsclientpaymentLedgermapping');
+			$paymentLog = $this->AccountsClientpaymentdetail->find('first',array('conditions'=>array('AccountsClientpaymentdetail.id'=>$id)));
+			$addPayTotal = $paymentLog['AccountsClientpaymentdetail']['paid_amount'];
+			$mappingRecords = $this->AccountsclientpaymentLedgermapping->find('all',array('conditions'=>array('AccountsclientpaymentLedgermapping.accounts_clientpaymentdetail_id'=>$id)));
+			if($mappingRecords){
+				$this->loadModel('AccountsLedger');
+				foreach($mappingRecords as $mappingRecords){
+					$deleteLedgerEntry = $this->delete_ledger($mappingRecords['AccountsclientpaymentLedgermapping']['accounts_ledger_id']);
+					if($deleteLedgerEntry){
+						$this->AccountsclientpaymentLedgermapping->delete($mappingRecords['AccountsclientpaymentLedgermapping']['id']);
+					}
+				}
+			}
+		}
+		
+		if ($this->AccountsClientpaymentdetail->delete()) {
+			$this->loadModel('AccountsClientinvoice');
+			$invoiceRecord = $this->AccountsClientinvoice->find('first',array('conditions'=>array('AccountsClientinvoice.id'=>$invoiceid)));
+			$clientCurrencyDetail = $invoiceRecord['AccountsClientinvoice']['currency_id'];
+			$paidTotal = $this->accountingCurrencyToClientCurrency($clientCurrencyDetail,$addPayTotal);
+			$newPaymentTotal = $invoiceRecord['AccountsClientinvoice']['amount_recieved'] - $paidTotal;
+			$savearray->data = null;
+			$savearray->data['AccountsClientinvoice']['id'] = $invoiceid;
+			$savearray->data['AccountsClientinvoice']['amount_recieved'] = $newPaymentTotal;
+			if($invoiceRecord['AccountsClientinvoice']['paid'] == 'Y'){
+				$savearray->data['AccountsClientinvoice']['paid'] = 'N';
+			}if(($invoiceRecord['AccountsClientinvoice']['status'] == 'void') || ($invoiceRecord['AccountsClientinvoice']['status'] == 'draft')){
+				$savearray->data['AccountsClientinvoice']['status'] = $invoiceRecord['AccountsClientinvoice']['status'];
+			}else{
+				if(strtotime($invoiceRecord['AccountsClientinvoice']['due_date'])>=strtotime(date('Y-m-d'))){
+					$savearray->data['AccountsClientinvoice']['amount_recieved'] = 'open';
+				}elseif(strtotime($invoiceRecord['AccountsClientinvoice']['due_date'])<strtotime(date('Y-m-d'))){
+					$savearray->data['AccountsClientinvoice']['amount_recieved'] = 'overdue';
+				}
+			}
+			
+			if($this->AccountsClientinvoice->save($savearray->data)){
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">Payment log deleted permanently</div>'));
+			}else{
+				$this->Session->setFlash(__('<div class="flashMessageError">Invoice Update Failed.</div>',true));
+			}
+			
+			
+			$this->redirect(array('controller'=>$controller,'action' => $view,$invoiceid));
+		}else{
+			$this->Session->setFlash(__('<div class="flashMessageError">Payment Log couldnot be deleted.</div>',true));
+		}
+		
+		$this->redirect(array('controller'=>$controller,'action' => $view,$invoiceid));
+	}
+	
+	
+	
+	public function delete_ledger($ledger_id=null) {
+		//Configure::write('debug',2);
+		//debug($this->data);
+		$this->autoRender = false;
+		$this->loadModel('AccountsBill');
+		$this->loadModel('AccountsClientinvoice');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountsClientpaymentdetail');
+		
+		$ledgerRecord = $this->AccountsLedger->findById($ledger_id);
+		$otherledgerEntries = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.id'=>$ledger_id)));
+		$acccount = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$otherledgerEntries['AccountsLedger']['accounts_account_id']),'fields'=>array('AccountsAccount.id','AccountsAccount.closing_balance')));
+		if($otherledgerEntries['AccountsLedger']['credit'] > 0) {
+			$saveAccountsAccount['AccountsAccount']['id'] = $acccount['AccountsAccount']['id'];
+			$saveAccountsAccount['AccountsAccount']['closing_balance'] = $acccount['AccountsAccount']['closing_balance'] - $otherledgerEntries['AccountsLedger']['credit'];
+		} else {
+			$saveAccountsAccount['AccountsAccount']['id'] = $acccount['AccountsAccount']['id'];
+			$saveAccountsAccount['AccountsAccount']['closing_balance'] =  $acccount['AccountsAccount']['closing_balance'] + $otherledgerEntries['AccountsLedger']['debit'];
+		}if($this->AccountsAccount->save($saveAccountsAccount)) {
+			if($this->AccountsLedger->delete($otherledgerEntries['AccountsLedger']['id'])){
+				return 1;
+			}
+		}
+	}
+	
+	public function accountingCurrencyToClientCurrency($currencyId,$amount){
+	$this->loadModel('Currency');
+ 	$clientCurrency = $currencyId;
+ 	$clientCurrencyList = $this->Currency->find('first',array('conditions'=>array('Currency.id'=>$currencyId)));
+ 	$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+ 	if($accountingCurrency['Currency']['id'] != $currencyId){
+ 		$from = $accountingCurrency['Currency']['name'];
+		$to   = $clientCurrencyList['Currency']['name'];
+		$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+		$handle = @fopen($url, 'r');
+		if ($handle) 
+			{
+		   		$result = fgets($handle, 4096);
+		   		fclose($handle);
+			}
+										
+		$allData = explode(',',$result);  //Get all the contents to an array 
+		$convertedAmount = $amount*$allData['1'];
+		$this->set(compact('symbol'));
+ 	}else{
+ 		$convertedAmount = $amount;
+ 	}
+ 	return $convertedAmount;
+ 	
+ }
+	
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsClientpaymentdetail->id = $id;
+		if (!$this->AccountsClientpaymentdetail->exists()) {
+			throw new NotFoundException(__('Invalid accounts clientpaymentdetail'));
+		}
+		if ($this->AccountsClientpaymentdetail->delete()) {
+			$this->Session->setFlash(__('Accounts clientpaymentdetail deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Accounts clientpaymentdetail was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

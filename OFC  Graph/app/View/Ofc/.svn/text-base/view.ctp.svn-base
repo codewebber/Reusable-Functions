@@ -1,0 +1,212 @@
+
+
+
+
+<style type="text/css">
+.image_browse {
+    float: left;
+    height: auto;
+    padding-bottom: 10px;
+    padding-right: 10px;
+    text-align: right;
+    width: 100%;
+}
+
+</style>
+
+<div class="users view">
+
+	<div class="accountsRegularvendors form">
+		<div class="grey_header" >
+			<div class="breadcrums_main" >
+				<div class="bread_crums_links">
+					<span class="breadcrums_text">
+						<? echo $this->Html->link('USERS',array('controller'=>'users','action'=>'index')); ?> >
+							VIEW USER 					
+					</span>
+				</div>
+			</div>
+			<div class="seperation_line" >
+			<div class="seperation_line_left" ></div>
+			<div class="seperation_line_right" ></div>
+		</div><!--seperation_lineEndss-->
+		<div class="clear" ></div>
+	
+		<div class="tab_main" >
+			<!--<h3 class="page_heading"  style = "padding-left:1px;">View Staff Details</h3>-->
+			<div class="tab_links_main acc_bal_width">
+				<div class="tab_links_leftSEL">
+					<?php /*echo $this->Html->link(__('Manage Staffs'),array('action' => 'index'));*/ ?>
+				</div>
+				<div class="clear" ></div>
+			</div>
+		
+		</div>
+	</div>
+		<div class="main_content">
+		     <!--  <div class="left_section">
+			        <?php /*echo $this->element('account_menutree');*/
+			        ?>
+			   </div>-->
+			   
+		<div class="right_section_main2">
+ 			<div class="right_section_inner" >
+				<div class="back_button_page"><span class="arrow_back_le" >&laquo;</span>  <? echo $this->Html->link('BACK',array('controller'=>'users','action'=>'index')); ?>
+				</div>
+				 <?php echo  '<div style = "align:left;padding-left : 30px">'.$this->Session->flash().'</div>'; ?>
+     			<br />
+     			<br />
+     			<br />
+     			
+     				<!--<div class="image_browse" style="width:103px" >
+     					<span style="float:left"> 
+							<div style="width:100px;height:100px;border:1px solid #000;">
+								 <?php /*if($avatars['Avatar']['path']):*/ ?>
+								 <?php /*$url=$this->webroot.$avatars['Avatar']['path'];*/?>
+									<img src="<?php /*echo $url; */?>" style="width: 100px;height: 100px;" />
+								<?php/* else: */?>
+								<img src="../img/Add_Staff__avathar.jpg" style="width: 100px;height: 100px;" />
+								<?php/* endif; */?>
+							</div>
+						</span>
+					</div>-->
+     			
+     			
+     			
+				
+			
+
+
+<br />
+<br />
+<br />
+<br />
+<br />
+
+				<table cellpadding="0" cellspacing="0" style = "font-size:12px;width:100%;">
+					
+					<tr class="alt_row">
+						<td  style="width:25%;padding-top:1px; padding-left : 30px">
+								User Name
+						</td>
+						<td  style="width:25%;padding-top:1px;width :200px; padding-left : 30px">
+								<?php echo h($user['User']['username']); ?>
+						</td>
+						<!--<td  style="width:25%;padding-top:1px;width :200px; padding-left : 30px">
+								Last Name
+						</td>
+						<td  style="width:25%;padding-top:1px;width :200px; padding-left : 30px">
+							<?php /*echo $staff['Staff']['last_name'];*/ ?>
+						</td>-->
+					</tr>
+					<!--<tr ><td style="height:10px;line-height:10px;margin:0px;padding:0px;border-bottom:1px dashed #cccccc" colspan="4" >&nbsp;</td></tr>-->
+					
+				
+
+				
+					
+					<tr class="alt_row2">
+						<td  style="width:25%;padding-top:1px;width :200px; padding-left : 30px">
+							Staff Name
+						</td>
+						<td  style="width:25%;padding-top:1px;width :200px; padding-left : 30px">
+							<?php echo $user['Staff']['first_name'].' '.$user['Staff']['last_name']; ?>
+						</td>
+					</tr>
+					<tr class="alt_row">
+						<td  style="width:25%;padding-top:1px;width :200px; padding-left : 30px">
+							 Email
+						</td>
+						<td  style="width:25%;padding-top:1px;width :200px; padding-left : 30px">
+							<?php echo $user['Staff']['email1']; ?>
+						</td>
+					</tr>
+	<!--<tr ><td style="height:10px;line-height:10px;margin:0px;padding:0px;border-bottom:1px dashed #cccccc" colspan="4" >&nbsp;</td></tr>-->
+					<tr class="alt_row2" >
+						<td  style="width:25%;padding-top:1px;width :200px; padding-left : 30px">
+							User Group
+						</td>
+						<td  style="width:25%;padding-top:1px;width :200px; padding-left : 30px"> 
+							<?php echo $user['Usergroup']['group_name']; ?>
+						</td>
+						
+					</tr>
+					<tr class="alt_row" >
+						
+					</tr>
+						<!--<tr ><td style="height:10px;line-height:10px;margin:0px;padding:0px;border-bottom:1px dashed #cccccc" colspan="4" >&nbsp;</td></tr>
+							-->
+						<tr class="alt_row2" >
+							
+						</tr>
+						<tr class="alt_row">
+							
+						</tr>
+					<!--	<tr style="height:8px"  ><td colspan="4" >&nbsp;</td></tr>-->
+					
+
+				
+					
+					<tr class="alt_row2">
+						
+						
+					</tr>
+					<!--<tr ><td style="height:10px;line-height:10px;margin:0px;padding:0px;border-bottom:1px dashed #cccccc" colspan="4" >&nbsp;</td></tr>
+					-->
+					<tr class="alt_row" >
+		
+						
+					</tr>
+					<tr class="alt_row2">
+						
+					</tr>
+				<!--	<tr style="height:1px;"><td style="height:1px;line-height:1px;margin:0px;padding:0px;border-bottom:1px dashed #cccccc" colspan="4" >&nbsp;</td></tr>
+	
+					<tr style="height:1px;"><td style="height:1px;line-height:1px;margin:0px;padding:0px;border-bottom:1px dashed #cccccc" colspan="4" >&nbsp;</td></tr>
+	
+					<tr style="height:8px"   ><td colspan="4" >&nbsp;</td></tr>-->
+				
+
+				
+					
+					<tr class="alt_row">
+						
+					</tr>
+					<tr class="alt_row2">
+						
+						
+					</tr>
+					
+					<!--<tr style="height:8px"   ><td colspan="4" >&nbsp;</td></tr>-->
+				</table>
+			</div>
+		</div>
+	</div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

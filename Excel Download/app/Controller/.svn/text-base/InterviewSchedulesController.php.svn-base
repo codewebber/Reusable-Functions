@@ -1,0 +1,113 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * InterviewSchedules Controller
+ *
+ * @property InterviewSchedule $InterviewSchedule
+ * @property PaginatorComponent $Paginator
+ * @property SessionComponent $Session
+ */
+class InterviewSchedulesController extends AppController {
+
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('Paginator', 'Session');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->InterviewSchedule->recursive = 0;
+		$this->set('interviewSchedules', $this->Paginator->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		if (!$this->InterviewSchedule->exists($id)) {
+			throw new NotFoundException(__('Invalid interview schedule'));
+		}
+		$options = array('conditions' => array('InterviewSchedule.' . $this->InterviewSchedule->primaryKey => $id));
+		$this->set('interviewSchedule', $this->InterviewSchedule->find('first', $options));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->InterviewSchedule->create();
+			if ($this->InterviewSchedule->save($this->request->data)) {
+				$this->Session->setFlash(__('The interview schedule has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The interview schedule could not be saved. Please, try again.'));
+			}
+		}
+		$users = $this->InterviewSchedule->User->find('list');
+		$candidateJobdescriptionmappings = $this->InterviewSchedule->CandidateJobdescriptionmapping->find('list');
+		$jobStatuses = $this->InterviewSchedule->JobStatus->find('list');
+		$this->set(compact('users', 'candidateJobdescriptionmappings', 'jobStatuses'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		if (!$this->InterviewSchedule->exists($id)) {
+			throw new NotFoundException(__('Invalid interview schedule'));
+		}
+		if ($this->request->is(array('post', 'put'))) {
+			if ($this->InterviewSchedule->save($this->request->data)) {
+				$this->Session->setFlash(__('The interview schedule has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The interview schedule could not be saved. Please, try again.'));
+			}
+		} else {
+			$options = array('conditions' => array('InterviewSchedule.' . $this->InterviewSchedule->primaryKey => $id));
+			$this->request->data = $this->InterviewSchedule->find('first', $options);
+		}
+		$users = $this->InterviewSchedule->User->find('list');
+		$candidateJobdescriptionmappings = $this->InterviewSchedule->CandidateJobdescriptionmapping->find('list');
+		$jobStatuses = $this->InterviewSchedule->JobStatus->find('list');
+		$this->set(compact('users', 'candidateJobdescriptionmappings', 'jobStatuses'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		$this->InterviewSchedule->id = $id;
+		if (!$this->InterviewSchedule->exists()) {
+			throw new NotFoundException(__('Invalid interview schedule'));
+		}
+		$this->request->allowMethod('post', 'delete');
+		if ($this->InterviewSchedule->delete()) {
+			$this->Session->setFlash(__('The interview schedule has been deleted.'));
+		} else {
+			$this->Session->setFlash(__('The interview schedule could not be deleted. Please, try again.'));
+		}
+		return $this->redirect(array('action' => 'index'));
+	}
+}

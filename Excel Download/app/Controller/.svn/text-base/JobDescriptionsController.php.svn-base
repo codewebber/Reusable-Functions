@@ -1,0 +1,2802 @@
+<?php
+App::uses('AppController', 'Controller');
+CakePlugin::load('Export');
+/**
+ * JobDescriptions Controller
+ *
+ * @property JobDescription $JobDescription
+ */
+class JobDescriptionsController extends AppController {
+	
+   public $components = array('Session','Email', 'RequestHandler','Export.Export');
+   
+   public function beforeFilter() {
+   		
+		parent::beforeFilter();
+		$this->Auth->allow('list_jobs','apply','get_job_details','listing_jobs','job_details','candidate_operations','check_post','for_give_comments');
+   		$action = $this->params['action'];
+		if($action=='index' || $action=='assistant_home'){
+			$active_class_job_index = 'for_active_class';
+			$this->set(compact('active_class_job_index'));
+		}elseif($action=='interviewer_landing'){
+			$active_class_interview_landing = 'for_active_class';
+			$this->set(compact('active_class_interview_landing'));
+		}elseif($action=='jd_index'){
+			$active_class_jd_index = 'for_active_class';
+			$this->set(compact('active_class_jd_index'));
+		} 
+   }
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index($company=null,$brand_id=null,$start_date=null,$end_date=null,$active=null,$between_start=null,$limit=null,$offset=null,$page=null) {
+		if($this->Session->read('Auth.User.Role.role_name') !='HR'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}	
+			
+		if($company=='N'){
+			$active='N';
+			$view_inactive='N';
+			$this->set(compact('view_inactive'));
+		}
+		$company=0;$brand=0;$start_date=0;$end_date=0;$limit=0;$offset=0;$page=0;$between_start=0;
+		if(!empty($this->data)){
+			
+			if($this->data['Check']['company'])$company=$this->data['Check']['company'];
+			if($this->data['Check']['brand'])$brand=$this->data['Check']['brand'];
+			$closing_date=$this->data['Check']['closing_date'];
+			
+			$today=date('Y-m-d');
+			$s = strtotime($today);
+			
+			if($closing_date=='week'){
+				$between_start=$today;
+				$end_date = date('Y-m-d', strtotime('+7 day', $s));
+			}elseif($closing_date=='2weeks'){
+				$between_start=$today;
+				$end_date = date('Y-m-d', strtotime('+14 day', $s));
+			}elseif($closing_date=='month'){
+				$between_start=$today;
+				$end_date= date('Y-m-d', strtotime('+1 month', $s));
+			}elseif($closing_date=='gtam'){
+				$end_date= date('Y-m-d', strtotime('+1 month', $s));
+			}
+			
+			
+				
+		}
+		
+		
+		if(!$active){
+			$active='Y';
+		}else{
+			$this->set(compact('active'));
+		}
+		
+		$this->loadModel('Company');
+		$this->loadModel('Brand');
+		$companies=$this->Company->find('list',array('fields'=>array('id','company_name'),'order'=>array('Company.company_name ASC')));
+		$brands=$this->Brand->find('list',array('fields'=>array('id','brand_name'),'order'=>array('Brand.brand_name ASC')));
+		$this->set(compact('companies','brands'));
+		
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->CandidateJobdescriptionmapping->recursive = -1;
+		//$jd=$this->JobDescription->get_jobs(0,0,0,0,$active,0,0,0);
+		$jd=$this->JobDescription->get_jobs($company,$brand,$start_date,$end_date,$active,$between_start,$limit,$offset,$page);
+		
+		$final=null;
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		foreach ($jd as $key => $value) {
+			$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('all',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','CandidateJobdescriptionmapping.job_description_id'=>$value['JobDescription']['id'],'JobStatus.status <>'=>'Accepted','JobStatus.status !='=>'Rejected'),'order'=>array('CandidateJobdescriptionmapping.applied_on ASC')));
+			$count_for_selected = $this->CandidateJobdescriptionmapping->find('count',array('contain'=>array('Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','CandidateJobdescriptionmapping.job_description_id'=>$value['JobDescription']['id'],'JobStatus.status'=>'Accepted')));
+			$final[$value['JobDescription']['id']]['id']=$value['JobDescription']['id'];
+			$final[$value['JobDescription']['id']]['title']=$value['JobDescription']['title'];
+			$final[$value['JobDescription']['id']]['company_name']=$value['Company']['company_name'];
+			$final[$value['JobDescription']['id']]['brand_name']=$value['Brand']['brand_name'];
+			$final[$value['JobDescription']['id']]['end_date']=$value['JobDescription']['end_date'];
+			$final[$value['JobDescription']['id']]['applicants']=$cnd_jd_mpng;
+			$final[$value['JobDescription']['id']]['required_nos']=$value['JobDescription']['required_nos'];
+			$final[$value['JobDescription']['id']]['selected']=$count_for_selected;
+		}
+		$this->set(compact('final'));
+		
+		$this->set(compact('company','closing_date','brand','between_start','brand_id','start_date','end_date','active','between_start','limit','offset','page'));
+	}
+
+	public function view_applicants($id = null,$can_id = null,$frm=null) {
+		//configure::write('debug',2);
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('Resume');
+		$this->loadModel('FeedbackStatus');
+		$this->set(compact('id'));
+		$this->JobDescription->recursive = -1;
+		$jd_list=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$id)));
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		if($can_id){
+			$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('all',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.email','Candidate.contact','Candidate.resume_id','Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','Candidate.id'=>$can_id,'CandidateJobdescriptionmapping.job_description_id'=>$jd_list['JobDescription']['id'],'JobStatus.status <>'=>'Accepted','JobStatus.status !='=>'Rejected'),'order'=>array('CandidateJobdescriptionmapping.applied_on ASC')));
+		}else{
+			$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('all',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.email','Candidate.contact','Candidate.resume_id','Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','CandidateJobdescriptionmapping.job_description_id'=>$jd_list['JobDescription']['id'],'JobStatus.status <>'=>'Accepted','JobStatus.status !='=>'Rejected'),'order'=>array('CandidateJobdescriptionmapping.applied_on ASC')));
+		}
+		
+		//debug($cnd_jd_mpng);
+		$for_edit=null;
+		$interview_id=null;
+		$resume_all=null;
+		$this->Resume->recursive = -1;
+		foreach($cnd_jd_mpng as $cnd_jd_mpn){
+			$interview_scheduled=null;
+			$interview_scheduled=$this->InterviewSchedule->find('first',array('conditions'=>array('InterviewSchedule.candidate_jobdescriptionmapping_id'=>$cnd_jd_mpn['CandidateJobdescriptionmapping']['id'])));
+			//configure::write('debug',2);
+			debug($interview_scheduled);
+			$level_statuses=null;
+			if($interview_scheduled['InterviewSchedule']['id']){
+				$level_statuses=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.interview_schedule_id'=>$interview_scheduled['InterviewSchedule']['id']),'fields'=>array('FeedbackStatus.status'),'order'=>array('FeedbackStatus.id DESC')));
+			}
+			$level_stus[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$level_statuses['FeedbackStatus']['status'];
+			$this->Resume->cacheQueries = FALSE;
+			$resume=$this->Resume->find('first',array('conditions'=>array('Resume.id'=>$cnd_jd_mpn['Candidate']['resume_id'])));
+			$resume_all[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$resume['Resume']['resume_path'];
+			if($interview_scheduled['InterviewSchedule']['completed']=='Y'){
+				$for_edit[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]='N';
+				$interview_id[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$interview_scheduled['InterviewSchedule']['id'];
+			}elseif($interview_scheduled){
+				$for_edit[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]='Y';
+				$interview_id[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$interview_scheduled['InterviewSchedule']['id'];
+			}else{
+				$for_edit[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]='N';
+				$interview_id[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$interview_scheduled['InterviewSchedule']['id'];
+			}
+		}
+		
+		$tittle=$jd_list['JobDescription']['title'];
+		$this->set(compact('tittle','cnd_jd_mpng','for_edit','interview_id','resume_all','level_stus','can_id','frm'));
+		
+	}
+	
+	public function view_selected_candidates($id = null,$can_id = null,$frm=null) {
+		//configure::write('debug',2);
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('Resume');
+		$this->loadModel('FeedbackStatus');
+		$this->set(compact('id'));
+		$this->JobDescription->recursive = -1;
+		$jd_list=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$id)));
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		if($can_id){
+			$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('all',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.email','Candidate.contact','Candidate.resume_id','Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','Candidate.id'=>$can_id,'CandidateJobdescriptionmapping.job_description_id'=>$jd_list['JobDescription']['id'],'JobStatus.status'=>'Accepted'),'order'=>array('CandidateJobdescriptionmapping.applied_on ASC')));
+		}else{
+			$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('all',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.email','Candidate.contact','Candidate.resume_id','Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','CandidateJobdescriptionmapping.job_description_id'=>$jd_list['JobDescription']['id'],'JobStatus.status'=>'Accepted'),'order'=>array('CandidateJobdescriptionmapping.applied_on ASC')));
+		}
+		
+		//debug($cnd_jd_mpng);
+		$for_edit=null;
+		$interview_id=null;
+		$resume_all=null;
+		$this->Resume->recursive = -1;
+		foreach($cnd_jd_mpng as $cnd_jd_mpn){
+			$interview_scheduled=null;
+			$interview_scheduled=$this->InterviewSchedule->find('first',array('conditions'=>array('InterviewSchedule.candidate_jobdescriptionmapping_id'=>$cnd_jd_mpn['CandidateJobdescriptionmapping']['id'])));
+			//configure::write('debug',2);
+			debug($interview_scheduled);
+			$level_statuses=null;
+			if($interview_scheduled['InterviewSchedule']['id']){
+				$level_statuses=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.interview_schedule_id'=>$interview_scheduled['InterviewSchedule']['id']),'fields'=>array('FeedbackStatus.status'),'order'=>array('FeedbackStatus.id DESC')));
+			}
+			$level_stus[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$level_statuses['FeedbackStatus']['status'];
+			$this->Resume->cacheQueries = FALSE;
+			$resume=$this->Resume->find('first',array('conditions'=>array('Resume.id'=>$cnd_jd_mpn['Candidate']['resume_id'])));
+			$resume_all[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$resume['Resume']['resume_path'];
+			if($interview_scheduled['InterviewSchedule']['completed']=='Y'){
+				$for_edit[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]='N';
+				$interview_id[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$interview_scheduled['InterviewSchedule']['id'];
+			}elseif($interview_scheduled){
+				$for_edit[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]='Y';
+				$interview_id[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$interview_scheduled['InterviewSchedule']['id'];
+			}else{
+				$for_edit[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]='N';
+				$interview_id[$cnd_jd_mpn['CandidateJobdescriptionmapping']['id']]=$interview_scheduled['InterviewSchedule']['id'];
+			}
+		}
+		
+		$tittle=$jd_list['JobDescription']['title'];
+		$this->set(compact('tittle','cnd_jd_mpng','for_edit','interview_id','resume_all','level_stus','can_id','frm'));
+		
+	}
+	
+	public function view_application_csv($id=null){
+		//configure::write('debug',2);
+		debug($id);
+		$this->autoRender=false;
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('Resume');
+		$this->set(compact('id'));
+		$this->JobDescription->recursive = -1;
+		$jd_list=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$id)));
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('all',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.email','Candidate.contact','Candidate.resume_id','Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','CandidateJobdescriptionmapping.job_description_id'=>$jd_list['JobDescription']['id'],'JobStatus.status <>'=>'Accepted','JobStatus.status !='=>'Rejected'),'order'=>array('CandidateJobdescriptionmapping.applied_on ASC')));
+		$for_edit=null;
+		$interview_id=null;
+		$resume_all=null;
+		$this->Resume->recursive = -1;
+		$final=null;
+		$i=0;
+		foreach($cnd_jd_mpng as $cnd_jd_mpn){
+			$i++;
+			$final[$i]['Id']= $i;
+			$final[$i]['Name']= $cnd_jd_mpn['Candidate']['first_name'].' '.$cnd_jd_mpn['Candidate']['last_name'];
+			$final[$i]['Email']= $cnd_jd_mpn['Candidate']['email'];
+			$final[$i]['Contact']= $cnd_jd_mpn['Candidate']['contact'];
+			$final[$i]['Applied On']= $cnd_jd_mpn['CandidateJobdescriptionmapping']['applied_on'];
+			$final[$i]['Level']= $cnd_jd_mpn['JobStatus']['status'];
+		}
+		
+		$this->Export->exportCsv($final, 'application.csv');
+		
+		//$tittle=$jd_list['JobDescription']['title'];
+		//$this->set(compact('tittle','cnd_jd_mpng','for_edit','interview_id','resume_all'));
+		
+		
+	}
+
+	public function accept($id=null,$interview_id,$can_id = null,$frm=null){
+		$this->autoRender=false;
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('JobStatus');
+		$this->CandidateJobdescriptionmapping->recursive = -1;
+		$this->InterviewSchedule->recursive = -1;
+		$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.id'=>$id)));
+		$interive_sts = $this->InterviewSchedule->find('first',array('conditions'=>array('InterviewSchedule.id'=>$interview_id)));
+		$statusus=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Accepted'),'fields'=>array('JobStatus.id','JobStatus.status')));
+		$change_status=null;
+		$change_status['CandidateJobdescriptionmapping']['id']=$id;
+		$change_status['CandidateJobdescriptionmapping']['job_status_id']=$statusus['JobStatus']['id'];
+		if($this->CandidateJobdescriptionmapping->save($change_status)){
+			$int_change_stat=null;
+			$int_change_stat['InterviewSchedule']['id']=$interview_id;
+			$int_change_stat['InterviewSchedule']['job_status_id']=$statusus['JobStatus']['id'];
+			if($this->InterviewSchedule->save($int_change_stat)){
+				$this->Session->setFlash('<h4>Success Message : </h4><p>Status has been changed.</span>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Status could not be changed.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+			}
+			
+		}else{
+			$this->Session->setFlash('<h4>Warning Message : </h4><p>Status could not be changed.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+		}
+		
+		
+	}
+
+	public function reject($id=null,$interview_id,$can_id = null,$frm=null){
+		$this->autoRender=false;
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('JobStatus');
+		$this->CandidateJobdescriptionmapping->recursive = -1;
+		$this->InterviewSchedule->recursive = -1;
+		$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.id'=>$id)));
+		$interive_sts = $this->InterviewSchedule->find('first',array('conditions'=>array('InterviewSchedule.id'=>$interview_id)));
+		$statusus=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Rejected'),'fields'=>array('JobStatus.id','JobStatus.status')));
+		$change_status=null;
+		$change_status['CandidateJobdescriptionmapping']['id']=$id;
+		$change_status['CandidateJobdescriptionmapping']['job_status_id']=$statusus['JobStatus']['id'];
+		if($this->CandidateJobdescriptionmapping->save($change_status)){
+			$int_change_stat=null;
+			$int_change_stat['InterviewSchedule']['id']=$interview_id;
+			$int_change_stat['InterviewSchedule']['job_status_id']=$statusus['JobStatus']['id'];
+			if($this->InterviewSchedule->save($int_change_stat)){
+				$this->Session->setFlash('<h4>Success Message : </h4><p>Status has been changed.</span>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Status could not be changed.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+			}
+		}else{
+			$this->Session->setFlash('<h4>Warning Message : </h4><p>Status could not be changed.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+		}
+		
+		
+	}
+
+	public function popup_schedule($id=null,$can_id=null,$frm=null) {
+		$this->layout=FALSE;
+		
+		$this->set(compact('id','interview_id'));
+		$this->loadModel('User');
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('JobStatus');
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('Company');
+		$this->loadModel('Resume');
+		$this->Resume->recursive=-1;
+		$this->User->unbindModel(array('hasMany' => array('FeedbackRating','FeedbackStatus')));
+		//$interviewers=$this->User->find('all',array('conditions'=>array('Role.role_name !'=>'Candidate')));
+		$interviewer=$this->User->find('all',array('conditions'=>array('Role.role_name <>'=>'Candidate','User.active'=>'Y','User.deleted'=>'N'),'order'=>array('User.first_name ASC')));
+		$interviewers=$interviewers_emails=null;
+		foreach($interviewer as $interviewer){
+			$interviewers[$interviewer['User']['id']]=$interviewer['User']['first_name'].' '.$interviewer['User']['last_name'];
+			$interviewers_emails[$interviewer['User']['id']]=$interviewer['User']['email'];
+		}
+		//configure::write('debug',2);
+		//debug($this->Session->read('Auth'));
+		$this->CandidateJobdescriptionmapping->recursive = -1;
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('first',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.email','Candidate.resume_id','JobStatus.status','JobDescription.id','JobDescription.title','JobDescription.company_id'),'conditions'=>array('CandidateJobdescriptionmapping.id'=>$id)));
+		$for_stus_id=$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_status_id'];
+		
+		$company_details = $this->Company->find('first',array('conditions'=>array('Company.id'=>$cnd_jd_mpng['JobDescription']['company_id'])));
+		
+		$resume_val = $this->Resume->find('first',array('conditions'=>array('Resume.id'=>$cnd_jd_mpng['Candidate']['resume_id'])));
+		
+		$statusus=$this->JobStatus->find('list',array('conditions'=>array('JobStatus.status <>'=>'Accepted','JobStatus.status !='=>'Rejected'),'fields'=>array('JobStatus.id','JobStatus.status'),'order'=>array('JobStatus.status ASC')));
+		//debug($cnd_jd_mpng);
+		if($this->data){
+			$date_time=explode(' ', $this->data['Schedule']['date_time']);
+			$this->InterviewSchedule->create();
+			$save=NULL;
+			$save['InterviewSchedule']['user_id']=$this->data['Schedule']['interviewer'];
+			$save['InterviewSchedule']['candidate_jobdescriptionmapping_id']=$id;
+			$save['InterviewSchedule']['job_description_id']=$cnd_jd_mpng['JobDescription']['id'];
+			$save['InterviewSchedule']['job_status_id']=$this->data['Schedule']['level'];
+			$save['InterviewSchedule']['date']=$date_time[0];
+			$save['InterviewSchedule']['start_time']=$date_time[1];
+			$save['InterviewSchedule']['completed']='N';
+			$save['InterviewSchedule']['scheduled_by']=$this->Session->read('Auth.User.id');
+			//debug($save);
+			//debug($this->InterviewSchedule->save($save));
+			if($this->InterviewSchedule->save($save)){
+				$save_cndjobdsc=NULL;
+				$save_cndjobdsc['CandidateJobdescriptionmapping']['id']=$id;
+				$save_cndjobdsc['CandidateJobdescriptionmapping']['job_status_id']=$this->data['Schedule']['level'];
+				if($this->CandidateJobdescriptionmapping->save($save_cndjobdsc)){
+					$this->Session->setFlash('<h4>Success Message : </h4><p>Interview has been scheduled.</span>','default',array('class' => 'flashmessagebox flashsuccess'));
+									$for_level=$statusus[$this->data['Schedule']['level']];
+						
+										
+									$email_to = trim($cnd_jd_mpng['Candidate']['email']);
+									
+									$name=$cnd_jd_mpng['Candidate']['first_name'].' '.$cnd_jd_mpng['Candidate']['last_name'];
+									$date=$date_time[0];
+									$time=$date_time[1];
+									$title=$cnd_jd_mpng['JobDescription']['title'];
+									$company=$company_details['Company']['company_name'];
+									
+									$this->set(compact('name','date','time','company','title','for_level'));
+									$this->Email->to = $email_to;
+									//$this->Email->cc = 'venugopal@carmatec.com';
+									//$this->Email->to = 'hameed@carmatec.com';
+									$this->Email->subject = 'Interview';
+									$this->Email->replyTo = 'admin@carmatec.com';
+								    $this->Email->from = 'admin@carmatec.com';
+								    $this->Email->template = 'for_candidate';
+								    $this->Email->sendAs = 'html';
+									if (filter_var($email_to, FILTER_VALIDATE_EMAIL)) {
+									  $this->Email->send();
+									}		
+										
+							if($this->data['Schedule']['interviewer']){
+									 $intrviewr=$interviewers[$this->data['Schedule']['interviewer']];
+									 $intrviewr_emal=$interviewers_emails[$this->data['Schedule']['interviewer']];
+									
+									$interviewer_name=$intrviewr;	
+									$this->set(compact('name','date','time','company','interviewer_name','title'));
+									
+									$this->Email->to = $intrviewr_emal;
+									//$this->Email->cc = 'venugopal@carmatec.com';
+									//$this->Email->to = 'hameed@carmatec.com';
+									$this->Email->subject = 'Interview Scheduled';
+									$this->Email->replyTo = 'admin@carmatec.com';
+									$this->Email->from = 'admin@carmatec.com';
+									/*
+									if($resume_val){
+																			$this->Email->attachments = 'http://192.168.0.116/HRManagement'.$resume_val['Resume']['resume_path'];
+																		}*/
+									
+									$this->Email->template = 'for_interviewer';
+									$this->Email->sendAs = 'html';
+									$this->Email->send();
+									
+									
+									/*
+									$Email1 = new CakeEmail();
+																				
+																		$Email1->template('for_interviewer')
+																				->emailFormat('html')
+																				->to($intrviewr_emal)
+																				->from('admin@carmatec.com')
+																				->subject('Interview Scheduled')
+																				->attachments('http://192.168.0.116/HRManagement'.$resume_val['Resume']['resume_path'])
+																				->viewVars(array('name'=>$cnd_jd_mpng['Candidate']['first_name'].' '.$cnd_jd_mpng['Candidate']['last_name'],'date'=>$date_time[0],'time'=>$date_time[1],'title'=>$cnd_jd_mpng['JobDescription']['title'],'interviewer_name'=>$intrviewr))
+																				->send();							*/
+											
+									
+												
+							
+							}
+			
+							$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+				}
+				
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Interview is not scheduled, Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+			}
+		}
+		
+		//debug($interviewers);
+		$this->set(compact('interviewers','statusus','for_stus_id','cnd_jd_mpng','can_id','frm'));
+	}
+
+
+	public function popup_schedule_edit($id=null,$interview_id=null,$can_id=null,$frm=null) {
+		$this->layout=FALSE;
+		$this->set(compact('id','interview_id'));
+		$this->loadModel('User');
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('Company');
+		$this->loadModel('JobStatus');
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->User->unbindModel(array('hasMany' => array('FeedbackRating','FeedbackStatus')));
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		//$interviewers=$this->User->find('all',array('conditions'=>array('Role.role_name !'=>'Candidate')));
+		$interviewer=$this->User->find('all',array('conditions'=>array('Role.role_name <>'=>'Candidate','User.active'=>'Y','User.deleted'=>'N'),'order'=>array('User.first_name ASC')));
+		$interviewers=null;
+		foreach($interviewer as $interviewer){
+			$interviewers[$interviewer['User']['id']]=$interviewer['User']['first_name'].' '.$interviewer['User']['last_name'];
+			$interviewers_emails[$interviewer['User']['id']]=$interviewer['User']['email'];
+		}
+		//configure::write('debug',2);
+		//debug($this->Session->read('Auth'));
+		$this->InterviewSchedule->recursive=-1;
+		$last_interview_details=$this->InterviewSchedule->find('first',array('conditions'=>array('InterviewSchedule.id'=>$interview_id)));
+		
+		$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('first',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.email','Candidate.resume_id','JobStatus.status','JobDescription.title','JobDescription.company_id'),'conditions'=>array('CandidateJobdescriptionmapping.id'=>$id)));
+		debug($cnd_jd_mpng);
+		$company_details = $this->Company->find('first',array('conditions'=>array('Company.id'=>$cnd_jd_mpng['JobDescription']['company_id'])));
+		$for_stus_id=$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_status_id'];
+		$statusus=$this->JobStatus->find('list',array('conditions'=>array('AND'=>array('JobStatus.status <>'=>'Accepted','JobStatus.status !='=>'Rejected')),'fields'=>array('JobStatus.id','JobStatus.status'),'order'=>array('JobStatus.status ASC')));
+		if($this->data){
+			//$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.id'=>$id)));
+			
+			$date_time=explode(' ', $this->data['Schedule']['date_time']);
+			$save=NULL;
+			$save['InterviewSchedule']['id']=$interview_id;
+			$save['InterviewSchedule']['user_id']=$this->data['Schedule']['interviewer'];
+			$save['InterviewSchedule']['job_status_id']=$this->data['Schedule']['level'];
+			$save['InterviewSchedule']['date']=$date_time[0];
+			$save['InterviewSchedule']['start_time']=$date_time[1];
+			$save['InterviewSchedule']['completed']='N';
+			$save['InterviewSchedule']['scheduled_by']=$this->Session->read('Auth.User.id');
+			//debug($save);
+			//debug($this->InterviewSchedule->save($save));
+			if($this->InterviewSchedule->save($save)){
+				
+				$save_cndjobdsc=NULL;
+				$save_cndjobdsc['CandidateJobdescriptionmapping']['id']=$id;
+				$save_cndjobdsc['CandidateJobdescriptionmapping']['job_status_id']=$this->data['Schedule']['level'];
+				if($this->CandidateJobdescriptionmapping->save($save_cndjobdsc)){
+					$for_level=$statusus[$this->data['Schedule']['level']];
+					$this->Session->setFlash('<h4>Success Message : </h4><p>Interview has been scheduled.</span>','default',array('class' => 'flashmessagebox flashsuccess'));
+					//App::uses('CakeEmail', 'Network/Email');
+									//configure::write('debug',2);
+									//debug($cnd_jd_mpng);
+									$candidate_mail_id = trim($cnd_jd_mpng['Candidate']['email']);
+									
+									$name=$cnd_jd_mpng['Candidate']['first_name'].' '.$cnd_jd_mpng['Candidate']['last_name'];
+									$date=$date_time[0];
+									$time=$date_time[1];$title=$cnd_jd_mpng['JobDescription']['title'];
+									$company=$company_details['Company']['company_name'];
+									$this->set(compact('name','date','time','company','for_level'));
+									$this->Email->to = $candidate_mail_id;
+									//$this->Email->cc = 'venugopal@carmatec.com';
+									//$this->Email->to = 'hameed@carmatec.com';
+									$this->Email->subject = 'Interview';
+									$this->Email->replyTo = 'admin@carmatec.com';
+								    $this->Email->from = 'admin@carmatec.com';
+								    $this->Email->template = 'for_candidate';
+								    $this->Email->sendAs = 'html';
+									if (filter_var($candidate_mail_id, FILTER_VALIDATE_EMAIL)) {
+									  $this->Email->send();
+									}
+									
+									
+									
+									if($this->data['Schedule']['interviewer']){
+											debug($this->data['Schedule']['interviewer']);	
+											$intrviewr=$interviewers[$this->data['Schedule']['interviewer']];
+											$intrviewr_emal=$interviewers_emails[$this->data['Schedule']['interviewer']];
+											
+											debug($intrviewr);
+											$Email1 = new CakeEmail();
+											
+											$Email1->template('for_interviewer')
+													->emailFormat('html')
+													->to($intrviewr_emal)
+													//->cc('venugopal@carmatec.com')
+													->from('admin@carmatec.com')
+													->subject('Interview Scheduled')
+													//->attachments('webroot/files/uploads/resumeZipped/Farheen-4-1--1-1.docx')
+													->viewVars(array('name'=>$cnd_jd_mpng['Candidate']['first_name'].' '.$cnd_jd_mpng['Candidate']['last_name'],'date'=>$date_time[0],'time'=>$date_time[1],'title'=>$cnd_jd_mpng['JobDescription']['title'],'interviewer_name'=>$intrviewr,'for_level'=>$for_level))
+													->send();
+										}
+									
+					$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+					
+				}
+				
+				
+				
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Interview is not scheduled, Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				$this->redirect(array('action'=>'view_applicants',$cnd_jd_mpng['CandidateJobdescriptionmapping']['job_description_id'],$can_id,$frm));
+			}
+		}
+		
+		//debug($interviewers);
+		$this->set(compact('interviewers','last_interview_details','for_stus_id','statusus','cnd_jd_mpng','can_id','frm'));
+	}
+	
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->JobDescription->id = $id;
+		if (!$this->JobDescription->exists()) {
+			throw new NotFoundException(__('Invalid job description'));
+		}
+		$this->set('jobDescription', $this->JobDescription->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if($this->Session->read('Auth.User.Role.role_name') !='HR' && $this->Session->read('Auth.User.Role.role_name') !='HR Assistant'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}		
+		$this->loadModel('User');
+		$this->User->recursive = -1;	
+		$reviewers=parent::reviewers();
+		if ($this->request->is('post')) {
+			//configure::write('debug',2);			
+			$skillcount=0;
+			foreach($this->data['JobDescription']['skills'] as $skill1=>$skill2 ){
+				if($skill1)++$skillcount;
+			}
+			
+			
+			/*
+			if($skillcount==0){
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>No skills added, please add skills.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+								$this->redirect(array('action'=>'add'));
+						}*/
+			
+			
+			$email_coma_seprated=trim($this->data['JobDescription']['reviewer_emails']);
+			if($email_coma_seprated){
+				$email_array=explode(',',$email_coma_seprated);
+				foreach ($email_array as $key => $value) {
+					if (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
+						$dont_allow=1;	
+					}
+				}
+			}
+			
+			if($dont_allow){
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Please give proper emails.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('action'=>'add'));
+			}
+			
+			
+			$this->loadModel('JobInvite');
+			$this->loadModel('JobdescriptionSkillmapping');
+			$job_invite->data=null;
+			$this->JobInvite->create();
+			$job_invite->data['JobInvite']['invite_description']=$this->data['JobDescription']['description'];
+			if($this->JobInvite->save($job_invite->data)){
+				$job_invite_id=$this->JobInvite->getLastInsertID();
+				$job_desc->data=null;
+				$this->JobDescription->create();
+				$job_desc->data['JobDescription']['title']=$this->data['JobDescription']['job_title'];
+				$job_desc->data['JobDescription']['company_id']=$this->data['JobDescription']['company'];
+				$job_desc->data['JobDescription']['brand_id']=$this->data['JobDescription']['brand'];
+				$job_desc->data['JobDescription']['job_invite_id']=$job_invite_id;
+				$job_desc->data['JobDescription']['start_date']=$this->data['JobDescription']['start_date'];
+				$job_desc->data['JobDescription']['end_date']=$this->data['JobDescription']['end_date'];
+				$job_desc->data['JobDescription']['active']='Y';
+				$job_desc->data['JobDescription']['required_nos']=$this->data['JobDescription']['required'];
+				$job_desc->data['JobDescription']['qualification']=$this->data['JobDescription']['qualification'];
+				$job_desc->data['JobDescription']['experience']=$this->data['JobDescription']['experience'];
+				$job_desc->data['JobDescription']['compensation_package']=$this->data['JobDescription']['package'];
+				$job_desc->data['JobDescription']['project']=$this->data['JobDescription']['project'];
+				$job_desc->data['JobDescription']['reason']=$this->data['JobDescription']['reason'];
+				$job_desc->data['JobDescription']['prepared_by']=$this->Session->read('Auth.User.id');
+				$job_desc->data['JobDescription']['prepared_on']=date('Y-m-d H:i:s');
+				if($this->JobDescription->save($job_desc->data)){
+					$job_desc_id=$this->JobDescription->getLastInsertID();
+					
+					foreach($this->data['JobDescription']['skills'] as $skill1=>$skill2 ){
+						$skill->data=null;
+						$this->JobdescriptionSkillmapping->create();
+						$skill->data['JobdescriptionSkillmapping']['job_description_id']=$job_desc_id;
+						$skill->data['JobdescriptionSkillmapping']['skill_master_id']=$skill2;
+						$this->JobdescriptionSkillmapping->save($skill->data);
+					}
+					
+					$this->loadModel('JobdescriptionResponsibility');
+					foreach($this->data['JobDescription']['responsibility'] as $resp1=>$resp2){
+						$resp->data=null;
+						$this->JobdescriptionResponsibility->create();
+						$resp->data['JobdescriptionResponsibility']['user_id']=$resp2;
+						$resp->data['JobdescriptionResponsibility']['job_description_id']=$job_desc_id;
+						$this->JobdescriptionResponsibility->save($resp->data);
+					}
+					
+					$this->loadModel('JobdescriptionReviewer');
+					foreach($this->data['JobDescription']['reviewers'] as $review1=>$review2){
+						$resp->data=null;
+						$this->JobdescriptionReviewer->create();
+						$resp->data['JobdescriptionReviewer']['user_id']=$review2;
+						$resp->data['JobdescriptionReviewer']['job_description_id']=$job_desc_id;
+						if($this->JobdescriptionReviewer->save($resp->data)){
+							$user_details_mail=null;
+							$user_details_mail=$this->User->find('first',array('conditions'=>array('User.id'=>$review2)));
+							$job_title=trim($this->data['JobDescription']['job_title']);
+							$email_to=$user_details_mail['User']['email'];
+							$name=$user_details_mail['User']['first_name'].' '.$user_details_mail['User']['last_name'];
+							$revwer_id=$user_details_mail['User']['id'];
+							
+							$creater_details=$this->User->find('first',array('conditions'=>array('User.id'=>$this->Session->read('Auth.User.id'))));
+							$createdby=$creater_details['User']['first_name'].' '.$creater_details['User']['last_name'];
+							$todate1=date('Y-m-d');
+							$from_mail=$creater_details['User']['email'];
+							$sub='To Review <JD - '.$job_title.'>';
+							$this->for_review_mail($job_title,$name,$createdby,$revwer_id,$job_desc_id,$todate1,$sub,$email_to,$from_mail);
+						}
+					}
+					
+					if(trim($this->data['JobDescription']['reviewer_emails'])){
+						foreach($email_array as $cnt=>$mails){
+							$resp->data=null;
+							$this->JobdescriptionReviewer->create();
+							$resp->data['JobdescriptionReviewer']['email']=$mails;
+							$resp->data['JobdescriptionReviewer']['job_description_id']=$job_desc_id;
+							if($this->JobdescriptionReviewer->save($resp->data)){
+								$user_details_mail=null;
+								//$user_details_mail=$this->User->find('first',array('conditions'=>array('User.id'=>$review2)));
+								$job_title=trim($this->data['JobDescription']['job_title']);
+								$email_to=$mails;
+								$name=$mails;
+								$revwer_id=$mails;
+								
+								$creater_details=$this->User->find('first',array('conditions'=>array('User.id'=>$this->Session->read('Auth.User.id'))));
+								$createdby=$creater_details['User']['first_name'].' '.$creater_details['User']['last_name'];
+								$todate1=date('Y-m-d');
+								$from_mail=$creater_details['User']['email'];
+								$sub='To Review <JD - '.$job_title.'>';
+								$this->for_review_mail($job_title,$name,$createdby,$revwer_id,$job_desc_id,$todate1,$sub,$email_to,$from_mail);
+							}
+						}
+					}
+					
+					$this->Session->setFlash('<h4>Success Message : </h4><p>Job has been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				    $this->redirect(array('action'=>'jd_index'));
+					
+					
+				}else{
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Job description cannot be added. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				    $this->redirect(array('action'=>'jd_index'));
+				}
+				
+				
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Job cannot be added. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('action'=>'jd_index'));
+			}
+			
+		}
+		
+		$this->loadModel('Company');
+		$this->Company->recursive = -1;
+		$this->loadModel('Brand');
+		$this->Brand->recursive = -1;
+		$companies = $this->Company->find('list',array('fields'=>array('Company.id','Company.company_name'),'order'=>array('Company.company_name ASC')));
+		$brands = $this->Brand->find('list');
+		$this->set(compact('companies', 'brands'));
+		$assistants=null;
+		$assistants=parent::hr_assistants();
+		
+		$this->set(compact('assistants','reviewers'));
+		
+	}
+
+	public function for_review_mail($job_title=null,$name=null,$created_by=null,$user_id=null,$job_id=null,$date=null,$sub=null,$to_mail=null,$from_mail=null){
+		$this->set(compact('job_title','name','created_by','user_id','job_id','date'));
+		$this->Email->to = $to_mail;
+		//$this->Email->to = 'hameed@carmatec.com';
+		//$this->Email->cc = 'venugopal@carmatec.com';
+		$this->Email->subject = $sub;
+		$this->Email->replyTo = $from_mail;
+	    $this->Email->from = $from_mail;
+	    $this->Email->template = 'forapproval_jd';
+	    $this->Email->sendAs = 'html';
+		$this->Email->send();
+		
+	}
+	
+	public function for_give_comments($user_id=null,$job_id=null,$date=null){
+		
+		$this->layout='nologin';	
+		$job_details=$this->JobDescription->job_detail($job_id);
+		$this->loadModel('User');
+		$this->loadModel('SkillMaster');
+		$this->loadModel('JobdescriptionReviewer');
+		$jobdetails=null;
+		$jobdetails['job_id']=$job_details['JobDescription']['id'];
+		$jobdetails['job_title']=$job_details['JobDescription']['title'];
+		$jobdetails['job_description']=$job_details['JobInvite']['invite_description'];
+		$jobdetails['job_startdate']=$job_details['JobDescription']['start_date'];
+		$jobdetails['job_end_date']=$job_details['JobDescription']['end_date'];
+		$jobdetails['job_status']=$job_details['JobDescription']['active'];
+		$jobdetails['company_name']=$job_details['Company']['company_name'];
+		$jobdetails['company_description']=$job_details['Company']['company_description'];
+		$jobdetails['brand_name']=$job_details['Brand']['brand_name'];
+		$jobdetails['brand_description']=$job_details['Brand']['brand_description'];
+		$skillcount=0;
+		foreach($job_details['JobdescriptionSkillmapping'] as $skill1=>$skill2){
+			$skill_set=null;
+			$skill_set=$this->SkillMaster->find('first',array('conditions'=>array('SkillMaster.id'=>$skill2['skill_master_id'])));		
+			$jobdetails['skill'][++$skillcount]=$skill_set['SkillMaster']['skill_type'];
+		}
+		//configure::write('debug',2);
+		//debug($job_details);
+		$this->User->recursive = -1;
+		$prepared_by=$this->User->find('first',array('conditions'=>array('User.id'=>$job_details['JobDescription']['prepared_by'])));
+		$this->JobdescriptionReviewer->Behaviors->attach('Containable');
+		$all_reviewers = $this->JobdescriptionReviewer->find('all',array('contain'=>array('User'),'conditions'=>array('JobdescriptionReviewer.job_description_id'=>$job_id)));
+		//debug($all_reviewers);
+		$reviwers_details=null;
+		$commnets=null;
+		$i=0;
+		foreach($all_reviewers as $all_reviewer){
+			if($all_reviewer['User']['id']){
+				$reviwers_details[$all_reviewer['User']['id']]=$all_reviewer['User']['first_name'].' '.$all_reviewer['User']['last_name'];
+			}else{
+				$reviwers_details[$all_reviewer['JobdescriptionReviewer']['email']]=$all_reviewer['JobdescriptionReviewer']['email'];
+			}
+			
+			if($all_reviewer['JobdescriptionReviewer']['reviewers_comments']){
+				if($all_reviewer['User']['id']){
+					$commnets[$i]['user_name']=$all_reviewer['User']['first_name'].' '.$all_reviewer['User']['last_name'];
+				}else{
+					$commnets[$i]['user_name']=$all_reviewer['JobdescriptionReviewer']['email'];
+				}	
+				$commnets[$i]['comment']=$all_reviewer['JobdescriptionReviewer']['reviewers_comments'];	
+				$i++;
+			}
+			
+		}
+		$this->set(compact('jobdetails','user_id','job_id','date','reviwers_details','commnets'));
+		if($this->data){
+			$resp->data=null;
+			$this->JobdescriptionReviewer->create();
+			$testing_mail=explode('@',$user_id);
+			if($testing_mail['1']){
+				$resp->data['JobdescriptionReviewer']['email']=$user_id;
+			}else{
+				$resp->data['JobdescriptionReviewer']['user_id']=$user_id;
+			}
+			$resp->data['JobdescriptionReviewer']['job_description_id']=$job_id;
+			$resp->data['JobdescriptionReviewer']['reviewers_comments']=$this->data['JobDescription']['comment'];
+			if($this->JobdescriptionReviewer->save($resp->data)){
+				//Mail to the creater of the jd and the assigners	
+				$this->Session->setFlash('<h4>Success Message : </h4><p>Comments has been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('controller'=>'users','action'=>'login'));
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Comments cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('controller'=>'users','action'=>'login'));
+			}
+			
+		}
+	}
+	
+	public function brand_change() {
+		//$this->autoRender=false;	
+		//configure::write('debug',2);
+		//debug($this->data);
+		$this->loadModel('Brand');
+		$this->loadModel('SkillMaster');
+		$brands = $this->Brand->find('list',array('conditions'=>array('Brand.company_id'=>$this->data['JobDescription']['company']),'fields'=>array('Brand.id','Brand.brand_name'),'order'=>array('Brand.brand_name ASC')));
+		$skils = $this->SkillMaster->find('list',array('fields'=>array('SkillMaster.id','SkillMaster.skill_type'),'order'=>array('SkillMaster.skill_type ASC')));
+		$this->set(compact('brands','skils'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null,$frm = null) {
+		if($this->Session->read('Auth.User.Role.role_name') !='HR' && $this->Session->read('Auth.User.Role.role_name') !='HR Assistant'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}
+		//Configure::write('debug',2);
+		
+		$this->JobDescription->id = $id;
+		$this->JobDescription->recursive=-1;
+		$this->loadModel('JobdescriptionSkillmapping');
+		$this->loadModel('SkillMaster');
+		$this->loadModel('Company');
+		$this->loadModel('Brand');
+		$this->loadModel('JobInvite');
+		$this->loadModel('JobdescriptionReviewer');
+		if (!$this->JobDescription->exists()) {
+			throw new NotFoundException(__('Invalid job description'));
+		}
+		$this->JobDescription->Behaviors->attach('Containable');
+		$jd=$this->JobDescription->find('first',array('contain'=>array('Company','Brand','JobInvite'),'conditions'=>array('JobDescription.id'=>$id)));
+		debug($jd);
+		$jd_desc = $this->JobdescriptionSkillmapping->find('list',array('conditions'=>array('JobdescriptionSkillmapping.job_description_id'=>$jd['JobDescription']['id']),'fields'=>array('JobdescriptionSkillmapping.skill_master_id','JobdescriptionSkillmapping.skill_master_id')));
+		$skils = $this->SkillMaster->find('list',array('fields'=>array('SkillMaster.id','SkillMaster.skill_type'),'order'=>array('SkillMaster.skill_type ASC')));
+		$companies = $this->Company->find('list',array('fields'=>array('Company.id','Company.company_name'),'order'=>array('Company.company_name ASC')));
+		$brands = $this->Brand->find('list',array('conditions'=>array('Brand.company_id'=>$jd['JobDescription']['company_id']),'fields'=>array('Brand.id','Brand.brand_name'),'order'=>array('Brand.brand_name ASC')));
+		$this->loadModel('JobdescriptionResponsibility');
+		$responsibilities=$this->JobdescriptionResponsibility->find('list',array('conditions'=>array('JobdescriptionResponsibility.job_description_id'=>$id),'fields'=>array('JobdescriptionResponsibility.user_id','JobdescriptionResponsibility.user_id')));
+		$reviewers_default=$this->JobdescriptionReviewer->find('list',array('conditions'=>array('JobdescriptionReviewer.job_description_id'=>$id,'JobdescriptionReviewer.reviewers_comments'=>NULL),'fields'=>array('JobdescriptionReviewer.user_id','JobdescriptionReviewer.user_id')));
+		$reviewers_email_defaults=$this->JobdescriptionReviewer->find('list',array('conditions'=>array('JobdescriptionReviewer.job_description_id'=>$id,'JobdescriptionReviewer.reviewers_comments'=>NULL),'fields'=>array('JobdescriptionReviewer.email','JobdescriptionReviewer.email')));
+		foreach($reviewers_email_defaults as $k=>$v){
+			if($v){
+				if(!$reviewers_email_default){
+					$reviewers_email_default=$v;
+				}else{
+					$reviewers_email_default=$reviewers_email_default.', '.$v;
+				}
+			}	
+			
+		}
+		$this->set(compact('responsibilities','reviewers_default','reviewers_email_default'));
+		$assistants=null;
+		$assistants=parent::hr_assistants();
+		$this->set(compact('assistants'));		
+		
+		if ($this->request->is('post') || $this->request->is('put')) {
+			/*if ($this->JobDescription->save($this->request->data)) {
+				$this->Session->setFlash(__('The job description has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The job description could not be saved. Please, try again.'));
+			}*/
+			
+			
+			if($this->data){
+				//configure::write('debug',2);	
+				if(trim($this->data['JobDescription']['reviewer_emails'])){
+					$email_coma_seprated=trim($this->data['JobDescription']['reviewer_emails']);
+					$email_array=explode(',',$email_coma_seprated);
+					foreach ($email_array as $key => $value) {
+						$vl=trim($value);
+						if (!filter_var($vl, FILTER_VALIDATE_EMAIL)) {
+							$dont_allow=1;	
+						}
+					}
+				}
+				
+				if($dont_allow){
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Please give proper emails.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					$this->redirect(array('action'=>'edit',$id));
+				}
+				
+				$jd_desc_mpngs = $this->JobdescriptionSkillmapping->find('list',array('conditions'=>array('JobdescriptionSkillmapping.job_description_id'=>$id),'fields'=>array('JobdescriptionSkillmapping.id','JobdescriptionSkillmapping.id')));
+				foreach($jd_desc_mpngs as $k=>$v){
+					$this->JobdescriptionSkillmapping->id = $v;
+					$this->JobdescriptionSkillmapping->delete();
+				}
+				
+				
+				// For to delete not mapped users in responsiblity list 
+				$for_check_mapped_users=null;
+				foreach($this->data['JobDescription']['responsibility'] as $resp1=>$resp2){
+					if($resp2){
+						$for_check_mapped_users[$resp2]=$resp2;
+					}
+				}
+				// To get _not mapped users
+				$responsibilities1=$this->JobdescriptionResponsibility->find('list',array('conditions'=>array('JobdescriptionResponsibility.job_description_id'=>$id,'JobdescriptionResponsibility.user_id !='=>$for_check_mapped_users),'fields'=>array('JobdescriptionResponsibility.id','JobdescriptionResponsibility.id')));
+		        debug($responsibilities1);
+		        foreach($responsibilities1 as $resp11=>$resp12){
+					$this->JobdescriptionResponsibility->delete($resp12);
+		        }
+				$responsibilities1=null;
+				$responsibilities1=$this->JobdescriptionResponsibility->find('list',array('conditions'=>array('JobdescriptionResponsibility.job_description_id'=>$id),'fields'=>array('JobdescriptionResponsibility.user_id','JobdescriptionResponsibility.id')));
+				
+				$this->JobdescriptionReviewer->recursive=-1;
+				$reviewers11=$this->JobdescriptionReviewer->find('list',array('conditions'=>array('JobdescriptionReviewer.job_description_id'=>$id,'JobdescriptionReviewer.reviewers_comments'=>NULL),'fields'=>array('JobdescriptionReviewer.id','JobdescriptionReviewer.id')));
+		        
+		        foreach($reviewers11 as $resp111=>$resp112){
+					$this->JobdescriptionReviewer->delete($resp112);
+		        }
+				
+				$job_invite->data=null;
+				$job_invite->data['JobInvite']['id']=$jd['JobInvite']['id'];
+				$job_invite->data['JobInvite']['invite_description']=$this->data['JobDescription']['description'];
+				if($this->JobInvite->save($job_invite->data)){
+					$job_desc->data=null;
+					$job_desc->data['JobDescription']['id']=$id;
+					$job_desc->data['JobDescription']['title']=$this->data['JobDescription']['job_title'];
+					$job_desc->data['JobDescription']['company_id']=$this->data['JobDescription']['company'];
+					$job_desc->data['JobDescription']['brand_id']=$this->data['JobDescription']['brand'];
+					$job_desc->data['JobDescription']['start_date']=$this->data['JobDescription']['start_date'];
+					$job_desc->data['JobDescription']['end_date']=$this->data['JobDescription']['end_date'];
+					$job_desc->data['JobDescription']['required_nos']=$this->data['JobDescription']['required'];
+					$job_desc->data['JobDescription']['qualification']=$this->data['JobDescription']['qualification'];
+					$job_desc->data['JobDescription']['experience']=$this->data['JobDescription']['experience'];
+					$job_desc->data['JobDescription']['compensation_package']=$this->data['JobDescription']['package'];
+					$job_desc->data['JobDescription']['project']=$this->data['JobDescription']['project'];
+					$job_desc->data['JobDescription']['reason']=$this->data['JobDescription']['reason'];
+					if($this->JobDescription->save($job_desc->data)){
+						if($this->data['JobDescription']['skills']){	
+							foreach($this->data['JobDescription']['skills'] as $skill1=>$skill2 ){
+								if($skill2){
+									$skill->data=null;
+									$this->JobdescriptionSkillmapping->create();
+									$skill->data['JobdescriptionSkillmapping']['job_description_id']=$id;
+									$skill->data['JobdescriptionSkillmapping']['skill_master_id']=$skill2;
+									$this->JobdescriptionSkillmapping->save($skill->data);
+								}
+							}
+						}
+						
+						if($this->data['JobDescription']['responsibility']){
+							foreach($this->data['JobDescription']['responsibility'] as $resp1=>$resp2){
+								if($resp2){
+									$resp->data=null;
+									if(!$responsibilities1[$resp2]){
+										$this->JobdescriptionResponsibility->create();
+									}else{
+										$resp->data['JobdescriptionResponsibility']['id']=$responsibilities1[$resp2];
+									}
+									
+									$resp->data['JobdescriptionResponsibility']['user_id']=$resp2;
+									$resp->data['JobdescriptionResponsibility']['job_description_id']=$id;
+									$this->JobdescriptionResponsibility->save($resp->data);
+								}	
+								
+							}
+						}
+						
+						if($this->data['JobDescription']['reviewers']){
+							foreach($this->data['JobDescription']['reviewers'] as $review1=>$review2){
+								if($review2){
+									$resp->data=null;
+									$this->JobdescriptionReviewer->create();
+									$resp->data['JobdescriptionReviewer']['user_id']=$review2;
+									$resp->data['JobdescriptionReviewer']['job_description_id']=$id;
+									if($this->JobdescriptionReviewer->save($resp->data)){
+										$user_details_mail=null;
+										$user_details_mail=$this->User->find('first',array('conditions'=>array('User.id'=>$review2)));
+										$job_title=trim($this->data['JobDescription']['job_title']);
+										$email_to=$user_details_mail['User']['email'];
+										$name=$user_details_mail['User']['first_name'].' '.$user_details_mail['User']['last_name'];
+										$revwer_id=$user_details_mail['User']['id'];
+										
+										$creater_details=$this->User->find('first',array('conditions'=>array('User.id'=>$this->Session->read('Auth.User.id'))));
+										$createdby=$creater_details['User']['first_name'].' '.$creater_details['User']['last_name'];
+										$todate1=date('Y-m-d');
+										$from_mail=$creater_details['User']['email'];
+										$sub='To Review <JD - '.$job_title.'>';
+										$chck1=$this->for_review_mail_edit($job_title,$name,$createdby,$revwer_id,$id,$todate1,$sub,$email_to,$from_mail);
+										
+									}
+								}
+								
+							}
+						}
+
+						/*
+						if(trim($this->data['JobDescription']['reviewer_emails'])){
+													foreach($email_array as $cnt=>$mails){
+														$resp->data=null;
+														$this->JobdescriptionReviewer->create();
+														$resp->data['JobdescriptionReviewer']['email']=trim($mails);
+														$resp->data['JobdescriptionReviewer']['job_description_id']=$id;
+														if($this->JobdescriptionReviewer->save($resp->data)){
+															$user_details_mail=null;
+															//$user_details_mail=$this->User->find('first',array('conditions'=>array('User.id'=>$review2)));
+															$job_title=trim($this->data['JobDescription']['job_title']);
+															$email_to=trim($mails);
+															$name=trim($mails);
+															$revwer_id=trim($mails);
+															
+															$creater_details=$this->User->find('first',array('conditions'=>array('User.id'=>$this->Session->read('Auth.User.id'))));
+															$createdby=$creater_details['User']['first_name'].' '.$creater_details['User']['last_name'];
+															$todate1=date('Y-m-d');
+															$from_mail=$creater_details['User']['email'];
+															$sub='To Review <JD - '.$job_title.'>';
+															$chck=$this->for_review_mail_edit($job_title,$name,$createdby,$revwer_id,$id,$todate1,$sub,$email_to,$from_mail);
+															
+														}
+													}
+												}*/
+						
+						
+						$this->Session->setFlash('<h4>Success Message : </h4><p>Job has been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					    //$this->redirect(array('action'=>'index'));
+					    if($frm=='ind'){
+					    	$this->redirect(array('action'=>'index'));
+					    }else{
+					    	$this->redirect(array('action'=>'jd_index'));
+					    }
+					    
+						
+						
+					}else{
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Job description cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					    //$this->redirect(array('action'=>'index'));
+					     if($frm=='ind'){
+					    	$this->redirect(array('action'=>'index'));
+					    }else{
+					    	$this->redirect(array('action'=>'jd_index'));
+					    }
+					}
+					
+					
+				}else{
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Job cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					//$this->redirect(array('action'=>'index'));
+					if($frm=='ind'){
+				    	$this->redirect(array('action'=>'index'));
+				    }else{
+				    	$this->redirect(array('action'=>'jd_index'));
+				    }
+				}
+				
+			}
+			
+		} 
+		
+		$reviewers=parent::reviewers();
+		$this->set(compact('id','jd', 'jd_desc', 'skils', 'companies','brands','reviewers','frm'));
+	}
+	
+	public function for_review_mail_edit($job_title=null,$name=null,$created_by=null,$user_id=null,$job_id=null,$date=null,$sub=null,$to_mail=null,$from_mail=null){
+		$this->set(compact('job_title','name','created_by','user_id','job_id','date'));
+		$this->Email->to = trim($to_mail);
+		//$this->Email->cc = 'venugopal@carmatec.com';
+		//$this->Email->to = 'hameed@carmatec.com';
+		$this->Email->subject = $sub;
+		$this->Email->replyTo = $from_mail;
+	    $this->Email->from = $from_mail;
+	    $this->Email->template = 'forapproval_jd_edit';
+	    $this->Email->sendAs = 'html';
+		if($this->Email->send()){
+			return 1;
+		}else{
+			return 2;
+		}
+		
+	}
+	
+	public function approve_jd($id) {
+		$this->autoRender=false;	
+		$job_desc->data=null;
+		$job_desc->data['JobDescription']['id']=$id;
+		$job_desc->data['JobDescription']['approved']='Y';
+		$job_desc->data['JobDescription']['approved_by']=$this->Session->read('Auth.User.id');
+		$job_desc->data['JobDescription']['approved_on']=date('Y-m-d H:i:s');
+		if($this->JobDescription->save($job_desc->data)){
+			$this->Session->setFlash('<h4>Success Message : </h4><p>JD has been approved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+			$this->redirect(array('action'=>'jd_index'));
+		}else{
+			$this->Session->setFlash('<h4>Warning Message : </h4><p>JD cannot be approved. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+			$this->redirect(array('action'=>'jd_index'));
+		}
+	}
+	
+	public function make_inactive() {
+		if($this->data['JobDescription']['from_page'] == 'make_inactive'){
+			$ok=1;
+			foreach($this->data['make_inactive'] as $k=>$v){
+				if($v){
+					$job_desc->data=null;
+					$job_desc->data['JobDescription']['id']=$v;
+					$job_desc->data['JobDescription']['active']='N';
+					if($this->JobDescription->save($job_desc->data)){
+						$ok=1;
+					}else{
+						$ok=0;
+					}
+				}
+			}
+			if($ok){
+				$this->Session->setFlash('<h4>Success Message : </h4><p>Job has changed to inactive status.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('action'=>'index'));
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Job cannot be changed to inactive status. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('action'=>'index'));
+			}
+		}elseif($this->data['JobDescription']['from_page'] == 'send_mail'){
+			//configure::write('debug',2);
+			//debug($this->data);
+		}
+		
+	}
+	
+	public function make_active() {
+		   //Configure::write('debug','2');
+		//if($this->data['JobDescription']['from_page1'] == 'make_active'){
+			$count=0;
+			foreach($this->data['make_active'] as $k=>$v){
+				if($v){
+					$job_desc->data=null;
+					$job_desc->data['JobDescription']['id']     = $v;
+					$job_desc->data['JobDescription']['active'] = 'Y';
+					if($this->JobDescription->save($job_desc->data)){
+						$count=1;
+					}else{
+						$count=0;
+					}
+				}
+			}
+			if($count){
+				$this->Session->setFlash('<h4>Success Message : </h4><p>Job has changed to active status.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('action'=>'index'));
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Job cannot be changed to active status. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('action'=>'index'));
+			}
+		//}
+		
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null,$frm=null) {
+		if($id){
+			$this->JobDescription->id = $id;
+			$this->JobDescription->recursive=-1;
+			$this->loadModel('JobdescriptionSkillmapping');
+			$this->loadModel('SkillMaster');
+			$this->loadModel('CandidateJobdescriptionmapping');
+			$this->loadModel('JobInvite');
+			$this->loadModel('JobdescriptionResponsibility');
+			
+			if (!$this->JobDescription->exists()) {
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Invalid job description. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				if($frm){
+					$this->redirect(array('action'=>'jd_index'));
+				}else{
+					$this->redirect(array('action'=>'index'));	
+				}
+				
+			}
+			
+			$this->JobDescription->Behaviors->attach('Containable');
+			$jd=$this->JobDescription->find('first',array('contain'=>array('Company','Brand','JobInvite'),'conditions'=>array('JobDescription.id'=>$id)));
+			$jd_desc_mpngs = $this->JobdescriptionSkillmapping->find('list',array('conditions'=>array('JobdescriptionSkillmapping.job_description_id'=>$id),fields=>array('JobdescriptionSkillmapping.id','JobdescriptionSkillmapping.id')));
+			if($jd_desc_mpngs){
+				foreach($jd_desc_mpngs as $k=>$v){
+					$this->JobdescriptionSkillmapping->id = $v;
+					$this->JobdescriptionSkillmapping->delete();
+				}
+			}
+			$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('list',array('conditions'=>array('CandidateJobdescriptionmapping.job_description_id'=>$id),fields=>array('CandidateJobdescriptionmapping.id','CandidateJobdescriptionmapping.id')));
+			if($cnd_jd_mpng){
+				foreach($cnd_jd_mpng as $k=>$v){
+					$this->CandidateJobdescriptionmapping->id = $v;
+					$this->CandidateJobdescriptionmapping->delete();
+				}
+			}
+			
+			$this->JobdescriptionResponsibility->deleteAll(array('JobdescriptionResponsibility.job_description_id' => $id));
+			
+			
+			if($jd){
+				$this->JobInvite->id = $jd['JobInvite']['id'];
+				if($this->JobInvite->delete()){
+					$this->JobDescription->id = $jd['JobDescription']['id'];
+					if($this->JobDescription->delete()){
+						$this->Session->setFlash('<h4>Success Message : </h4><p>Job description deleted.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					    if($frm){
+							$this->redirect(array('action'=>'jd_index'));
+						}else{
+							$this->redirect(array('action'=>'index'));	
+						}
+					}
+				}
+			}
+		}else{
+			$this->Session->setFlash('<h4>Warning Message : </h4><p>Invalid job description. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			if($frm){
+				$this->redirect(array('action'=>'jd_index'));
+			}else{
+				$this->redirect(array('action'=>'index'));	
+			}
+		}
+		
+	}
+	
+	public function listing_jobs($brand_id = null) {
+		//Configure::write('debug','2');
+		$candidate_id=$this->Session->read('Auth.Candidate.id');
+		//debug($candidate_id);
+		if(!$candidate_id){
+			$this->layout='nologin';
+		}else{
+			$this->layout='candidate_profile_layout_new';
+		}
+		
+		$jobs=$this->JobDescription->get_jobs(0,$brand_id,0,0,Y,0,0,0);
+		//debug($jobs);
+		$this->set(compact('jobs'));
+		$this->loadModel('Brand');
+		$brands=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$brand_id)));
+		$this->set(compact('brands'));
+	}
+	
+	public function job_details($job_id = null) {
+		$candidate_id=$this->Session->read('Auth.Candidate.id');
+		if(!$candidate_id){
+			$this->layout='nologin';
+		}else{
+			$this->layout='candidate_profile_layout_new';
+		}	
+		
+		$job_details=$this->JobDescription->job_detail($job_id);
+		
+		debug($job_details);
+		$this->loadModel('SkillMaster');
+					
+		$jobdetails=null;
+		$jobdetails['job_id']=$job_details['JobDescription']['id'];
+		$jobdetails['job_title']=$job_details['JobDescription']['title'];
+		$jobdetails['job_description']=$job_details['JobInvite']['invite_description'];
+		$jobdetails['job_startdate']=$job_details['JobDescription']['start_date'];
+		$jobdetails['job_end_date']=$job_details['JobDescription']['end_date'];
+		$jobdetails['job_status']=$job_details['JobDescription']['active'];
+		$jobdetails['company_name']=$job_details['Company']['company_name'];
+		$jobdetails['company_description']=$job_details['Company']['company_description'];
+		$jobdetails['brand_name']=$job_details['Brand']['brand_name'];
+		$jobdetails['brand_description']=$job_details['Brand']['brand_description'];
+				
+				
+		$skillcount=0;
+		foreach($job_details['JobdescriptionSkillmapping'] as $skill1=>$skill2){
+			$skill_set=null;
+			$skill_set=$this->SkillMaster->find('first',array('conditions'=>array('SkillMaster.id'=>$skill2['skill_master_id'])));		
+			$jobdetails['skill'][++$skillcount]=$skill_set['SkillMaster']['skill_type'];
+		}
+		
+		$this->set(compact('jobdetails'));
+		
+	}
+	
+	function check_api(){
+		//Configure::write('debug','2');
+	    $this->JobDescription->recursive = -1;
+		$jobs = $this->JobDescription->find('all');
+		//debug($jobs);
+		//exit;
+        $this->set(array(
+            'jobs' => $jobs,
+            '_serialize' => array('jobs')
+        ));
+	}
+	
+	
+	function validate_api_key($username=null,$api_key=null){
+		
+		$this->loadModel('Role');
+		$role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'HR')));
+		
+		$user=0;
+		$this->loadModel('User');
+		$user=$this->User->find('first',array('conditions'=>array('User.username'=>$username,'User.apikey'=>$api_key,'User.active'=>'Y','User.role_id'=>$role['Role']['id'])));
+				
+		return $user;
+		
+	}
+	
+	
+	function list_jobs(){
+		
+		//Configure::write('debug','2');
+		
+		//debug($_GET);
+		
+		$company_id=$_GET['company'];
+		$brand_id=$_GET['brand'];
+		$start_date=$_GET['startdate'];
+		$end_date=$_GET['enddate'];
+		$active=$_GET['status'];
+		$username=$_GET['user'];
+		$api_key=$_GET['key'];
+		$brand_title=$_GET['brand_title'];
+		$this->loadModel('Role');
+		$role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'HR')));
+		
+		//$user=$this->validate_api_key($username,$api_key);
+		 $user=1;
+		if($user){
+			if($brand_title){
+				$this->loadModel('Brand');
+				$this->Brand->recursive=-1;
+				$brd_id=$this->Brand->find('first',array('conditions'=>array('Brand.brand_title'=>$brand_title),'fields'=>array('Brand.id')));
+				$brand_id=$brd_id['Brand']['id'];
+			}	
+			
+			
+			
+			$jobs=$this->JobDescription->get_jobs($company_id,$brand_id,$start_date,$end_date,$active);
+			//debug($jobs);
+			
+			$this->loadModel('SkillMaster');
+			$skill_set=$this->SkillMaster->find('list',array('fields'=>array('SkillMaster.id','SkillMaster.skill_type')));
+			//debug($skill_set);
+			
+			$job_description=null;
+			foreach($jobs as $job_key=>$job_val){
+				$job_description[$job_val['JobDescription']['id']]['job_id']=$job_val['JobDescription']['id'];
+				$job_description[$job_val['JobDescription']['id']]['job_title']=$job_val['JobDescription']['title'];
+				$job_description[$job_val['JobDescription']['id']]['job_description']=$job_val['JobInvite']['invite_description'];
+				$job_description[$job_val['JobDescription']['id']]['job_startdate']=$job_val['JobDescription']['start_date'];
+				$job_description[$job_val['JobDescription']['id']]['job_end_date']=$job_val['JobDescription']['end_date'];
+				$job_description[$job_val['JobDescription']['id']]['company']=$job_val['Company']['company_name'];
+				$job_description[$job_val['JobDescription']['id']]['experience']=$job_val['JobDescription']['experience'];
+				$job_description[$job_val['JobDescription']['id']]['job_status']=$job_val['JobDescription']['active'];
+				$skillcount=0;
+				foreach($job_val['JobdescriptionSkillmapping'] as $skill1=>$skill2){
+					$job_description[$job_val['JobDescription']['id']]['skill'][++$skillcount]=$skill_set[$skill2['skill_master_id']];
+				}
+			}
+			
+			//debug($job_description);
+			
+			if(!$job_description)$job_description['0']='No results found';
+			
+			//debug($job_description);
+			 $this->set(array(
+	            'job_description' => $job_description,
+	            '_serialize' => array('job_description')
+	        ));
+		
+		}elseif($user['User']['role_id']!=$role['Role']['id']){
+			
+			$job_description['0']="You are not authorized to perform this operation";
+			 
+			 $this->set(array(
+	            'job_description' => $job_description,
+	            '_serialize' => array('job_description')
+	        ));
+			
+		}else{
+			
+			 $job_description['0']="User and key provided doesn't match";
+			 
+			 $this->set(array(
+	            'job_description' => $job_description,
+	            '_serialize' => array('job_description')
+	        ));
+			
+		}
+		
+		
+	}
+	
+	function get_job_details(){
+		
+		//Configure::write('debug','2');
+		debug($_GET);
+		
+		$jobid=$_GET['jobid'];
+		$username=$_GET['user'];
+		$api_key=$_GET['key'];
+		
+		//$user=$this->validate_api_key($username,$api_key);
+		$user=1;
+		$this->loadModel('Role');
+		$role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'HR')));
+		
+		
+		if($user){
+			
+			
+			$job_details=$this->JobDescription->job_detail($jobid);
+			debug($job_details);
+			if($job_details){			
+				$this->loadModel('SkillMaster');
+				/*$skill_set=$this->SkillMaster->find('list',array('fields'=>array('SkillMaster.id','SkillMaster.skill_type')));
+				debug($skill_set);*/
+				
+				$jobdetails=null;
+				$jobdetails[$job_details['JobDescription']['id']]['job_id']=$job_details['JobDescription']['id'];
+				$jobdetails[$job_details['JobDescription']['id']]['job_title']=$job_details['JobDescription']['title'];
+				$jobdetails[$job_details['JobDescription']['id']]['job_description']=$job_details['JobInvite']['invite_description'];
+				$jobdetails[$job_details['JobDescription']['id']]['job_startdate']=$job_details['JobDescription']['start_date'];
+				$jobdetails[$job_details['JobDescription']['id']]['job_end_date']=$job_details['JobDescription']['end_date'];
+				$jobdetails[$job_details['JobDescription']['id']]['job_status']=$job_details['JobDescription']['active'];
+				$jobdetails[$job_details['JobDescription']['id']]['company_name']=$job_details['Company']['company_name'];
+				$jobdetails[$job_details['JobDescription']['id']]['company_description']=$job_details['Company']['company_description'];
+				$jobdetails[$job_details['JobDescription']['id']]['brand_name']=$job_details['Brand']['brand_name'];
+				$jobdetails[$job_details['JobDescription']['id']]['brand_description']=$job_details['Brand']['brand_description'];
+				
+				
+				$skillcount=0;
+				foreach($job_details['JobdescriptionSkillmapping'] as $skill1=>$skill2){
+					$skill_set=null;
+					$skill_set=$this->SkillMaster->find('first',array('conditions'=>array('SkillMaster.id'=>$skill2['skill_master_id'])));		
+					//$job_description[$job_details['JobDescription']['id']]['skill'][++$skillcount]=$skill_set[$skill2['id']];
+					$jobdetails[$job_details['JobDescription']['id']]['skill'][++$skillcount]=$skill_set['SkillMaster']['skill_type'];
+				}
+										
+				$this->set(array(
+		            'jobdetails' => $jobdetails,
+		            '_serialize' => array('jobdetails')
+		        ));
+			}else{
+				$jobdetails['0']="No records found !!";
+			 
+				$this->set(array(
+		            'jobdetails' => $jobdetails,
+		            '_serialize' => array('jobdetails')
+		        ));
+			}
+			
+						
+		}elseif($user['User']['role_id']!=$role['Role']['id']){ 
+			
+			$jobdetails['0']="You are not authorized to perform this operation";
+			 
+			 $this->set(array(
+	            'jobdetails' => $jobdetails,
+	            '_serialize' => array('jobdetails')
+	        ));
+			
+		}else{
+			
+			 $jobdetails['0']="User and key provided doesn't match";
+			 
+			 $this->set(array(
+	            'jobdetails' => $jobdetails,
+	            '_serialize' => array('jobdetails')
+	        ));
+			
+		}
+		
+	}
+	
+	
+	function check_post(){
+		//Configure::write('debug',2);
+		
+		//User login
+		/*
+		$apiUrl='http://careers.carmatec.com/users/login_api.json';
+				$post_data=array('username'=>'abu','password'=>'abu');
+						
+				$post_data = http_build_query($post_data, '', '&');
+						  $curl = curl_init($apiUrl);
+				curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+				curl_setopt($curl, CURLOPT_POST, true);
+				curl_setopt($curl, CURLOPT_URL, $apiUrl);
+				curl_setopt($curl, CURLOPT_HEADER, false);
+				curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($curl, CURLOPT_POSTFIELDS, $post_data);
+									  $response = curl_exec($curl);
+				debug($response);
+				curl_close($curl);
+						
+				exit;*/
+		
+		
+		// Candidate add
+		
+		//$auth_url='http://192.168.0.116/HRManagement/job_descriptions/candidate_operations.json?';
+		$auth_url='http://careers.carmatec.com/job_descriptions/candidate_operations.json?';
+		$auth_query = array('Candidate'=>array(
+		'action'=>'add',
+		'first_name' => 'aaa',
+		'last_name' => 'aaa',
+		'gender' => 'M',
+		'dob' => '2014-12-23',
+		'street_address1' => 'asdas',
+		'street_address2' => 'aaa',
+		'city' => 'asdas',
+		'zip_code' => '12323',
+		'resume_useremail' => 'lokeshsn222@gmail.com',
+		'altresume_useremail' => 'guru.ur.heartbeat@gmail.com',
+		'resume_user_contact' => '1233456456',
+		'altresume_user_contact' => '1233456456',
+		'basic_graduation' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'specialization' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'university' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'year' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'score' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'certification' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'issuing_organization' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'issue_date' => array(
+			(int) 1 => '2014-12-01',
+			(int) 2 => '2014-12-02'
+		),
+		'curent_role' => 'N',
+		'jobid' => '',
+		'company_name' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'start_date' => array(
+			(int) 1 => '2014-12-01',
+			(int) 2 => '2014-12-02'
+		),
+		'end_date' => array(
+			(int) 1 => '2014-12-01',
+			(int) 2 => '2014-12-02'
+		),
+		'role' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'role_description' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'last_salary' => array(
+			(int) 1 => '1',
+			(int) 2 => '2'
+		),
+		'project_title' => array(
+			(int) 1 => array(
+				(int) 1 => '11',
+				(int) 2 => '12'
+			),
+			(int) 0 => array(
+				(int) 1 => '21'
+			)
+		),
+		'project_size' => array(
+			(int) 1 => array(
+				(int) 1 => '11',
+				(int) 2 => '12'
+			),
+			(int) 0 => array(
+				(int) 1 => '21'
+			)
+		),
+		'project_start_date' => array(
+			(int) 1 => array(
+				(int) 1 => '2014-12-11',
+				(int) 2 => '2014-12-12'
+			),
+			(int) 0 => array(
+				(int) 1 => '2014-12-21'
+			)
+		),
+		'project_end_date' => array(
+			(int) 1 => array(
+				(int) 1 => '2014-12-11',
+				(int) 2 => '2014-12-12'
+			),
+			(int) 0 => array(
+				(int) 1 => '2014-12-21'
+			)
+		),
+		'project_description' => array(
+			(int) 1 => array(
+				(int) 1 => '11',
+				(int) 2 => '12'
+			),
+			(int) 0 => array(
+				(int) 1 => '21'
+			)
+		),
+		'project_role_description' => array(
+			(int) 1 => array(
+				(int) 1 => '11',
+				(int) 2 => '12'
+			),
+			(int) 0 => array(
+				(int) 1 => '21'
+			)
+		),
+		'experience' => '4',
+		'relevant_exp' => '1',
+		'current_ctc' => '2',
+		'expected_ctc' => '4',
+		'current_exp_role' => 'weqe',
+		'notice_period' => '21',
+		'reason_for_change' => 'asdasdasd',
+		'browse_image' => array(
+			'name' => 'decoded_ballu1.jpeg',
+			'content' => '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'
+		),
+		'resume_file' => array(
+			'name' => 'decoded1.doc',
+			'content' => '0M8R4KGxGuEAAAAAAAAAAAAAAAAAAAAAOwADAP7/CQAGAAAAAAAAAAAAAAABAAAARgAAAAAAAAAAEAAAAgAAAAEAAAD+////AAAAAAAAAAD////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////9//////////7///9FAAAABQAAAAYAAAAHAAAACAAAAAkAAAAKAAAACwAAAAwAAAANAAAADgAAAA8AAAAQAAAAEQAAAP7///8TAAAAFAAAABUAAAAWAAAAFwAAABgAAAAZAAAAGgAAABsAAAAcAAAAHQAAAB4AAAAfAAAAIAAAACEAAAAiAAAAIwAAACQAAAAlAAAAJgAAACcAAAAoAAAAKQAAACoAAAArAAAALAAAAC0AAAAuAAAALwAAADAAAAAxAAAAMgAAADMAAAA0AAAANQAAADYAAAA3AAAAOAAAADkAAAA6AAAAOwAAADwAAAA9AAAAPgAAAD8AAABAAAAAQQAAAEIAAABDAAAARAAAAP7////+////RwAAAP7//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////1IAbwBvAHQAIABFAG4AdAByAHkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWAAUA////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/v///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP7///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/v///wAAAAAAAAAAAQAAAP7////+////BAAAAAUAAAAGAAAA/v///wgAAAD+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////8BAP7/AwoAAP////8GCQIAAAAAAMAAAAAAAABGGAAAAE1pY3Jvc29mdCBXb3JkLURva3VtZW50AAoAAABNU1dvcmREb2MAEAAAAFdvcmQuRG9jdW1lbnQuOAD0ObJxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+/wAAAQACAAAAAAAAAAAAAAAAAAAAAAABAAAA4IWf8vlPaBCrkQgAKyez2TAAAADIAAAACQAAAAEAAABQAAAABAAAAFgAAAAHAAAAbAAAAAgAAAB8AAAACQAAAIwAAAAKAAAAmAAAAAsAAACkAAAADAAAALAAAAANAAAAvAAAAAIAAADp/QAAHgAAAAwAAABjZWdvbnNvZnQ2MwAeAAAABwAAAE5vcm1hbAAAHgAAAAYAAABzYWRoYQAAAB4AAAACAAAAMwAAAEAAAAAAMn6nAgAAAEAAAAAAwpMqNMnLAUAAAAAAICTpjt/LAUAAAAAAfD28/NvNAQAAAAAAAAAA/v8AAAEAAgAAAAAAAAAAAAAAAAAAAAAAAQAAAALVzdWcLhsQk5cIACss+a4wAAAAGAAAAAEAAAABAAAAEAAAABIAUAAKAAEAWwAPAAIAAAAAAAAAXAAAEPH/AgBcAAAABgBOAG8AcgBtAGEAbAAAAA4AAAAxJAAqJAE3JABBJAAvAEIqAE9KBABRSgQAQ0oYAHNICQRzSAkEUEoAAG5IBAheSgQAYUoYAF9IAQR0SAEEADgAARABAAIAOAAAAAkASABlAGEAZABpAG4AZwAgADEAAAATAAEAQCYACiYAC0YBAAomAAtGAQAAAAA4AAIQAQACADgAAAAJAEgAZQBhAGQAaQBuAGcAIAAyAAAAEwACAEAmAQomAQtGAQAKJgELRgEAAAAAAAAAAAAAAAAAAAAAAABCAEFA8v+hAEIAAAAZAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAAAAAAAAAAAAAAAAALgD+H/L/8QAuAAAACQBXAFcAOABOAHUAbQAyAHoAMAAAAAwAT0oEAFFKBABeSgQALgD+H/L/AQEuAAAACQBXAFcAOABOAHUAbQAzAHoAMAAAAAwAT0oEAFFKBABeSgQALgD+H/L/EQEuAAAACQBXAFcAOABOAHUAbQA0AHoAMAAAAAwAT0oBAFFKAQBeSgEAQgD+H/L/IQFCAAAAGQBBAGIAcwBhAHQAegAtAFMAdABhAG4AZABhAHIAZABzAGMAaAByAGkAZgB0AGEAcgB0AAAAAABIAP4f8v8xAUgAAAAcAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAAAAAAEoA/h/y/0EBSgAAAB0AVwBXAC0AQQBiAHMAYQB0AHoALQBTAHQAYQBuAGQAYQByAGQAcwBjAGgAcgBpAGYAdABhAHIAdAAxAAAAAABMAP4f8v9RAUwAAAAeAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAMQAxAAAAAABOAP4f8v9hAU4AAAAfAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAMQAxADEAAAAAAC4A/h/y/3EBLgAAAAkAVwBXADgATgB1AG0ANQB6ADAAAAAMAE9KAQBRSgEAXkoBAC4A/h/y/4EBLgAAAAkAVwBXADgATgB1AG0ANgB6ADAAAAAMAE9KAQBRSgEAXkoBAFAA/h/y/5EBUAAAACAAVwBXAC0AQQBiAHMAYQB0AHoALQBTAHQAYQBuAGQAYQByAGQAcwBjAGgAcgBpAGYAdABhAHIAdAAxADEAMQAxAAAAAABSAP4f8v+hAVIAAAAhAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAMQAxADEAMQAxAAAAAAA8AP4f8v+xATwAAAAWAEQAZQBmAGEAdQBsAHQAIABQAGEAcgBhAGcAcgBhAHAAaAAgAEYAbwBuAHQAAAAAAFQA/h/y/8EBVAAAACIAVwBXAC0AQQBiAHMAYQB0AHoALQBTAHQAYQBuAGQAYQByAGQAcwBjAGgAcgBpAGYAdABhAHIAdAAxADEAMQAxADEAMQAAAAAAVgD+H/L/0QFWAAAAIwBXAFcALQBBAGIAcwBhAHQAegAtAFMAdABhAG4AZABhAHIAZABzAGMAaAByAGkAZgB0AGEAcgB0ADEAMQAxADEAMQAxADEAAAAAAEIA/h/y/+EBQgAAABkAVwBXAC0ARABlAGYAYQB1AGwAdAAgAFAAYQByAGEAZwByAGEAcABoACAARgBvAG4AdAAAAAAARAD+H/L/8QFEAAAAGgBXAFcALQBEAGUAZgBhAHUAbAB0ACAAUABhAHIAYQBnAHIAYQBwAGgAIABGAG8AbgB0ADEAAAAAAFgA/h/y/wECWAAAACQAVwBXAC0AQQBiAHMAYQB0AHoALQBTAHQAYQBuAGQAYQByAGQAcwBjAGgAcgBpAGYAdABhAHIAdAAxADEAMQAxADEAMQAxADEAAAAAAC4A/h/y/xECLgAAAAkAVwBXADgATgB1AG0ANwB6ADAAAAAMAE9KBABRSgQAXkoEAEYA/h/y/yECRgAAABsAVwBXAC0ARABlAGYAYQB1AGwAdAAgAFAAYQByAGEAZwByAGEAcABoACAARgBvAG4AdAAxADEAAAAAAEgA/h/y/zECSAAAABwAVwBXAC0ARABlAGYAYQB1AGwAdAAgAFAAYQByAGEAZwByAGEAcABoACAARgBvAG4AdAAxADEAMQAAAAAAWgD+H/L/QQJaAAAAJQBXAFcALQBBAGIAcwBhAHQAegAtAFMAdABhAG4AZABhAHIAZABzAGMAaAByAGkAZgB0AGEAcgB0ADEAMQAxADEAMQAxADEAMQAxAAAAAABcAP4f8v9RAlwAAAAmAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAMQAxADEAMQAxADEAMQAxADEA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAvhAAABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANIQAAA0AAAABhEAADQAAAA6EQAAVAAAAAAAAAAAAAAApxUAAJ4CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAjhEAAFYAAADkEQAANAAAABgSAAAcAAAAhBUAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABFGAAAYgIAAKcaAABKAAAAkhUAABUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0EgAAcgAAAPgUAABUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABMFQAAOAAAAAAAAAAAAAAAhhUAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgDZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFIARQBTAFUATQBFAA0ACQAJACAAIAAgACAAIAAgACAAIAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAJAAkACQAJACAAIAAgACAAIAAgAEcAdQByAHUAIABQAHIAYQBzAGEAZAAuAEsALgBWAA0AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAAkAIAAgACAAIAAgACAAIwAyADQAMwAvADIANAA0ACwAIAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABDAC8ATwAgAE0AdQBuAGkAcwB3AGEAbQBhAHAAcABhAC4ATQAsAA0AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAJAAkACQAgACAAIAAgACAAIABCAGUAaABpAG4AZAAgAEsAbwB0AGUAIABUAGUAbQBwAGwAZQAsAA0ACQAJACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAEsALgBSAC4AUAB1AHIAYQBtACwACQANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAEIAYQBuAGcAYQBsAG8AcgBlACAAEyAgADUANgAwADAAMwA2AC4ADQANAEUALQBNAGEAaQBsADoAIAAgAGcAdQByAHUAXwBwAHIAYQBzAGEAZAAyADcAOQBAAHkAYQBoAG8AbwAuAGMAbwBtACAAIAAgACAAIAAgACAAIAAJAAkACQAJACAAIAAgACAAIAAgACAAIAAJACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAADQBNAG8AYgBpAGwAZQA6ACAAOQAwADMANgAyADEAMwAxADQAMQANAA0ATwBiAGoAZQBjAHQAaQB2AGUAOgANAA0AVABvACAAYgBlACAAYQAgAHAAYQByAHQAIABvAGYAIAB0AGgAZQAgAG8AcgBnAGEAbgBpAHoAYQB0AGkAbwBuACAAdABoAGEAdAAgAHYAYQBsAHUAZQBzACAAZQBuAHQAaAB1AHMAaQBhAHMAbQAsACAAcAByAG8AZgBlAHMAcwBpAG8AbgBhAGwAaQBzAG0ALAAgAGMAbwBtAG0AaQB0AG0AZQBuAHQAIAB0AG8AIABwAGUAcgBmAG8AcgBtACwAIABhAG4AZAAgAG8AZgBmAGUAcgBzACAAbwBwAHAAbwByAHQAdQBuAGkAdABpAGUAcwAgAGYAbwByACAAZwByAG8AdwB0AGgAIABhAG4AZAAgAGwAZQBhAHIAbgBpAG4AZwAsACAAdABoAHUAcwAgAHAAcgBvAHYAaQBkAGkAbgBnACAAYwBvAG4AZAB1AGMAdABpAHYAZQAgAGUAbgB2AGkAcgBvAG4AbQBlAG4AdAAgAHcAaABlAHIAZQBpAG4AIABJACAAYwBhAG4AIABjAG8AbgB0AHIAaQBiAHUAdABlACAAbwBwAHQAaQBtAGEAbABsAHkALgANAA0AUAByAG8AZgBlAHMAcwBpAG8AbgBhAGwAIABTAHUAbQBtAGEAcgB5ADoADQANAFQAbwB0AGEAbABsAHkAIAAzAC4AMgAgAHkAZQBhAHIAcwAgAEUAeABwAGUAcgBpAGUAbgBjAGUAIABpAG4AIABDAGEAawBlAFAASABQACAARABlAHYAZQBsAG8AcABlAHIALgAgAA0ARQB4AHAAZQByAHQAaQBzAGUAIABpAG4AIABDAGEAawBlAFAASABQAC4ADQBFAHgAcABlAHIAdABpAHMAZQAgAGkAbgAgAE0AeQBzAHEAbAAuAA0ADQBFAHgAcABlAHIAaQBlAG4AYwBlADoADQANAFAAcgBlAHMAZQBuAHQAbAB5ACAAdwBvAHIAawBpAG4AZwAgAGEAcwAgAFMAbwBmAHQAdwBhAHIAZQAgAEQAZQB2AGUAbABvAHAAZQByACAAaQBuACAAQwBhAHIAbQBhAHQAZQBjACAASQBUACAAUwBvAGwAdQB0AGkAbwBuAHMAIABQAHYAdAAgAEwAdABkACwAIABCAGEAbgBnAGEAbABvAHIAZQAgAFMAaQBuAGMAZQAgAEYAZQBiAHIAYQB1AGEAcgB5ACAAMgAwADEAMAAuAA0ADQANAEUAZAB1AGMAYQB0AGkAbwBuACAAUQB1AGEAbABpAGYAaQBjAGEAdABpAG8AbgA6AA0ADQBCAC4ARQAgACgAQwBTACkAIABmAHIAbwBtACAARQBhAHMAdAAgAFcAZQBzAHQAIABJAG4AcwB0AGkAdAB1AHQAZQAgAE8AZgAgAFQAZQBjAGgAbgBvAGwAbwBnAHkAIAAsACAAdQBuAGQAZQByACAAVgBpAHMAaAB3AGUAcwBoAHcAYQByAGEAaQBhAGgAIABUAGUAYwBoAG4AbwBsAG8AZwBpAGMAYQBsACAAVQBuAGkAdgBlAHIAcwBpAHQAeQAgACwAIAB3AGkAdABoACAANgAwAC4ANwA1ACUAIABwAGEAcwBzAGUAZAAgAG8AdQB0ACAAaQBuACAASgB1AG4AZQAgADIAMAAwADkALgANAFAAVQBDACAAZgByAG8AbQAgAFMAcgBlAGUAIABWAGUAbgBrAGEAdABlAHMAdwBhAHIAYQAgAFAAcgBlACAAVQBuAGkAdgBlAHIAcwBpAHQAeQAgAEMAbwBsAGwAZQBnAGUALAAgAHUAbgBkAGUAcgAgAEsAYQByAG4AYQB0AGEAawBhACAAUwB0AGEAdABlACAAQgBvAGEAcgBkACwAIAB3AGkAdABoACAANwA2AC4AMQA2ACUAIABwAGEAcwBzAGUAZAAgAG8AdQB0ACAAaQBuACAAQQBwAHIAaQBsACAAMgAwADAANQAuAA0AUwBTAEwAQwAgAGYAcgBvAG0AIABTAHIAZQBlACAAVgBlAG4AawBhAHQAZQBzAHcAYQByAGEAIABIAGkAZwBoACAAUwBjAGgAbwBvAGwALAAgAHUAbgBkAGUAcgAgAEsAYQByAG4AYQB0AGEAawBhACAAUwB0AGEAdABlACAAQgBvAGEAcgBkACwAIAB3AGkAdABoACAANwA2AC4ANAA4ACUAIABwAGEAcwBzAGUAZAAgAG8AdQB0ACAAaQBuACAATQBhAHIAYwBoACAAMgAwADAAMwAuAA0ADQANAA0ADQANAA0AUAByAG8AZwByAGEAbQBtAGkAbgBnACAAUwBrAGkAbABsAHMAOgANAA0ATABhAG4AZwB1AGEAZwBlAHMAOgAgAEgAVABNAEwALABDAFMAUwAsACAAUABIAFAAIAA1AC4AMwAuADIALQAxAHUAYgB1AG4AdAB1ADEAMQAsACAATQBZAFMAUQBMACwAIABBAGoAYQB4ACwAIABTAGgAZQBsAGwAIABTAGMAcgBpAHAAdABpAG4AZwAuAA0AUABIAFAAIABGAHIAYQBtAGUAdwBvAHIAawA6ACAAQwBhAGsAZQBQAEgAUAAuAA0ATwBwAGUAcgBhAHQAaQBuAGcAIABTAHkAcwB0AGUAbQA6ACAAIABMAGkAbgB1AHgALgANAEkARABFADoAIABFAGMAbABpAHAAcwBlAC4ADQBXAGUAYgAgAFMAZQByAHYAZQByAHMAOgAgAEEAcABhAGMAaABlAC4ADQBEAEIATQBTACAAdQBzAGUAZAA6ACAATQB5AFMAcQBsAC4ADQANAFAAcgBvAGoAZQBjAHQAcwAgAEUAeABwAGUAcgBpAGUAbgBjAGUAOgANAA0ADQAgACAAMQAuACAAUAByAG8AagBlAGMAdAAgAE4AYQBtAGUAIAAgACAAIAAgACAAIAA6ACAAIAAgAEoAYQBnAHUAYQByAFAAQwANAA0AIAAgACAAVABlAGEAbQAgAFMAaQB6AGUAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgADQADQAgACAAIAAgAFAAbwBzAGkAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAARABlAHYAZQBsAG8AcABlAHIADQAgACAAIAAgAEUAbgB2AGkAcgBvAG4AbQBlAG4AdAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgACAASAB0AG0AbAAgADQALgAwACwAIABDAHMAcwAgADIALgAxACwAIABKAGEAdgBhACAAUwBjAHIAaQBwAHQAIAAxAC4ANgAgAFUAYgB1AG4AdAB1ACAAMQAxAC4AMAAsACAAQwBBAEsARQAgAFAASABQACAAMQAuADMALAAgAAkACQAJACAAIAAgACAAIAAgACAAIAAgACAAIAAgAE0AWQBTAFEATAAgACAANQAuADAALAAgAEEAcABhAGMAaABlACAAMgAuADEALAAgAEsAYQB5AGEAawBvACAAQQBQAEkALABjAFAAYQBuAGUAbAAgAEEAUABJACwAIABFAG4AbwBtACAAQQBQAEkALgAgACAADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAADQAgACAAIAAgAEQAdQByAGEAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgACAAIABKAHUAbgBlACAAMgAwADEAMQAgABMgIABBAHAAcgBpAGwAIAAyADAAMQAzAC4ADQANACAAIAAgACAARABlAHMAYwByAGkAcAB0AGkAbwBuADoADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAASgBQAEMAIABpAHMAIAB3AGUAYgAgAGgAbwBzAHQAaQBuAGcAIABwAHIAbwB2AGkAZABlAHIAIAB0AGgAYQB0ACAAbgBlAGUAZABlAGQAIAB0AGgAZQAgAGEAdQB0AG8AbQBhAHQAaQBvAG4AIABpAG4AIABhAGwAbAAgAHAAcgBvAGMAZQBzAHMAZQBzAC4AIABXAGUAIAAgAGkAbgB0AGUAZwByAGEAdABlAGQAIABiAHIAYQBuAGQAcwAgAGEAdAAgAGQAYQB0AGEAYgBhAHMAZQAgAGEAbgBkACAAYQBwAHAAbABpAGMAYQB0AGkAbwBuACAAbABlAHYAZQBsAC4AIABIAGUAbABwAGQAZQBzAGsAIABtAGEAbgBhAGcAZQBtAGUAbgB0ACAAaQBzACAAZABvAG4AZQAgAHQAaAByAG8AdQBnAGgAIABpAG4AdABlAGcAcgBhAHQAaQBvAG4AIAB3AGkAdABoACAAawBhAHkAYQBrAG8AIAB0AGgAcgBvAHUAZwBoACAAQQBwAGkAJwBzACAAdABvACAAYwByAGUAYQB0AGUAIAB0AGkAYwBrAGUAdABzACAAZgBvAHIAIABlAHYAZQByAHkAIABzAGkAZwBuAGkAZgBpAGMAYQBuAHQAIABzAHQAZQBwACAAbABpAGsAZQAgAGEAYwBjAG8AdQBuAHQAIABjAGEAbgBjAGUAbABsAGEAdABpAG8AbgAsAHMAdQBzAHAAZQBuAHMAaQBvAG4ALAB1AG4AcwB1AHMAcABlAG4AcwBpAG8AbgAuACAAQQAgAHMAdABhAGYAZgAgAGMAcgBlAGEAdABpAG4AZwAgAGEAIAB0AGkAYwBrAGUAdAAsAGMAbABpAGUAbgB0ACAAYwByAGUAYQB0AGkAbgBnACAAYQAgAHQAaQBjAGsAZQB0ACwAIABzAHQAYQBmAGYAIABjAHIAZQBhAHQAaQBuAGcAIABhACAAdABpAGMAawBlAHQAIABvAG4AIABiAGUAaABhAGwAZgAgAG8AZgAgAGEAIABjAGwAaQBlAG4AdAAgAC4AIABUAGgAZQByAGUAIABpAHMAIABhACAAYwBvAG0AcABsAGUAdABlACAAaQBuAHQAZQBnAHIAYQB0AGkAbwBuACAAaQBuACAAdABoAGUAIABhAHAAcABsAGkAYwBhAHQAaQBvAG4AIAB3AGkAdABoACAAawBhAHkAYQBrAG8AIABzAG8AIAB0AGgAYQB0ACAAcwB1AHAAcABvAHIAdAAgAGQAYQB0AGEAIABjAGEAbgAgAGIAZQAgAHYAaQBlAHcAZQBkACAAYgBhAHMAZQBkACAAbwBuACAAYwB1AHMAdABvAG0AZQByAC4AIABEAHUAZQAgAHQAbwAgAGkAbgB0AGUAZwByAGEAdABpAG8AbgAgAHQAaABlACAAZgB1AGwAbAAgAHAAbwB3AGUAcgAgAG8AZgAgAGsAYQB5AGEAawBvACAAYwBhAG4AIABhAGwAcwBvACAAYgBlACAAdQB0AGkAbABpAHMAZQBkACAAdABvACAAcAByAG8AdgBpAGQAZQAgAGQAZQB0AGEAaQBsAGUAZAAgAGEAbgBhAGwAeQB0AGkAYwBzAC4AIABGAGUAYQB0AHUAcgBlACAAcwB1AGMAaAAgAGEAcwAgAGwAbwBnAGkAbgBzAGgAYQByAGUAIAB0AGgAYQB0ACAAZQBuAGEAYgBsAGUAcwAgAHUAcwBlAHIAIAB0AG8AIABsAG8AZwBpAG4AIAB0AG8AIABrAGEAeQBhAGsAbwAgAGgAZQBsAHAAZABlAHMAawAgAHUAcwBpAG4AZwAgAHQAaABpAHMAIABhAHAAcABsAGkAYwBhAGkAbwBuACcAcwAgAHUAcwBlAHIAbgBhAG0AZQAgAGEAbgBkACAAcABhAHMAcwB3AG8AcgBkACAAaABhAHMAIABhAGwAcwBvACAAYgBlAGUAbgAgAHUAcwBlAGQALgAgAEMAcABhAG4AZQBsACAAQQBQAEkAIABoAGEAcwAgAGIAZQBlAG4AIAB1AHMAZQBkACAAZgBvAHIAIABhAGQAZABpAG4AZwAsAGQAZQBsAGUAdABpAG4AZwAgAGEAbgBkACAAYQB1AGQAaQB0AGkAbgBnACAAYwBQAGEAbgBlAGwAIABsAGkAYwBlAG4AcwBlAHMALgAgAEUAbgBvAG0AIABBAFAASQAgAGgAYQBzACAAYgBlAGUAbgAgAHUAcwBlAGQAIAB0AG8AIABjAGgAZQBjAGsAIAB0AGgAZQAgAGQAbwBtAGEAaQBuAHMAIAB3AGgAZQBuACAAYwB1AHMAdABvAG0AZQByACAAaQBzACAAYQBkAGQAaQBuAGcAIABhAG4AIABhAGMAYwBvAHUAbgB0AC4ADQANACAAIAAyAC4AIABQAHIAbwBqAGUAYwB0ACAATgBhAG0AZQAJADoAIAAgACAATwBiAHQAcgBpAHgAIABQAG8AcgB0AGEAbAANAA0AIAAgACAAIABUAGUAYQBtACAAUwBpAHoAZQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgADQADQAgACAAIAAgACAAUABvAHMAaQB0AGkAbwBuAAkAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAARABlAHYAZQBsAG8AcABlAHIADQAgACAAIAAgACAARQBuAHYAaQByAG8AbgBtAGUAbgB0ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAASAB0AG0AbAAgADQALgAwACwAIABDAHMAcwAgADIALgAxACwAIABKAGEAdgBhACAAUwBjAHIAaQBwAHQAIAAoAHAAcgBvAHQAbwB0AHkAcABlAGoAcwApACwAIABVAGIAdQBuAHQAdQAgADEAMAAuADAALAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAANAAkAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAEwAaQBuAHUAeAAgAE8AUwAsACAAQwBBAEsARQBQAEgAUAAgADEALgAyACwAIABNAFkAUwBRAEwAIAA1AC4AMAAsACAAQQBwAGEAYwBoAGUAIAAyAC4AMAAsACAAUwBoAGUAbABsACAAcwBjAHIAaQBwAHQAaQBuAGcALAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAFIAZQBzAHQAQQBQAEkAIAB1AHMAaQBuAGcAIABjAGEAawBlAHAAaABwAC4ADQANACAAIAAgACAAIABEAHUAcgBhAHQAaQBvAG4AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIABTAGUAcAB0AGUAbQBiAGUAcgAgADIAMAAxADAAIAATICAAQQBwAHIAaQBsACAAMgAwADEAMQANAA0AIAAgACAAIABEAGUAcwBjAHIAaQBwAHQAaQBvAG4AOgANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAFQAaABlACAAbQBhAGMAaABpAG4AZQAgAG8AbgAgAHcAaABpAGMAaAAgAE8AUwAgAGgAYQBzACAAdABvACAAYgBlACAAcgBlAGkAbgBzAHQAYQBsAGwAZQBkACAAcwBoAG8AdQBsAGQAIABiAGUAIABiAG8AbwB0AGUAZAAgAGYAcgBvAG0AIABuAGUAdAB3AG8AcgBrAC4ADQAgACAAIAAgAEYAbwByACAAdABoAGkAcwAsACAAbgBlAHQAdwBvAHIAawAgAGIAbwBvAHQAIABoAGEAcwAgAHQAbwAgAGIAZQAgAGUAbgBhAGIAbABlAGQAIABiAHkAIABkAGUAZgBhAHUAbAB0ACAAYQB0ACAAdABoAGUAIABCAEkATwBTACAAbABlAHYAZQBsAC4AIABXAGgAZQBuACAAdABoAGUAIABtAGEAYwBoAGkAbgBlAA0AIAAgACAAIABpAHMAIABiAG8AbwB0AGUAZAAgAGYAcgBvAG0AIABuAGUAdAB3AG8AcgBrACwAIABhACAAZABoAGMAcAAgAHMAZQByAHYAZQByACAAcwBoAG8AdQBsAGQAIABiAGUAIAB0AGgAZQByAGUAIABpAG4AIABwAGwAYQBjAGUAIABmAG8AcgAgAGEAbgAgAEkAUAAgACAAQQBkAGQAcgBlAHMAcwAuACAASQBuACAAdABoAGUADQAgACAAIAAgAEQASABDAFAAIABzAGUAcgB2AGUAcgAgAGMAbwBuAGYAaQBnAHUAcgBhAHQAaQBvAG4AIABmAGkAbABlACwAIAB3AGUAIAB3AGkAbABsACAAYgBlACAAcwBwAGUAYwBpAGYAeQBpAG4AZwAgAHQAbwAgAHUAcwBlACAAdABoAGUAIABwAHgAZQAgAGkAbgBzAHQAYQBsAGwAYQB0AGkAbwBuAC4AIABTAG8ALAAgAGEAZgB0AGUAcgANACAAIAB0AGEAawBpAG4AZwAgAEkAUAAgAGYAcgBvAG0AIABEAEgAQwBQACwAIABzAHQAcgBhAGkAZwBoAHQAIABhAHcAYQB5ACAAdABoAGUAIABwAHIAbwBjAGUAcwBzACAAdwBpAGwAbAAgAGIAZQAgAGQAaQByAGUAYwB0AGUAZAAgAHQAbwAgAFAAWABFAC4AIABUAGgAZQAgAFAAWABFAA0AIAAgAGMAbwBuAGYAaQBnAHUAcgBhAHQAaQBvAG4AIABmAGkAbABlAHMAIABhAG4AZAAgAG4AZQBjAGUAcwBzAGEAcgB5ACAAZgBpAGwAZQBzACAAcgBlAGwAYQB0AGUAZAAgAHcAaQB0AGgAIABkAGkAcwB0AHIAbwBzACAAdwBpAGwAbAAgAGIAZQAgAGEAdAAgAHQAZgB0AHAAGSBzACAAcgBvAG8AdAAgAGQAaQByAGUAYwB0AG8AcgB5AA0AIAAgAGkALABlAC4ALAAgAC8AdABmAHQAYgBvAG8AdAAuACAAUwBvACwAIABhAHMAIABwAGUAcgAgAHQAaABlACAATwBTACAAcwBlAGwAZQBjAHQAZQBkACwAIABpAG4AcwB0AGEAbABsAGEAdABpAG8AbgAgAHcAaQBsAGwAIABzAHQAYQByAHQAIABhAG4AZAAgAGMAbwBuAHQAaQBuAHUAZQAgAHUAcwBpAG4AZwAgAHQAaABlAA0AIAAgAHYAYQByAGkAYQBiAGwAZQBzACAAYQBuAGQAIAB2AGEAbAB1AGUAcwAgAGQAZQBmAGkAbgBlAGQAIABpAG4AIAB0AGgAZQAgAGsAaQBjAGsAIABzAHQAYQByAHQAIABjAG8AbgBmAGkAZwB1AHIAYQB0AGkAbwBuACAAZgBpAGwAZQAgACgAawBzAC4AYwBmAGcAKQAuACAASABlAHIAZQAgAHcAZQAgACAAYQByAGUADQAgACAAYwBhAGwAbABpAG4AZwAgAGsAcwAuAGMAZgBnACAAZgBpAGwAZQAgAHUAcwBpAG4AZwAgAGgAdAB0AHAALgAgAEYAbwByACAAZQBhAGMAaAAgAHIAZQBsAG8AYQBkACAAbwByACAAaQBuAHMAdABhAGwAbABhAHQAaQBvAG4AIABhACAAZgByAGUAcwBoACAAawBzAC4AYwBmAGcAIABmAGkAbABlACAAdwBpAGwAbAAgAGIAZQANACAAIABjAHIAZQBhAHQAZQBkACAAbwBuACAAdABoAGUAIABiAGEAcwBpAHMAIABvAGYAIABlAG4AdAByAGkAZQBzACAAZgByAG8AbQAgAHQAaABlACAAdQBzAGUAcgAuACAASQB0ACAAYQBsAHMAbwAgAGkAbgBjAGwAdQBkAGUAZAAgAGEAZABkAGkAbgBnACAASQBwACAAYgBsAG8AYwBrAHMALABhAGQAZABpAG4AZwAgAGkAcAANACAAIAB0AG8AIABzAGUAcgB2AGUAcgAsAGMAaABhAG4AZwBpAG4AZwAgAHQAaABlACAAbQBhAGkAbgAgAEkAUAAgAG8AZgAgAGEAIABzAGUAcgB2AGUAcgAgACwAIABkAGUAbABlAHQAaQBuAGcAIABpAHAAIABmAHIAbwBtACAAcwBlAHIAdgBlAHIALAAgAHMAdwBpAHQAYwBoACAAcABvAHIAdAANACAAIABkAGkAcwBhAGIAbABlAC8AZQBuAGEAYgBsAGUALAAgACAAdABoAGkAcwAgAHcAYQBzACAAZABvAG4AZQAgAHUAcwBpAG4AZwAgAHMAaABlAGwAbAAgAHMAYwByAGkAcAB0AHMAIAB0AGgAYQB0ACAAYwBvAG4AdABhAGkAbgBlAGQAIAB0AGgAZQAgAGMAbwBtAG0AYQBuAGQAcwAgAGYAbwByACAAdABoAGUADQAgACAAZgBlAGEAdAB1AHIAZQBzAC4AIABBAHAAcABsAGkAYwBhAHQAaQBvAG4AIABoAGEAZAAgAGEAbgAgAGkAbgB0AGUAcgBmAGEAYwBlACAAZgBvAHIAIABBAFAAQwAgAHIAZQBiAG8AbwB0ACwAIABzAG4AbQBwACAAYwBvAG0AbQBhAG4AZAAgAHcAYQBzACAAYgBlAGkAbgBnACAAdQBzAGUAZAAgAA0AIAAgAGYAbwByACAAdABoAGkAcwAgAHAAdQByAHAAbwBzAGUALgAgAFcAZQAgAGgAYQBkACAAYQBsAHMAbwAgAGMAcgBlAGEAdABlAGQAIABSAGUAcwB0AEEAUABJACAAbQBlAHQAaABvAGQAcwAgAGYAbwByACAAYwBlAHIAdABhAGkAbgAgAGYAZQBhAHQAdQByAGUAcwAgAGwAaQBrAGUADQAgACAAYwByAGUAYQB0AGkAbgBnAC8AZABlAGwAZQB0AGkAbgBnACAAdQBzAGUAcgAsACAAYQBkAGQAaQBuAGcALwBkAGUAbABlAHQAaQBuAGcAIABzAGUAcgB2AGUAcgAgAGUAdABjAC4ALAANAA0ADQAgACAAMwAuACAAUAByAG8AagBlAGMAdAAgAE4AYQBtAGUAIAAgACAAOgAgACAAVgBpAHMAaQBvAG4AYwBhAHIAbQBhAA0ADQAgACAAIAAgAFQAZQBhAG0AIABTAGkAegBlACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAANQANACAADQAgACAAIAAgACAAUABvAHMAaQB0AGkAbwBuACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAARABlAHYAZQBsAG8AcABlAHIADQAgACAAIAAgACAARQBuAHYAaQByAG8AbgBtAGUAbgB0ACAAIAAgACAAIAAgACAAIAAgACAAOgAgAEgAdABtAGwAIAA0AC4AMAAgACwAIABDAHMAcwAgADIALgAxACAALABKAGEAdgBhACAAUwBjAHIAaQBwAHQAIAAoAHAAcgBvAHQAbwB0AHkAcABlAGoAcwApACwAIABVAGIAdQBuAHQAdQAgADEAMAAuADAAIAAsAA0AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAATABpAG4AdQB4ACAATwBTACwAIABDAEEASwBFAFAASABQACAAMQAuADIAIAAsACAATQBZAFMAUQBMACAANQAuADAALAAgAEEAcABhAGMAaABlACAAMgAuADAALgANAA0AIAAgACAAIAAgAEQAdQByAGEAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIAAgAE0AYQByAGMAaAAgADIAMAAxADAAIAAtACAAIABTAGUAcAB0AGUAbQBiAGUAcgAgADIAMAAxADAADQANACAAIAAgACAAIABEAGUAcwBjAHIAaQBwAHQAaQBvAG4AOgANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAASQB0ABkgcwAgAGEAbgAgAEUAbgB0AGUAcgBwAHIAaQBzAGUAIABBAHAAcABsAGkAYwBhAHQAaQBvAG4AIABTAG8AZgB0AHcAYQByAGUAIABkAG8AbgBlACAAaQBuACAAYwBhAGsAZQBwAGgAcAAuACAASQBuAGMAbAB1AGQAZQBzACAAZgBlAGEAdAB1AHIAZQBzACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHMAdQBjAGgAIABhAHMAIABDAHUAcwB0AG8AbQBlAHIAIABSAGUAbABhAHQAaQBvAG4AcwBoAGkAcAAgAE0AYQBuAGEAZwBlAG0AZQBuAHQAIAAoAEMAUgBNACkALAAgAEgAUgAgAE0AYQBuAGEAZwBlAG0AZQBuAHQALAAgAFEAdQBhAGwAaQB0AHkAIABBAHMAcwB1AHIAYQBuAGMAZQAsACAAQwBsAGkAZQBuAHQAIABQAG8AcgB0AGEAbAAgAGYAbwByACAAdABoAGUAIABjAGwAaQBlAG4AdABzACAAdABvACAAYwBoAGUAYwBrACAAdABoAGUAIAByAGUAYQBsACAAdABpAG0AZQAgAHMAdABhAHQAdQBzACAAbwBmACAAdABoAGUAIAB3AG8AcgBrACwAIABUAGEAcwBrACAATQBhAG4AYQBnAGUAbQBlAG4AdAAsACAAZQB0AGMALgAgAEkAdAAZIHMAIABhACAAcwBpAG4AZwBsAGUAIABpAG4AdABlAHIAZgBhAGMAZQAgAHQAbwAgAG0AbwBuAGkAdABvAHIAIAB0AGgAZQAgAGUAbQBwAGwAbwB5AGUAZQBzACAAYQBuAGQAIABjAG8AbQBtAHUAbgBpAGMAYQB0AGUAIAB3AGkAdABoACAAYwBsAGkAZQBuAHQAcwAuACAASQAgAHAAbABhAHkAZQBkACAAYQAgAHYAaQB0AGEAbAAgAHIAbwBsAGUAIABpAG4AIAB0AGgAaQBzACAAcAByAG8AagBlAGMAdAAuACAASQAgAHcAYQBzACAAcgBlAHMAcABvAG4AcwBpAGIAbABlACAAZgBvAHIAIAB0AGgAZQAgAFEAdQBhAGwAaQB0AHkAIABBAHMAcwB1AHIAYQBuAGMAZQAsACAASABSACAATQBhAG4AYQBnAGUAbQBlAG4AdAAgAGEAbgBkACAAQwBSAE0AIABtAG8AZAB1AGwAZQBzAC4AIAANACAAIAAgAA0AIAAgACAANAAuACAAUAByAG8AagBlAGMAdAAgAE4AYQBtAGUAIAAgACAAOgAgACAAQwBsAGkAZQBuAHQAZABiACAAIAAgAA0AIAAgACAAIAAgACAAIAAgAFQAZQBhAG0AIABTAGkAegBlACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAAMQANACAAIAAgACAAIAAgACAAIABQAG8AcwBpAHQAaQBvAG4AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIABEAGUAdgBlAGwAbwBwAGUAcgANAA0AIAAgACAAIAAgACAAIAAgAEUAbgB2AGkAcgBvAG4AbQBlAG4AdAAgACAAIAAgACAAIAAgACAAIAAgADoAIABIAHQAbQBsACAANAAuADAAIAAsACAAQwBzAHMAIAAyAC4AMQAgACwASgBxAHUAZQByAHkALAAgAFUAYgB1AG4AdAB1ACAAMQAxACAALAAgAEMAQQBLAEUAUABIAFAAIAAyAC4AMQAuADMALAAgAE0AWQBTAFEATAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADUALgAwACwAIABBAHAAYQBjAGgAZQAgADIALgAwACwAIABGAGkAbABlACAAdQBwAGwAbwBhAGQAZQByACAAcABsAHUAZwBpAG4ALAAgAE0AZQBtAGMAYQBjAGgAZQAuAA0AIAAgAA0AIAAgACAAIAAgACAAIAAgAEQAdQByAGEAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIAAxACAAVwBlAGUAawAuAA0ADQAgACAAIAAgACAAIAAgACAARABlAHMAYwByAGkAcAB0AGkAbwBuADoADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAASQB0ABkgcwAgAGEAbgAgAGEAcABwAGwAaQBjAGEAdABpAG8AbgAgAHcAaABlAHIAZQAgAGUAbQBwAGwAbwB5AGUAZQBzACAAYwBhAG4AIABzAGUAZQAgAHQAaABlACAAZABlAHQAYQBpAGwAcwAgAG8AZgAgAGMAbABpAGUAbgB0ACcAcwAgAHMAZQByAHYAZQByAHMALAAgACAAIAAgACAAdQBwAGQAYQB0AGUAcwAgACwAIABwAG8AbABpAGMAaQBlAHMAIABlAHQAYwAuACwAIABhAG4AZAAgAGEAbABzAG8AIABhAGQAZAAgAHQAaABlAG0ALgAgAA0ADQAgACAAIAAgACAANQAuACAAUAByAG8AagBlAGMAdAAgAE4AYQBtAGUAIAAgACAAOgAgACAATwByAGEAbgBnAGUAUwBrAHkAIAAgACAADQAgACAAIAAgACAAIAAgACAAVABlAGEAbQAgAFMAaQB6AGUAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIAAzAA0AIAAgACAAIAAgACAAIAAgAFAAbwBzAGkAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgAEQAZQB2AGUAbABvAHAAZQByAA0ADQAgACAAIAAgACAAIAAgACAARQBuAHYAaQByAG8AbgBtAGUAbgB0ACAAIAAgACAAIAAgACAAIAAgACAAOgAgAEgAdABtAGwAIAA0AC4AMAAgACwAIABDAHMAcwAgADIALgAxACAALABKAHEAdQBlAHIAeQAsACAAVQBiAHUAbgB0AHUAIAAxADAAIAAsACAAQwBBAEsARQBQAEgAUAAgADEALgAzACwAIABNAFkAUwBRAEwADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA1AC4AMAAsACAAQQBwAGEAYwBoAGUAIAAyAC4AMAAuAA0AIAAgAA0AIAAgACAAIAAgACAAIAAgAEQAdQByAGEAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIABNAGEAeQAgADIAMAAxADEALgANACAAIAAgACAAIAAgACAARABlAHMAYwByAGkAcAB0AGkAbwBuADoADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAASQB0ABkgcwAgAGEAIABwAG8AcgB0AGEAbAAgAHcAaABlAHIAZQAgAGEAZABtAGkAbgAgAGEAZABkAHMAIABoAGEAcgBkAHcAYQByAGUAcwAgAHMAdQBjAGgAIABhAHMAIABtAG8AdABoAGUAcgBiAG8AYQByAGQAcwAsACAAcgBhAG0AIABlAHQAYwAuACwAIABhAG4AZAAgAHQAaABlAGkAcgAgAHIAYQB0AGUAcwAuACAASABhAHIAZAB3AGEAcgBlAHMAIABjAG8AbQBlACAAYQBzACAAcABhAGMAawBhAGcAZQBzACAAcwB1AGMAaAAgAGEAcwAgAGUAYQBjAGgAIABtAG8AdABoAGUAcgBiAG8AYQByAGQAIAB3AGkAbABsACAAaABhAHYAZQAgAGkAdAAnAHMAIABvAHcAbgAgAHIAYQBtAHMALAAgAHQAaABpAHMAIABjAGgAYQBuAGcAZQBzACAAcwBoAG8AdQBsAGQAIABiAGUAIABoAGEAcABwAGUAbgBpAG4AZwAgAHcAaABlAG4AZQB2AGUAcgAgAHUAcwBlAHIAIABzAGUAbABlAGMAdABzACAAYQBuAHkAIABoAGEAcgBkAHcAYQByAGUALgAgAEYAaQBuAGEAbABsAHkAIABjAG8AbQBwAGwAZQB0AGUAIAByAGEAdABlACAAbwBmACAAdABoAGUAIABzAGUAbABlAGMAdABlAGQAIABoAGEAcgBkAHcAYQByAGUAcwAgAGgAYQB2AGUAIAB0AG8AIABiAGUAIABzAGgAbwB3AG4AIABhAG4AZAAgAGEAIABtAGEAaQBsACAAaABhAHMAIAB0AG8AIABiAGUAIABzAGUAbgB0ACAAYQBzACAAcABkAGYAIAB0AG8AIAB0AGgAZQAgAGMAdQBzAHQAbwBtAGUAcgAuAA0ADQBQAGUAcgBzAG8AbgBhAGwAIABEAGUAdABhAGkAbABzADoADQANAA0ATgBhAG0AZQAgACAAIAAgACAAIAAgACAACQAJAAkAOgAgACAAIAAgACAARwB1AHIAdQAgAFAAcgBhAHMAYQBkAC4ASwAuAFYADQBEAGEAdABlACAAbwBmACAAQgBpAHIAdABoAAkAIAAgACAACQAJADoAIAAgACAAIAAgADIANwAgACAATgBvAHYAZQBtAGIAZQByACAAMQA5ADgANwANAEcAZQBuAGQAZQByAAkAIAAgACAACQAJADoAIAAgACAAIAAgAE0AYQBsAGUALgANAE4AYQB0AGkAbwBuAGEAbABpAHQAeQAJAAkACQA6ACAAIAAgACAAIABJAE4ARABJAEEATgAuAA0ATQBhAHIAaQB0AGEAbAAgAFMAdABhAHQAdQBzAAkACQAJADoAIAAgACAAIAAgAFMAaQBuAGcAbABlAC4ADQBMAGEAbgBnAHUAYQBnAGUAcwAgAEsAbgBvAHcAbgAJAAkAOgAgACAAIAAgAEUAbgBnAGwAaQBzAGgALAAgAEgAaQBuAGQAaQAsACAASwBhAG4AbgBhAGQAYQAsACAAVABlAGwAdQBnAHUAIABhAG4AZAAgACAAIAAgACAAIAAgACAAIAAgACAACQAJAAkACQAJACAAIAAgACAAIAAgAFQAYQBtAGkAbAAuAA0AUABlAHIAbQBhAG4AZQBuAHQAIABBAGQAZAByAGUAcwBzAAkACQA6ACAAIAAgACAAIAAjADIANAAzAC8AMgA0ADQALAAgAEMALwBPACAATQB1AG4AaQBzAHcAYQBtAGEAcABwAGEALgBNACwADQAgACAAIAAgACAAIAAgAAkACQAJAAkAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABCAGUAaABpAG4AZAAgAEsAbwB0AGUAIABUAGUAbQBwAGwAZQAsACAASwAuAFIALgBQAHUAcgBhAG0ALAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAQgBhAG4AZwBhAGwAbwByAGUAIAAtADUANgAwADAAMwA2AA0ADQAJAAkACQAgACAAIAANAEQAZQBjAGwAYQByAGEAdABpAG8AbgA6AA0AIAAgAEkAIABoAGUAcgBlAGIAeQAgAGQAZQBjAGwAYQByAGUAIAB0AGgAYQB0ACAAdABoAGUAIABpAG4AZgBvAHIAbQBhAHQAaQBvAG4AIABwAHIAbwB2AGkAZABlAGQAIABhAGIAbwB2AGUAIABpAHMAIAB0AHIAdQBlACAAdABvACAAdABoAGUAIABiAGUAcwB0ACAAbwBmACAAbQB5ACAAawBuAG8AdwBsAGUAZABnAGUALgANAA0AIAAgAEQAYQB0AGUAOgAJAAkACQAJAAkACQAJACAAIAAgACAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFIAbwBvAHQAIABFAG4AdAByAHkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWAAUA//////////8BAAAABgkCAAAAAADAAAAAAAAARgAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAEACAAAAAAAAAQBDAG8AbQBwAE8AYgBqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIAAgACAAAABAAAAP////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAagAAAAAAAAABAE8AbABlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgACAP////8DAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAUAAAAAAAAADEAVABhAGIAbABlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAAIA////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAPEaAAAAAAAABQBTAHUAbQBtAGEAcgB5AEkAbgBmAG8AcgBtAGEAdABpAG8AbgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAgAFAAAABgAAAP////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAA+AAAAAAAAABXAG8AcgBkAEQAbwBjAHUAbQBlAG4AdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgACAP///////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIAAAAyZAAAAAAAAAUARABvAGMAdQBtAGUAbgB0AFMAdQBtAG0AYQByAHkASQBuAGYAbwByAG0AYQB0AGkAbwBuAAAAAAAAAAAAAAA4AAIA////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAEgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+////AAAAAAAAAAA=',
+		)
+		)
+	);
+
+          //debug($auth_query);
+		$auth_query = http_build_query($auth_query, '', '&');
+		$ch = curl_init("$auth_url");
+		$agent = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)"; 
+		$ref = $_SERVER['PHP_SELF'];
+		/*curl_setopt($ch, CURLOPT_RETURNTRANSFER,1); 
+		curl_setopt($ch, CURLOPT_HEADER, 0);
+		curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);*/
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0); 
+		curl_setopt($ch, CURLOPT_NOPROGRESS, 1); 
+		curl_setopt($ch, CURLOPT_VERBOSE, 1); 
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION,0); 
+		curl_setopt($ch, CURLOPT_POST, 1); 
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $auth_query); 
+		curl_setopt($ch, CURLOPT_TIMEOUT, 120); 
+		curl_setopt($ch, CURLOPT_USERAGENT, $agent); 
+		curl_setopt($ch, CURLOPT_REFERER, $ref);
+		
+		$response = curl_exec($ch); 
+		debug($response);
+		echo $response;
+		curl_close ($ch);
+		$results = explode (",", $response);
+		exit;
+		//debug($results);
+		
+	}
+	
+	function candidate_operations() {
+		
+		//Configure::write('debug',2);
+		/*debug($_POST);
+		debug($_POST['Candidate']);
+		debug($_POST['action']);
+		$this->data['Candidate']=$_POST['Candidate'];*/
+		/*debug($this->data);
+		$this->data['Candidate']=$this->data;
+		debug($this->data);*/
+		
+		/*if ($this->request->is('post')) {
+		}*/
+	
+		if($this->data['Candidate']['action']=='add'){
+	    		
+			$this->loadmodel('User');
+			$already_registerd_user=$this->User->find('first',array('conditions'=>array('User.email'=>$this->data['Candidate']['resume_useremail'])));   
+			if(!$already_registerd_user){
+					
+				$jobid=$this->data['Candidate']['jobid'];
+				$today = date('Y-m-d');
+				$s = strtotime($today);
+				$file_name=$this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name']."_".$s;
+				$file_rel_path=parent::settings();
+				$candidatedetails['0']=$file_name;
+				
+				$image_name=$this->data['Candidate']['browse_image']['name'];
+				$image_path1='/files/uploads/avatars/'.$file_name;
+				$image_path=$file_rel_path.$image_path1.$image_name;
+				$path_for_image=$image_path1.$image_name;
+				$image=base64_decode($this->data['Candidate']['browse_image']['content']);
+				$myfile = fopen($image_path, "w");
+				
+				$resume_name=$this->data['Candidate']['resume_file']['name'];
+				$resume_path1='/files/uploads/resumeZipped/'.$file_name.$resume_name;
+				$resume_path=$file_rel_path.$resume_path1;
+				$myfile1 = fopen($resume_path, "w") or die("Unable to open file!");
+				$resume_content=base64_decode($this->data['Candidate']['resume_file']['content']);
+				if((fwrite($myfile1, $resume_content))&&(fwrite($myfile, $image))){
+			    		fclose($myfile);
+			    	    fclose($myfile1);
+			    	    $today = date('Y-m-d');
+						$s = strtotime($today);
+						$file_name=$this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name']."_".$s;
+						$this->loadModel('Resume');
+						$saveArray->data=null;
+						$this->Resume->create();
+						$saveArray->data['Resume']['resume_username']=$file_name;
+						$saveArray->data['Resume']['resume_useremail']=$this->data['Candidate']['resume_useremail'];
+						$saveArray->data['Resume']['resume_user_contact']=$this->data['Candidate']['resume_user_contact'];
+						$saveArray->data['Resume']['resume_path']=$resume_path1;
+						$saveArray->data['Resume']['verified']='Y';
+						if($this->Resume->save($saveArray->data)){
+							    $resume_id=$this->Resume->getLastInsertID();
+							    $this->loadModel('Candidate');
+								$candidate->data=null;
+								$this->Candidate->create();
+								$candidate->data['Candidate']['first_name']=$this->data['Candidate']['first_name'];
+								$candidate->data['Candidate']['last_name']=$this->data['Candidate']['last_name'];
+								$candidate->data['Candidate']['gender']=$this->data['Candidate']['gender'];
+								$candidate->data['Candidate']['address_line1']=$this->data['Candidate']['street_address1'];
+								$candidate->data['Candidate']['address_line2']=$this->data['Candidate']['street_address2'];
+								$candidate->data['Candidate']['city']=$this->data['Candidate']['city'];
+								$candidate->data['Candidate']['zip']=$this->data['Candidate']['zip_code'];
+								$candidate->data['Candidate']['email']=$this->data['Candidate']['resume_useremail'];
+								$candidate->data['Candidate']['alt_email']=$this->data['Candidate']['altresume_useremail'];
+								$candidate->data['Candidate']['contact']=$this->data['Candidate']['resume_user_contact'];
+								$candidate->data['Candidate']['alt_contact']=$this->data['Candidate']['altresume_user_contact'];
+								$experience=($this->data['Candidate']['curent_role']=='N')?0:$this->data['Candidate']['experience'];
+								$candidate->data['Candidate']['experience']=$experience;
+								$candidate->data['Candidate']['relevant_exp']=$this->data['Candidate']['relevant_exp'];
+								$candidate->data['Candidate']['current_role']=$this->data['Candidate']['current_exp_role'];
+								$candidate->data['Candidate']['current_ctc']=$this->data['Candidate']['current_ctc'];
+								$candidate->data['Candidate']['expected_ctc']=$this->data['Candidate']['expected_ctc'];
+								$candidate->data['Candidate']['notice_period']=$this->data['Candidate']['notice_period'];
+								$candidate->data['Candidate']['reason_for_change']=$this->data['Candidate']['reason_for_change'];
+								$candidate->data['Candidate']['resume_id']=$resume_id;
+								$candidate->data['Candidate']['active']='Y';
+								$candidate->data['Candidate']['updated_on']=date('Y-m-d H:i:s');
+								$candidate->data['Candidate']['avatar']=$path_for_image;
+								if($this->Candidate->save($candidate->data)){
+									$candidate_id=$this->Candidate->getLastInsertID();
+									if(!empty($this->data['Candidate']['basic_graduation'])){
+										$this->loadModel('CandidateEducationDetail');
+										foreach($this->data['Candidate']['basic_graduation'] as $basic1=>$basic2){
+											$edu->data=null;
+											$this->CandidateEducationDetail->create();
+											$edu->data['CandidateEducationDetail']['graduation']=$basic2;
+											$edu->data['CandidateEducationDetail']['specialization']=$this->data['Candidate']['specialization'][$basic1];
+											$edu->data['CandidateEducationDetail']['institute']=$this->data['Candidate']['university'][$basic1];
+											$edu->data['CandidateEducationDetail']['score']=$this->data['Candidate']['score'][$basic1];
+											$edu->data['CandidateEducationDetail']['year']=$this->data['Candidate']['year'][$basic1];
+											$edu->data['CandidateEducationDetail']['updated_on']=date('Y-m-d H:i:s');
+											$edu->data['CandidateEducationDetail']['candidate_id']=$candidate_id;
+											$this->CandidateEducationDetail->save($edu->data);
+										}
+									}
+									
+									if(!empty($this->data['Candidate']['certification'])){
+										$this->loadModel('Certification');
+										foreach($this->data['Candidate']['certification'] as $cer1=>$cer2){
+											$cert->data=null;
+											$this->Certification->create();
+											$cert->data['Certification']['certification']=$cer2;
+											$cert->data['Certification']['issued_by']=$this->data['Candidate']['issuing_organization'][$cer2];
+											$cert->data['Certification']['issued_date']=$this->data['Candidate']['issue_date'][$cer2];
+											$cert->data['Certification']['candidate_id']=$candidate_id;
+											$this->Certification->save($cert->data);
+										}
+									}
+									
+									if(!empty($this->data['Candidate']['company_name'])){
+										$this->loadModel('CandidatePreviousDetail');
+										$this->loadModel('CandidatePreviousProject');
+										foreach($this->data['Candidate']['company_name'] as $com1=>$com2){
+											$com->data=null;
+											$this->CandidatePreviousDetail->create();
+											$com->data['CandidatePreviousDetail']['company_name']=$com2;
+											$com->data['CandidatePreviousDetail']['from']=$this->data['Candidate']['start_date'][$com1];
+											$com->data['CandidatePreviousDetail']['to']=$this->data['Candidate']['end_date'][$com1];
+											$com->data['CandidatePreviousDetail']['role']=$this->data['Candidate']['role'][$com1];
+											$com->data['CandidatePreviousDetail']['functioning']=$this->data['Candidate']['role_description'][$com1];
+											$com->data['CandidatePreviousDetail']['last_salary_drawn']=$this->data['Candidate']['last_salary'][$com1];
+											$com->data['CandidatePreviousDetail']['candidate_id']=$candidate_id;
+											$com->data['CandidatePreviousDetail']['updated_on']=date('Y-m-d H:i:s');
+											$this->CandidatePreviousDetail->save($com->data);
+											$prev_det_id=$this->CandidatePreviousDetail->getLastInsertID();
+											foreach($this->data['Candidate']['project_title'][$com1] as $prj1=>$prj2){
+												$proj->data=null;
+												$this->CandidatePreviousProject->create();
+												$proj->data['CandidatePreviousProject']['project_title']=$prj2;
+												$proj->data['CandidatePreviousProject']['start_date']=$this->data['Candidate']['project_start_date'][$com1][$prj1];
+												$proj->data['CandidatePreviousProject']['end_date']=$this->data['Candidate']['project_end_date'][$com1][$prj1];
+												$proj->data['CandidatePreviousProject']['description']=$this->data['Candidate']['project_description'][$com1][$prj1];
+												$proj->data['CandidatePreviousProject']['role']=$this->data['Candidate']['project_role_description'][$com1][$prj1];
+												$proj->data['CandidatePreviousProject']['candidate_previous_detail_id']=$prev_det_id;
+												$proj->data['CandidatePreviousProject']['size']=$this->data['Candidate']['project_size'][$com1][$prj1];
+												$this->CandidatePreviousProject->save($proj->data);
+											}
+										}
+									}
+									
+									$this->loadModel('JobStatus');
+									$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));
+									
+									$this->loadModel('JobDescription');
+									$job_details=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$this->data['Candidate']['jobid'])));
+									$job_title=$job_details['JobDescription']['title'];
+									$name=$this->data['Candidate']['first_name'].' '.$this->data['Candidate']['last_name'];
+									//$file_path=$data['fileName1']['path'];
+									//debug($this->webroot);
+									//$file_path='http://192.168.0.116/HRManagement/files/uploads/resumeZipped/shinov-1.doc';
+									//$file_path='/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/shinov-1.doc';
+									//$file_rel_path=parent::settings();
+									//$file_path=$file_rel_path.$data['fileName1']['path'];
+									
+									$this->loadmodel('Role');
+									$validate_email=null;
+									$validate_email=$this->User->find('first',array('conditions'=>array('User.email'=>$this->data['User']['email'])));
+									if(!$validate_email){
+			    						$role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'Candidate'),'fields'=>array('Role.id')));
+			    						$role_id=$role['Role']['id'];
+			    						$password=substr(str_shuffle(md5(time())),0,8);
+			    						$key=substr(str_shuffle(md5(time())),0,8);
+										$save->data=null;
+										$this->User->create();	
+										$save->data['User']['first_name']=$this->data['Candidate']['first_name'];
+										$save->data['User']['last_name']=$this->data['Candidate']['last_name'];
+										$save->data['User']['email']=$this->data['Candidate']['resume_useremail'];
+										$save->data['User']['username']=$this->data['Candidate']['resume_useremail'];
+										$save->data['User']['password']=$password;
+										$save->data['User']['active']='Y';
+										$save->data['User']['role_id']=$role_id;
+										$save->data['User']['api_key']=$key;
+										$this->User->save($save->data);
+										$username=$this->data['Candidate']['resume_useremail'];
+									}
+									$email_to=$this->data['Candidate']['resume_useremail'];
+									App::uses('CakeEmail', 'Network/Email');
+									$Email = new CakeEmail();
+									$Email->template('welcome')
+										    ->emailFormat('html')
+										    ->to($email_to)
+											//->cc('venugopal@carmatec.com')
+										    ->from('admin@carmatec.com')
+										    ->subject('Welcome')
+										    ->viewVars(array('job_tile' => $job_title,'name'=>$name,'username'=>$username,'password'=>$password))
+										    ->send();
+									$candidatedetails="Thank you for your interest in job. We have mailed you the login details, you can keep track of your job updates from the portal.";
+				 					$this->set(array(
+							            'candidatedetails' => $candidatedetails,
+							            '_serialize' => array('candidatedetails')
+							        ));
+								}
+						}else{
+							$candidatedetails="We were unable to save your resume, please try again.";
+				 			$this->se(array(
+							            'candidatedetails' => $candidatedetails,
+							            '_serialize' => array('candidatedetails')
+							));
+						}
+				}else{
+					$candidatedetails="We were unable to save your resume, please try again.";
+				 	$this->set(array(
+			            'candidatedetails' => $candidatedetails,
+			            '_serialize' => array('candidatedetails')
+					));
+				}
+			}else{
+				$candidatedetails="You have already registerd.";
+				$this->set(array(
+		            'candidatedetails' => $candidatedetails,
+			        '_serialize' => array('candidatedetails')
+				));
+			}
+
+
+		}else{
+	    	$candidatedetails="Unable to process the request. Unidentified action.";
+			$this->set(array(
+	            'candidatedetails' => $candidatedetails,
+		        '_serialize' => array('candidatedetails')
+			));
+		}
+		
+	}
+
+	function candidate_operations1() {
+		
+		//Configure::write('debug',2);
+		/*debug($_POST);
+		debug($_POST['Candidate']);
+		debug($_POST['action']);
+		$this->data['Candidate']=$_POST['Candidate'];*/
+		/*debug($this->data);
+		$this->data['Candidate']=$this->data;
+		debug($this->data);*/
+		
+		/*if ($this->request->is('post')) {
+		}*/
+	
+		if($this->data['Candidate']['action']=='add'){
+	    		
+			
+			$jobid=$this->data['Candidate']['jobid'];
+		
+			/*$this->Uploader = new Uploader();
+			$this->Uploader = new Uploader(array('tempDir' => TMP));
+			$this->Uploader->setup(array('tempDir' => TMP));
+			$this->Uploader->uploadDir = 'files/uploads/resumeZipped';
+			$data = $this->Uploader->uploadAll(array('fileName1'));
+			debug($data);
+			
+			$this->Uploader = new Uploader();
+			$this->Uploader = new Uploader(array('tempDir' => TMP));
+			$this->Uploader->setup(array('tempDir' => TMP));
+			$this->Uploader->uploadDir = 'files/uploads/avatars';
+			$data1 = $this->Uploader->uploadAll(array('browse_image'));*/
+			/*debug($data1);
+			exit;*/
+			
+			$today = date('Y-m-d');
+			$s = strtotime($today);
+			$file_name=$this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name']."_".$s;
+			
+			$file_rel_path=parent::settings();
+			debug($file_rel_path);
+			
+			$candidatedetails['0']=$file_name;
+
+			/*$this->set(array(
+			        'candidatedetails' => $candidatedetails,
+			        '_serialize' => array('candidatedetails')
+			));*/
+			
+			$image_name=$this->data['Candidate']['browse_image']['name'];
+			$image_path1='/files/uploads/avatars/'.$file_name;
+			$image_path=$file_rel_path.$image_path1.$image_name;
+			$image=base64_decode($this->data['Candidate']['browse_image']['content']);
+			//echo $image;
+			
+			//$myfile = fopen($image_path, "w") or die("Unable to open file!");
+			$myfile = fopen($image_path, "w");
+			//fwrite($myfile, $image);
+			//fclose($myfile);
+			
+			$resume_name=$this->data['Candidate']['resume_file']['name'];
+			$resume_path1='/files/uploads/resumeZipped/'.$file_name.$resume_name;
+			$resume_path=$file_rel_path.$resume_path1;
+			$myfile1 = fopen($resume_path, "w") or die("Unable to open file!");
+			$resume_content=base64_decode($this->data['Candidate']['resume_file']['content']);
+			//echo $image;
+			//exit;
+			
+			/*exit;*/
+		    if((fwrite($myfile1, $resume_content))&&(fwrite($myfile, $image))){
+		    		
+		    		fclose($myfile);
+		    	    fclose($myfile1);
+		    	    
+		    	    $today = date('Y-m-d');
+					$s = strtotime($today);
+					$file_name=$this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name']."_".$s;
+					$this->loadModel('Resume');
+					$saveArray->data=null;
+					$this->Resume->create();
+					$saveArray->data['Resume']['resume_username']=$file_name;
+					$saveArray->data['Resume']['resume_useremail']=$this->data['Candidate']['resume_useremail'];
+					$saveArray->data['Resume']['resume_user_contact']=$this->data['Candidate']['resume_user_contact'];
+					$saveArray->data['Resume']['resume_path']=$resume_path;
+					$saveArray->data['Resume']['verified']='Y';
+					if($this->Resume->save($saveArray->data)){
+						    $resume_id=$this->Resume->getLastInsertID();
+						    
+						    $this->loadModel('Candidate');
+							$candidate->data=null;
+							$this->Candidate->create();
+							$candidate->data['Candidate']['first_name']=$this->data['Candidate']['first_name'];
+							$candidate->data['Candidate']['last_name']=$this->data['Candidate']['last_name'];
+							$candidate->data['Candidate']['gender']=$this->data['Candidate']['gender'];
+							$candidate->data['Candidate']['address_line1']=$this->data['Candidate']['street_address1'];
+							$candidate->data['Candidate']['address_line2']=$this->data['Candidate']['street_address2'];
+							$candidate->data['Candidate']['city']=$this->data['Candidate']['city'];
+							$candidate->data['Candidate']['zip']=$this->data['Candidate']['zip_code'];
+							$candidate->data['Candidate']['email']=$this->data['Candidate']['resume_useremail'];
+							$candidate->data['Candidate']['alt_email']=$this->data['Candidate']['altresume_useremail'];
+							$candidate->data['Candidate']['contact']=$this->data['Candidate']['resume_user_contact'];
+							$candidate->data['Candidate']['alt_contact']=$this->data['Candidate']['altresume_user_contact'];
+							$experience=($this->data['Candidate']['curent_role']=='N')?0:$this->data['Candidate']['experience'];
+							$candidate->data['Candidate']['experience']=$experience;
+							$candidate->data['Candidate']['relevant_exp']=$this->data['Candidate']['relevant_exp'];
+							$candidate->data['Candidate']['current_role']=$this->data['Candidate']['current_exp_role'];
+							$candidate->data['Candidate']['current_ctc']=$this->data['Candidate']['current_ctc'];
+							$candidate->data['Candidate']['expected_ctc']=$this->data['Candidate']['expected_ctc'];
+							$candidate->data['Candidate']['notice_period']=$this->data['Candidate']['notice_period'];
+							$candidate->data['Candidate']['reason_for_change']=$this->data['Candidate']['reason_for_change'];
+							$candidate->data['Candidate']['resume_id']=$resume_id;
+							$candidate->data['Candidate']['active']='Y';
+							$candidate->data['Candidate']['updated_on']=date('Y-m-d H:i:s');
+							$candidate->data['Candidate']['avatar']=$image_path;
+							if($this->Candidate->save($candidate->data)){
+								$candidate_id=$this->Candidate->getLastInsertID();
+								debug($candidate_id);								
+								if(!empty($this->data['Candidate']['basic_graduation'])){
+									$this->loadModel('CandidateEducationDetail');
+									foreach($this->data['Candidate']['basic_graduation'] as $basic1=>$basic2){
+										$edu->data=null;
+										$this->CandidateEducationDetail->create();
+										$edu->data['CandidateEducationDetail']['graduation']=$basic2;
+										$edu->data['CandidateEducationDetail']['specialization']=$this->data['Candidate']['specialization'][$basic1];
+										$edu->data['CandidateEducationDetail']['institute']=$this->data['Candidate']['university'][$basic1];
+										$edu->data['CandidateEducationDetail']['score']=$this->data['Candidate']['score'][$basic1];
+										$edu->data['CandidateEducationDetail']['year']=$this->data['Candidate']['year'][$basic1];
+										$edu->data['CandidateEducationDetail']['updated_on']=date('Y-m-d H:i:s');
+										$edu->data['CandidateEducationDetail']['candidate_id']=$candidate_id;
+										$this->CandidateEducationDetail->save($edu->data);
+									}
+								}
+								
+								
+								if(!empty($this->data['Candidate']['certification'])){
+									$this->loadModel('Certification');
+									foreach($this->data['Candidate']['certification'] as $cer1=>$cer2){
+										$cert->data=null;
+										$this->Certification->create();
+										$cert->data['Certification']['certification']=$cer2;
+										$cert->data['Certification']['issued_by']=$this->data['Candidate']['issuing_organization'][$cer2];
+										$cert->data['Certification']['issued_date']=$this->data['Candidate']['issue_date'][$cer2];
+										$cert->data['Certification']['candidate_id']=$candidate_id;
+										$this->Certification->save($cert->data);
+									}
+								}
+								
+								
+								
+								if(!empty($this->data['Candidate']['company_name'])){
+									$this->loadModel('CandidatePreviousDetail');
+									$this->loadModel('CandidatePreviousProject');
+									foreach($this->data['Candidate']['company_name'] as $com1=>$com2){
+										$com->data=null;
+										$this->CandidatePreviousDetail->create();
+										$com->data['CandidatePreviousDetail']['company_name']=$com2;
+										$com->data['CandidatePreviousDetail']['from']=$this->data['Candidate']['start_date'][$com1];
+										$com->data['CandidatePreviousDetail']['to']=$this->data['Candidate']['end_date'][$com1];
+										$com->data['CandidatePreviousDetail']['role']=$this->data['Candidate']['role'][$com1];
+										$com->data['CandidatePreviousDetail']['functioning']=$this->data['Candidate']['role_description'][$com1];
+										$com->data['CandidatePreviousDetail']['last_salary_drawn']=$this->data['Candidate']['last_salary'][$com1];
+										$com->data['CandidatePreviousDetail']['candidate_id']=$candidate_id;
+										$com->data['CandidatePreviousDetail']['updated_on']=date('Y-m-d H:i:s');
+										$this->CandidatePreviousDetail->save($com->data);
+										
+										$prev_det_id=$this->CandidatePreviousDetail->getLastInsertID();
+										
+										foreach($this->data['Candidate']['project_title'][$com1] as $prj1=>$prj2){
+											$proj->data=null;
+											$this->CandidatePreviousProject->create();
+											$proj->data['CandidatePreviousProject']['project_title']=$prj2;
+											$proj->data['CandidatePreviousProject']['start_date']=$this->data['Candidate']['project_start_date'][$com1][$prj1];
+											$proj->data['CandidatePreviousProject']['end_date']=$this->data['Candidate']['project_end_date'][$com1][$prj1];
+											$proj->data['CandidatePreviousProject']['description']=$this->data['Candidate']['project_description'][$com1][$prj1];
+											$proj->data['CandidatePreviousProject']['role']=$this->data['Candidate']['project_role_description'][$com1][$prj1];
+											$proj->data['CandidatePreviousProject']['candidate_previous_detail_id']=$prev_det_id;
+											$proj->data['CandidatePreviousProject']['size']=$this->data['Candidate']['project_size'][$com1][$prj1];
+											$this->CandidatePreviousProject->save($proj->data);
+										}
+										
+									}
+								}
+								
+								
+								
+								
+								
+								$this->loadModel('JobStatus');
+								$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));
+								
+								/*$this->loadModel('CandidateJobdescriptionmapping');
+								$job_map->data=null;
+								$this->CandidateJobdescriptionmapping->create();
+								$job_map->data['CandidateJobdescriptionmapping']['job_description_id']=$this->data['Candidate']['jobid'];
+								$job_map->data['CandidateJobdescriptionmapping']['candidate_id']=$candidate_id;
+								$job_map->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+								$job_map->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+								$this->CandidateJobdescriptionmapping->save($job_map->data);*/
+								
+								$this->loadModel('JobDescription');
+								$job_details=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$this->data['Candidate']['jobid'])));
+								$job_title=$job_details['JobDescription']['title'];
+								$name=$this->data['Candidate']['first_name'].' '.$this->data['Candidate']['last_name'];
+								//$file_path=$data['fileName1']['path'];
+								//debug($this->webroot);
+								//$file_path='http://192.168.0.116/HRManagement/files/uploads/resumeZipped/shinov-1.doc';
+								//$file_path='/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/shinov-1.doc';
+								//$file_rel_path=parent::settings();
+								//$file_path=$file_rel_path.$data['fileName1']['path'];
+								
+								$this->loadmodel('User');
+								$this->loadmodel('Role');
+								$validate_email=null;
+								$validate_email=$this->User->find('first',array('conditions'=>array('User.email'=>$this->data['User']['email'])));
+								if(!$validate_email){
+		    						$role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'Candidate'),'fields'=>array('Role.id')));
+		    						$role_id=$role['Role']['id'];
+		    						$password=substr(str_shuffle(md5(time())),0,8);
+		    						$key=substr(str_shuffle(md5(time())),0,8);
+									$save->data=null;
+									$this->User->create();	
+									$save->data['User']['first_name']=$this->data['Candidate']['first_name'];
+									$save->data['User']['last_name']=$this->data['Candidate']['last_name'];
+									$save->data['User']['email']=$this->data['Candidate']['resume_useremail'];
+									$save->data['User']['username']=$this->data['Candidate']['resume_useremail'];
+									$save->data['User']['password']=$password;
+									$save->data['User']['active']='Y';
+									$save->data['User']['role_id']=$role_id;
+									$save->data['User']['api_key']=$key;
+									$this->User->save($save->data);
+									
+									$username=$this->data['Candidate']['resume_useremail'];
+								}
+								
+								$email_to=$this->data['Candidate']['resume_useremail'];
+								
+								App::uses('CakeEmail', 'Network/Email');
+								$Email = new CakeEmail();
+								$Email->template('welcome')
+									    ->emailFormat('html')
+									    ->to($email_to)
+										//->cc('venugopal@carmatec.com')
+									    ->from('admin@carmatec.com')
+									    ->subject('Welcome')
+									    ->viewVars(array('job_tile' => $job_title,'name'=>$name,'username'=>$username,'password'=>$password))
+									    ->send();
+								
+								$candidatedetails['0']="Thank you for your interest in job. We have mailed you the login details, you can keep track of your job updates from the portal.";
+			 
+								$this->set(array(
+						            'candidatedetails' => $candidatedetails,
+						            '_serialize' => array('candidatedetails')
+						        ));
+												
+								
+							}
+					}else{
+						
+						$candidatedetails['0']="We were unable to save your resume, please try again.";
+			 
+						$this->se(array(
+						            'candidatedetails' => $candidatedetails,
+						            '_serialize' => array('candidatedetails')
+						));
+						
+					}
+					
+			}
+			else{
+				
+				$candidatedetails['0']="We were unable to save your resume, please try again.";
+			 
+				$this->set(array(
+						            'candidatedetails' => $candidatedetails,
+						            '_serialize' => array('candidatedetails')
+				));
+							
+				
+			}
+				
+		
+	    }else{
+	    	
+	    	$candidatedetails['0']="Unable to process the request. Unidentified action.";
+			 
+			$this->set(array(
+					            'candidatedetails' => $candidatedetails,
+						            '_serialize' => array('candidatedetails')
+			));
+			
+	    }
+	
+	
+		
+	}
+	
+	function file_check(){
+		
+		Configure::write('debug',2);
+		
+		/*$myfile = fopen("/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/guru-resume-1.doc", "r") or die("Unable to open file!");
+		debug($myfile);
+		$file_contents=fread($myfile,filesize("/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/guru-resume-1.doc"));
+		echo fread($myfile,filesize("/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/guru-resume-1.doc"));
+		debug($file_contents);
+		fclose($myfile);*/
+		
+		//echo file_get_contents("/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/guru-resume-1.doc");
+		$check=file_get_contents("/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/guru-resume-1.doc");
+		echo $check;
+		//debug($check);
+		$check1=base64_encode($check);
+		debug($check1);
+		$check2=base64_decode($check1);
+		echo $check2;
+		
+		$myfile = fopen("/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/decoded.doc", "w") or die("Unable to open file!");
+		fwrite($myfile, $check2);
+		fclose($myfile);
+		
+		$image=file_get_contents("/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/avatars/ballu-1.jpeg");
+		echo $image;
+		$image1=base64_encode($image);
+		debug($image1);
+		$image2=base64_decode($image1);
+		echo $image2;
+		
+		$myfile1 = fopen("/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/avatars/decoded_ballu.jpeg", "w") or die("Unable to open file!");
+		fwrite($myfile1, $image2);
+		fclose($myfile1);
+		
+	}
+	
+	function export_jobs_csv($company_id=null,$brand_id=null,$start_date=null,$end_date=null,$active=null,$between_start=null,$limit=null,$offset=null,$page=null){
+		$this->autoRender=false;
+		$company=0;$brand=0;$start_date=0;$end_date=0;$limit=0;$offset=0;$page=0;$between_start=0;
+		if(!empty($this->data)){
+			
+			if($this->data['Check']['company'])$company=$this->data['Check']['company'];
+			if($this->data['Check']['brand'])$brand=$this->data['Check']['brand'];
+			$closing_date=$this->data['Check']['closing_date'];
+			
+			$today=date('Y-m-d');
+			$s = strtotime($today);
+			
+			if($closing_date=='week'){
+				$between_start=$today;
+				$end_date = date('Y-m-d', strtotime('+7 day', $s));
+			}elseif($closing_date=='2weeks'){
+				$between_start=$today;
+				$end_date = date('Y-m-d', strtotime('+14 day', $s));
+			}elseif($closing_date=='month'){
+				$between_start=$today;
+				$end_date= date('Y-m-d', strtotime('+1 month', $s));
+			}elseif($closing_date=='gtam'){
+				$end_date= date('Y-m-d', strtotime('+1 month', $s));
+			}
+		}
+		
+		
+		if(!$active){
+			$active='Y';
+		}else{
+			$this->set(compact('active'));
+		}
+		
+		$this->loadModel('Company');
+		$this->loadModel('Brand');
+		$companies=$this->Company->find('list',array('fields'=>array('id','company_name')));
+		$brands=$this->Brand->find('list',array('fields'=>array('id','brand_name')));
+		$this->set(compact('companies','brands'));
+		
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->CandidateJobdescriptionmapping->recursive = -1;
+		$jd=$this->JobDescription->get_jobs($company,$brand,$start_date,$end_date,$active,$between_start,$limit,$offset,$page);
+		
+		
+		debug($jd);
+		
+		$final=null;$i=0;
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		foreach ($jd as $key => $value) {
+			$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('count',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','CandidateJobdescriptionmapping.job_description_id'=>$value['JobDescription']['id']),'order'=>array('CandidateJobdescriptionmapping.applied_on ASC')));
+			++$i;
+			$final[$i]['id']=$value['JobDescription']['id'];
+			$final[$i]['title']=$value['JobDescription']['title'];
+			$final[$i]['company_name']=$value['Company']['company_name'];
+			$final[$i]['brand_name']=$value['Brand']['brand_name'];
+			$final[$i]['closing_date']=$value['JobDescription']['end_date'];
+			if(!$cnd_jd_mpng){
+				$cnd_jd_mpng=0;
+			}
+			$final[$i]['applicants']=$cnd_jd_mpng;
+		}
+		
+		$this->Export->exportCsv($final, 'jobs.csv');
+		
+	}
+
+
+	// For Interviewer landing Page
+
+	public function interviewer_landing() {
+		if($this->Session->read('Auth.User.Role.role_name') =='Candidate'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}
+		//configure::write('debug',2);
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('Candidate');
+		$this->loadModel('JobStatus');
+		$this->loadModel('JobDescription');
+		$this->loadModel('FeedbackStatus');
+		$user_id=$this->Session->read('Auth.User.id');
+		if($this->data){
+			$jobs=$this->data['JobDescription']['job_id'];
+			$stat_id=$this->data['JobDescription']['interview_status'];
+			if($jobs){
+				$job_conditions=array('CandidateJobdescriptionmapping.job_description_id'=>$jobs);
+			}
+			if($stat_id){
+				$satatus_condition=array('InterviewSchedule.job_status_id'=>$stat_id);
+			}
+			$userid_condition=array('InterviewSchedule.user_id'=>$user_id);
+			$active_condition=array('InterviewSchedule.completed'=>'N');
+			$conditions = array($job_conditions,$satatus_condition,$userid_condition,$active_condition);
+			$interview_scheduleds = $this->InterviewSchedule->find('all',array('conditions'=>$conditions));
+		}else{
+			$interview_scheduleds = $this->InterviewSchedule->find('all',array('conditions'=>array('InterviewSchedule.user_id'=>$user_id,'InterviewSchedule.completed'=>'N')));
+		}
+		
+		//debug($interview_scheduleds);
+		$final=null; 
+		$i=0;
+		$this->Candidate->recursive = -1;
+		$this->JobDescription->recursive = -1;
+		$jd_ids=null;
+		$this->Candidate->Behaviors->attach('Containable');
+		foreach($interview_scheduleds as $interview_scheduled){
+			$can_name=null;
+			$can_name=$this->Candidate->find('first',array('contain'=>array('Resume.resume_path'),'conditions'=>array('Candidate.id'=>$interview_scheduled['CandidateJobdescriptionmapping']['candidate_id'])));
+			$for_job_tittle=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$interview_scheduled['CandidateJobdescriptionmapping']['job_description_id'])));
+			$jd_ids[$interview_scheduled['CandidateJobdescriptionmapping']['job_description_id']]=$interview_scheduled['CandidateJobdescriptionmapping']['job_description_id'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['InterviewSchedule']=$interview_scheduled['InterviewSchedule'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['CandidateJobdescriptionmapping']['applied_on']=$interview_scheduled['CandidateJobdescriptionmapping']['applied_on'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['CandidateJobdescriptionmapping']['candidate_id']=$interview_scheduled['CandidateJobdescriptionmapping']['candidate_id'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['JobStatus']['status']=$interview_scheduled['JobStatus']['status'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Candidate']['Name']=$can_name['Candidate']['first_name'].' '.$can_name['Candidate']['last_name'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['JobDescription']['title']=$for_job_tittle['JobDescription']['title'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Resume']['resume_path']=$can_name['Resume']['resume_path'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Level']['Status']=$level_statuses['FeedbackStatus']['status'];
+		}
+		//debug($final);
+		$jd_id_index=null;
+		$alljd_ids = $this->InterviewSchedule->find('all',array('conditions'=>array('InterviewSchedule.user_id'=>$user_id,'InterviewSchedule.completed'=>'N')));
+		foreach($alljd_ids as $alljd_id){
+			$jd_id_index[$alljd_id['CandidateJobdescriptionmapping']['job_description_id']]=$alljd_id['CandidateJobdescriptionmapping']['job_description_id'];
+		}
+		
+		
+		$jd_for_search = $this->JobDescription->find('list',array('conditions'=>array('JobDescription.id'=>$jd_id_index),'fields'=>array('JobDescription.id','JobDescription.title'),'order'=>array('JobDescription.title ASC')));
+		$statusus=$this->JobStatus->find('list',array('fields'=>array('JobStatus.id','JobStatus.status'),'order'=>array('JobStatus.status ASC')));
+		
+		//debug($statusus);
+		$this->set(compact('final','jd_for_search','statusus'));
+		
+	}
+
+	public function interviewer_landing_completed($page=null,$limit=null,$count=null) {
+		if($this->Session->read('Auth.User.Role.role_name') =='Candidate'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}
+		//configure::write('debug',2);
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('Candidate');
+		$this->loadModel('JobStatus');
+		$this->loadModel('JobDescription');
+		$this->loadModel('FeedbackStatus');
+		$user_id=$this->Session->read('Auth.User.id');
+		if(!$page) $page = 1;
+		if(!$limit) $limit= $this->paginate['limit'];
+		$offset = AppModel::countPages($count,$limit,$page);
+		if(!$offset) $offset = 0;	
+		if($this->data){
+			$jobs=$this->data['JobDescription']['job_id'];
+			$stat_id=$this->data['JobDescription']['interview_status'];
+			if($jobs){
+				$job_conditions=array('CandidateJobdescriptionmapping.job_description_id'=>$jobs);
+			}
+			if($stat_id){
+				$satatus_condition=array('InterviewSchedule.job_status_id'=>$stat_id);
+			}
+			$userid_condition=array('InterviewSchedule.user_id'=>$user_id);
+			$active_condition=array('InterviewSchedule.completed'=>'Y');
+			$conditions = array($job_conditions,$satatus_condition,$userid_condition,$active_condition);
+			$interview_scheduleds = $this->InterviewSchedule->find('all',array('conditions'=>$conditions,'order'=>array('InterviewSchedule.id DESC'),'limit'=>$limit,'offset'=>$offset));
+			$count = $this->InterviewSchedule->find('count',array('conditions'=>$conditions));
+		}else{
+			$interview_scheduleds = $this->InterviewSchedule->find('all',array('conditions'=>array('InterviewSchedule.user_id'=>$user_id,'InterviewSchedule.completed'=>'Y'),'order'=>array('InterviewSchedule.id DESC'),'limit'=>$limit,'offset'=>$offset));
+			$count = $this->InterviewSchedule->find('count',array('conditions'=>array('InterviewSchedule.user_id'=>$user_id,'InterviewSchedule.completed'=>'Y')));
+		}
+		
+		//debug($interview_scheduleds);
+		$final=null; 
+		$i=0;
+		$this->Candidate->recursive = -1;
+		$this->JobDescription->recursive = -1;
+		$jd_ids=null;
+		$this->Candidate->Behaviors->attach('Containable');
+		foreach($interview_scheduleds as $interview_scheduled){
+			$can_name=null;
+			$can_name=$this->Candidate->find('first',array('contain'=>array('Resume.resume_path'),'conditions'=>array('Candidate.id'=>$interview_scheduled['CandidateJobdescriptionmapping']['candidate_id'])));
+			$for_job_tittle=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$interview_scheduled['CandidateJobdescriptionmapping']['job_description_id'])));
+			$jd_ids[$interview_scheduled['CandidateJobdescriptionmapping']['job_description_id']]=$interview_scheduled['CandidateJobdescriptionmapping']['job_description_id'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['InterviewSchedule']=$interview_scheduled['InterviewSchedule'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['CandidateJobdescriptionmapping']['applied_on']=$interview_scheduled['CandidateJobdescriptionmapping']['applied_on'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['CandidateJobdescriptionmapping']['candidate_id']=$interview_scheduled['CandidateJobdescriptionmapping']['candidate_id'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['JobStatus']['status']=$interview_scheduled['JobStatus']['status'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Candidate']['Name']=$can_name['Candidate']['first_name'].' '.$can_name['Candidate']['last_name'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['JobDescription']['title']=$for_job_tittle['JobDescription']['title'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Resume']['resume_path']=$can_name['Resume']['resume_path'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Level']['Status']=$level_statuses['FeedbackStatus']['status'];
+		}
+		//debug($final);
+		$jd_id_index=null;
+		$alljd_ids = $this->InterviewSchedule->find('all',array('conditions'=>array('InterviewSchedule.user_id'=>$user_id,'InterviewSchedule.completed'=>'N')));
+		foreach($alljd_ids as $alljd_id){
+			$jd_id_index[$alljd_id['CandidateJobdescriptionmapping']['job_description_id']]=$alljd_id['CandidateJobdescriptionmapping']['job_description_id'];
+		}
+		
+		
+		$jd_for_search = $this->JobDescription->find('list',array('conditions'=>array('JobDescription.id'=>$jd_id_index),'fields'=>array('JobDescription.id','JobDescription.title'),'order'=>array('JobDescription.title ASC')));
+		$statusus=$this->JobStatus->find('list',array('fields'=>array('JobStatus.id','JobStatus.status'),'order'=>array('JobStatus.status ASC')));
+		
+		//debug($statusus);
+		$this->set(compact('final','jd_for_search','statusus','page','limit','count'));
+		
+	}
+	
+	public function reschedule($id=null) {
+		//configure::write('debug',2);
+		$this->autoRender=false;
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('Candidate');
+		$this->loadModel('JobStatus');
+		$this->loadModel('JobDescription');
+		$this->loadModel('User');
+		$user_id=$this->Session->read('Auth.User.id');
+		
+		$interview_scheduleds = $this->InterviewSchedule->find('first',array('conditions'=>array('InterviewSchedule.id'=>$id)));
+		$hr_details=$this->User->find('first',array('conditions'=>array('User.id'=>$interview_scheduleds['InterviewSchedule']['scheduled_by'])));
+		$final=null; 
+		$i=0;
+		$this->Candidate->recursive = -1;
+		$this->JobDescription->recursive = -1;
+		$jd_ids=null;
+		$this->Candidate->Behaviors->attach('Containable');
+		
+		$can_name=null;
+		$can_name=$this->Candidate->find('first',array('contain'=>array('Resume.resume_path'),'conditions'=>array('Candidate.id'=>$interview_scheduleds['CandidateJobdescriptionmapping']['candidate_id'])));
+		//debug($can_name);
+		$for_job_tittle=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$interview_scheduleds['CandidateJobdescriptionmapping']['job_description_id'])));
+		//debug($for_job_tittle);
+		$date_time=explode(' ',$interview_scheduleds['InterviewSchedule']['date']);
+		
+		$hr_emailid = $hr_details['User']['email'];
+		App::uses('CakeEmail', 'Network/Email');
+		$Email = new CakeEmail();
+		
+		$Email->template('for_reschedule')
+				->emailFormat('html')
+				->to($hr_emailid)
+				//->cc('venugopal@carmatec.com')
+				->from('admin@carmatec.com')
+				->subject('Requested For Reschedule Interview')
+				->viewVars(array('hrname'=>$hr_details['User']['first_name'].' '.$hr_details['User']['last_name'],'interviewer'=>$interview_scheduleds['User']['first_name'].' '.$interview_scheduleds['User']['last_name'],'candidatename'=>$can_name['Candidate']['first_name'].' '.$can_name['Candidate']['last_name'],'date'=>$interview_scheduleds['InterviewSchedule']['date'],'time'=>$interview_scheduleds['InterviewSchedule']['start_time'],'title'=>$for_job_tittle['JobDescription']['title']))
+				->send();
+		
+		
+		$this->Session->setFlash('<h4>Success Message : </h4><p>Mail has been sent.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+		$this->redirect(array('action'=>'interviewer_landing'));
+		
+		
+		
+	}
+	
+	// For listing all interviews have been scheduled
+	public function scheduled_interviews($page=null,$limit=null,$count=null) {
+		if($this->Session->read('Auth.User.Role.role_name') =='Candidate' || $this->Session->read('Auth.User.Role.role_name') =='Employee'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}
+		/*
+		configure::write('debug',2);
+		$this->autoRender=FALSE;*/
+		
+		$this->loadModel('InterviewSchedule');
+		$this->loadModel('Candidate');
+		$this->loadModel('JobStatus');
+		$this->loadModel('JobDescription');
+		$this->loadModel('FeedbackStatus');
+		$user_id=$this->Session->read('Auth.User.id');
+		if(!$page) $page = 1;
+		if(!$limit) $limit= $this->paginate['limit'];
+		$offset = AppModel::countPages($count,$limit,$page);
+		if(!$offset) $offset = 0;
+		
+		if($this->data){
+			$jobs=$this->data['JobDescription']['job_id'];
+			$stat_id=$this->data['JobDescription']['interview_status'];
+			if($jobs){
+				$job_conditions=array('CandidateJobdescriptionmapping.job_description_id'=>$jobs);
+			}
+			if($stat_id){
+				$satatus_condition=array('InterviewSchedule.job_status_id'=>$stat_id);
+			}
+			if($this->Session->read('Auth.User.Role.role_name') !='HR'){
+				$userid_condition=array('InterviewSchedule.scheduled_by'=>$user_id);
+			}
+			
+			//$active_condition=array('InterviewSchedule.completed'=>'N');
+			$conditions = array($job_conditions,$satatus_condition,$userid_condition);
+			$interview_scheduleds = $this->InterviewSchedule->find('all',array('conditions'=>$conditions,'order'=>array('InterviewSchedule.date DESC'),'limit'=>$limit,'offset'=>$offset));
+			$count = $this->InterviewSchedule->find('count',array('conditions'=>$conditions));
+		}else{
+			if($this->Session->read('Auth.User.Role.role_name') !='HR'){
+				$interview_scheduleds = $this->InterviewSchedule->find('all',array('conditions'=>array('InterviewSchedule.scheduled_by'=>$user_id),'order'=>array('InterviewSchedule.date DESC'),'limit'=>$limit,'offset'=>$offset));
+			}else{
+				$interview_scheduleds = $this->InterviewSchedule->find('all',array('order'=>array('InterviewSchedule.date DESC'),'limit'=>$limit,'offset'=>$offset));
+			}
+			
+			$count = $this->InterviewSchedule->find('count',array('conditions'=>array('InterviewSchedule.scheduled_by'=>$user_id)));
+		}
+		
+		debug($interview_scheduleds);
+		$final=null; 
+		$i=0;
+		$this->Candidate->recursive = -1;
+		$this->JobDescription->recursive = -1;
+		$jd_ids=null;
+		$this->Candidate->Behaviors->attach('Containable');
+		foreach($interview_scheduleds as $interview_scheduled){
+			$can_name=null;
+			$can_name=$this->Candidate->find('first',array('contain'=>array('Resume.resume_path'),'conditions'=>array('Candidate.id'=>$interview_scheduled['CandidateJobdescriptionmapping']['candidate_id'])));
+			$for_job_tittle=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$interview_scheduled['CandidateJobdescriptionmapping']['job_description_id'])));
+			$jd_ids[$interview_scheduled['CandidateJobdescriptionmapping']['job_description_id']]=$interview_scheduled['CandidateJobdescriptionmapping']['job_description_id'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['InterviewSchedule']=$interview_scheduled['InterviewSchedule'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['CandidateJobdescriptionmapping']['applied_on']=$interview_scheduled['CandidateJobdescriptionmapping']['applied_on'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['CandidateJobdescriptionmapping']['candidate_id']=$interview_scheduled['CandidateJobdescriptionmapping']['candidate_id'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['JobStatus']['status']=$interview_scheduled['JobStatus']['status'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Candidate']['Name']=$can_name['Candidate']['first_name'].' '.$can_name['Candidate']['last_name'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Candidate']['id']=$interview_scheduled['CandidateJobdescriptionmapping']['candidate_id'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['User']['Scheduled_to']=$interview_scheduled['User']['first_name'].' '.$interview_scheduled['User']['last_name'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['User']['Scheduled_by']=$interview_scheduled['SheduledBy']['first_name'].' '.$interview_scheduled['SheduledBy']['last_name'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['JobDescription']['title']=$for_job_tittle['JobDescription']['title'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Resume']['resume_path']=$can_name['Resume']['resume_path'];
+			$final[$interview_scheduled['InterviewSchedule']['id']]['Level']['Status']=$level_statuses['FeedbackStatus']['status'];
+		}
+		//debug($final);
+		$jd_id_index=null;
+		$alljd_ids = $this->InterviewSchedule->find('all',array('conditions'=>array('InterviewSchedule.user_id'=>$user_id)));
+		foreach($alljd_ids as $alljd_id){
+			$jd_id_index[$alljd_id['CandidateJobdescriptionmapping']['job_description_id']]=$alljd_id['CandidateJobdescriptionmapping']['job_description_id'];
+		}
+		
+		
+		$jd_for_search = $this->JobDescription->find('list',array('conditions'=>array('JobDescription.id'=>$jd_id_index),'fields'=>array('JobDescription.id','JobDescription.title'),'order'=>array('JobDescription.title ASC')));
+		$statusus=$this->JobStatus->find('list',array('fields'=>array('JobStatus.id','JobStatus.status'),'order'=>array('JobStatus.status ASC')));
+		
+		//debug($statusus);
+		$this->set(compact('final','jd_for_search','statusus','page','limit','count'));
+		
+	}
+	
+	// For HR Assistent landing Page
+
+	public function assistant_home() {
+		if($this->Session->read('Auth.User.Role.role_name') !='HR' && $this->Session->read('Auth.User.Role.role_name') !='HR Assistant'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}	
+			
+		//configure::write('debug',2);
+		$user_id=$this->Session->read('Auth.User.id');
+		debug($user_id);
+		$this->loadModel('Company');
+		$this->loadModel('Brand');
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('JobdescriptionResponsibilities');
+		$companies=$this->Company->find('list',array('fields'=>array('id','company_name')));
+		$brands=$this->Brand->find('list',array('fields'=>array('id','brand_name')));
+		$this->set(compact('companies','brands'));
+		$this->JobdescriptionResponsibilities->recursive=-1;
+		$all_jd_ids=$this->JobdescriptionResponsibilities->find('list',array('conditions'=>array('JobdescriptionResponsibilities.user_id'=>$user_id),'fields'=>array('JobdescriptionResponsibilities.job_description_id','JobdescriptionResponsibilities.job_description_id')));
+		$this->JobDescription->unbindModel(array('hasMany'=>array('CandidateJobdescriptionmapping','QuestionJobdescription')));
+		if($this->data){
+			if($this->data['Check']['company'])$company=$this->data['Check']['company'];
+			if($this->data['Check']['brand'])$brand=$this->data['Check']['brand'];
+			$closing_date=$this->data['Check']['closing_date'];
+			$start_date=0;
+			$today=date('Y-m-d');
+			$s = strtotime($today);
+			if($closing_date=='week'){
+				$between_start=$today;
+				$end_date = date('Y-m-d', strtotime('+7 day', $s));
+			}elseif($closing_date=='2weeks'){
+				$between_start=$today;
+				$end_date = date('Y-m-d', strtotime('+14 day', $s));
+			}elseif($closing_date=='month'){
+				$between_start=$today;
+				$end_date= date('Y-m-d', strtotime('+1 month', $s));
+			}elseif($closing_date=='gtam'){
+				$end_date= date('Y-m-d', strtotime('+1 month', $s));
+			}
+			if($company)$company_condition=array('JobDescription.company_id'=>$company);
+			if($brand)$brand_condition=array('JobDescription.brand_id'=>$brand);
+			if($start_date)$start_condition=array('JobDescription.start_date >='=>$start_date);
+			if($end_date)$end_condition=array('JobDescription.end_date >='=>$end_date);
+			if($between_start)$end_condition=array('JobDescription.end_date >='=>$between_start,'JobDescription.end_date <='=>$end_date);
+			$id_condition=array('JobDescription.id'=>$all_jd_ids);
+			$approved_condition=array('JobDescription.approved'=>'Y');
+			//if($active)$active_condition=array('JobDescription.active'=>$active);
+			$conditions = array($company_condition,$brand_condition,$start_condition,$end_condition,$id_condition,$approved_condition);
+			if($limit){
+				$jd=$this->JobDescription->find('all',array('conditions'=>$conditions,'limit'=>$limit,'offset'=>$offset));
+			}else{
+				$jd=$this->JobDescription->find('all',array('conditions'=>$conditions));
+			}
+		}else{
+			$id_condition=array('JobDescription.id'=>$all_jd_ids);
+			$approved_condition=array('JobDescription.approved'=>'Y');
+			$conditions = array($id_condition,$approved_condition);
+			if($limit){
+				$jd=$this->JobDescription->find('all',array('conditions'=>$conditions,'limit'=>$limit,'offset'=>$offset));
+			}else{
+				$jd=$this->JobDescription->find('all',array('conditions'=>$conditions));
+			}
+		}
+		
+		$final=null;
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		foreach ($jd as $key => $value) {
+			$cnd_jd_mpng = $this->CandidateJobdescriptionmapping->find('all',array('contain'=>array('Candidate.first_name','Candidate.last_name','Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','CandidateJobdescriptionmapping.job_description_id'=>$value['JobDescription']['id'],'JobStatus.status <>'=>'Accepted','JobStatus.status !='=>'Rejected'),'order'=>array('CandidateJobdescriptionmapping.applied_on ASC')));
+			$count_for_selected = $this->CandidateJobdescriptionmapping->find('count',array('contain'=>array('Candidate.active','JobStatus.status'),'conditions'=>array('Candidate.active'=>'Y','CandidateJobdescriptionmapping.job_description_id'=>$value['JobDescription']['id'],'JobStatus.status'=>'Accepted')));
+			$final[$value['JobDescription']['id']]['id']=$value['JobDescription']['id'];
+			$final[$value['JobDescription']['id']]['title']=$value['JobDescription']['title'];
+			$final[$value['JobDescription']['id']]['company_name']=$value['Company']['company_name'];
+			$final[$value['JobDescription']['id']]['brand_name']=$value['Brand']['brand_name'];
+			$final[$value['JobDescription']['id']]['end_date']=$value['JobDescription']['end_date'];
+			$final[$value['JobDescription']['id']]['applicants']=$cnd_jd_mpng;
+			$final[$value['JobDescription']['id']]['required_nos']=$value['JobDescription']['required_nos'];
+			$final[$value['JobDescription']['id']]['selected']=$count_for_selected;
+		}
+		$this->set(compact('final'));
+		
+		$this->set(compact('company','closing_date','brand','between_start','brand_id','start_date','end_date','active','between_start','limit','offset','page'));
+		$this->set(compact('final'));
+	}
+
+	// For JD Management
+	
+	public function jd_index() {
+		if($this->Session->read('Auth.User.Role.role_name') !='HR' && $this->Session->read('Auth.User.Role.role_name') !='HR Assistant'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}	
+		//configure::write('debug',2);
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('JobdescriptionReviewer');
+		$this->JobdescriptionReviewer->recursive = -1;
+		
+		$this->JobDescription->unbindModel(array('hasMany'=>array('CandidateJobdescriptionmapping','QuestionJobdescription')));
+		$approved_condition=array('JobDescription.approved'=>'N');
+		$conditions = array($approved_condition);
+		$jd=$this->JobDescription->find('all',array('conditions'=>$conditions));
+		//debug($jd);
+		
+		$final=null;
+		$this->JobdescriptionReviewer->Behaviors->attach('Containable');
+		foreach ($jd as $key => $value) {
+			$all_reviewers = $this->JobdescriptionReviewer->find('all',array('conditions'=>array('JobdescriptionReviewer.job_description_id'=>$value['JobDescription']['id'],'JobdescriptionReviewer.reviewers_comments'=>NULL),'fields'=>array('JobdescriptionReviewer.id','JobdescriptionReviewer.user_id','JobdescriptionReviewer.job_description_id','JobdescriptionReviewer.reviewers_comments','JobdescriptionReviewer.user_id')));	
+			$reviewrs_commented=$this->JobdescriptionReviewer->find('count',array('conditions'=>array('JobdescriptionReviewer.job_description_id'=>$value['JobDescription']['id'],'not' => array ( 'JobdescriptionReviewer.reviewers_comments' => null))));
+			$final[$value['JobDescription']['id']]['id']=$value['JobDescription']['id'];
+			$final[$value['JobDescription']['id']]['title']=$value['JobDescription']['title'];
+			$final[$value['JobDescription']['id']]['company_name']=$value['Company']['company_name'];
+			$final[$value['JobDescription']['id']]['brand_name']=$value['Brand']['brand_name'];
+			$final[$value['JobDescription']['id']]['end_date']=$value['JobDescription']['end_date'];
+			$final[$value['JobDescription']['id']]['required_nos']=$value['JobDescription']['required_nos'];
+			$final[$value['JobDescription']['id']]['reviewers_count']=count($all_reviewers);
+			$final[$value['JobDescription']['id']]['reviewers_comments']=$reviewrs_commented;
+		}
+		debug($final);
+		
+		$this->set(compact('final'));
+		
+	}
+	
+	public function reviewers($jd_id = null,$from_page=null) {
+		//configure::write('debug',2);
+		$job_details=$this->JobDescription->job_detail($jd_id);
+		$this->loadModel('SkillMaster');
+		
+		$jobdetails=null;
+		$jobdetails['job_id']=$job_details['JobDescription']['id'];
+		$jobdetails['job_title']=$job_details['JobDescription']['title'];
+		$jobdetails['job_description']=$job_details['JobInvite']['invite_description'];
+		$jobdetails['job_startdate']=$job_details['JobDescription']['start_date'];
+		$jobdetails['job_end_date']=$job_details['JobDescription']['end_date'];
+		$jobdetails['job_status']=$job_details['JobDescription']['active'];
+		$jobdetails['company_name']=$job_details['Company']['company_name'];
+		$jobdetails['company_description']=$job_details['Company']['company_description'];
+		$jobdetails['brand_name']=$job_details['Brand']['brand_name'];
+		$jobdetails['brand_description']=$job_details['Brand']['brand_description'];
+		$skillcount=0;
+		foreach($job_details['JobdescriptionSkillmapping'] as $skill1=>$skill2){
+			$skill_set=null;
+			$skill_set=$this->SkillMaster->find('first',array('conditions'=>array('SkillMaster.id'=>$skill2['skill_master_id'])));		
+			$jobdetails['skill'][++$skillcount]=$skill_set['SkillMaster']['skill_type'];
+		}
+		$this->set(compact('jobdetails'));
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('JobdescriptionReviewer');
+		$this->JobdescriptionReviewer->recursive = -1;
+		$this->JobDescription->recursive = -1;
+		
+		$this->JobdescriptionReviewer->Behaviors->attach('Containable');
+		$all_reviewers = $this->JobdescriptionReviewer->find('all',array('contain'=>array('User'),'conditions'=>array('JobdescriptionReviewer.job_description_id'=>$jd_id)));
+		$reviwers_details=null;
+		$commnets=null;
+		$i=0;
+		foreach($all_reviewers as $all_reviewer){
+			if($all_reviewer['User']['id']){
+				$reviwers_details[$all_reviewer['User']['id']]=$all_reviewer['User']['first_name'].' '.$all_reviewer['User']['last_name'];
+			}else{
+				$reviwers_details[$all_reviewer['JobdescriptionReviewer']['email']]=$all_reviewer['JobdescriptionReviewer']['email'];
+			}
+			
+			if($all_reviewer['JobdescriptionReviewer']['reviewers_comments']){
+				if($all_reviewer['User']['id']){
+					$commnets[$i]['user_name']=$all_reviewer['User']['first_name'].' '.$all_reviewer['User']['last_name'];
+				}else{
+					$commnets[$i]['user_name']=$all_reviewer['JobdescriptionReviewer']['email'];
+				}
+				
+				$commnets[$i]['comment']=$all_reviewer['JobdescriptionReviewer']['reviewers_comments'];	
+				/*
+				$commnets[$i][$all_reviewer['User']['first_name'].' '.$all_reviewer['User']['last_name']]=$all_reviewer['JobdescriptionReviewer']['reviewers_comments'];
+				$commnets[$i][$all_reviewer['User']['first_name'].' '.$all_reviewer['User']['last_name']]=$all_reviewer['JobdescriptionReviewer']['reviewers_comments'];*/
+					
+				$i++;
+			}
+			
+		}
+		
+		if($this->data['JobDescription']){
+			if($this->data['JobDescription']['comment']){
+				$resp->data=null;
+				$this->JobdescriptionReviewer->create();
+				$resp->data['JobdescriptionReviewer']['user_id']=$this->Session->read('Auth.User.id');
+				$resp->data['JobdescriptionReviewer']['job_description_id']=$jd_id;
+				$resp->data['JobdescriptionReviewer']['reviewers_comments']=$this->data['JobDescription']['comment'];
+				if($this->JobdescriptionReviewer->save($resp->data)){
+					//Mail to the creater of the jd and the assigners	
+					$this->Session->setFlash('<h4>Success Message : </h4><p>Comments has been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					$this->redirect(array('action'=>'jd_index'));
+				}else{
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Comments cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					$this->redirect(array('action'=>'jd_index'));
+				}
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Comments cannot be blank. Please try again.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				$this->redirect(array('action'=>'reviewers',$jd_id));
+			}
+			
+			
+		}
+		
+		$this->set(compact('reviwers_details'));
+		$this->set(compact('commnets','jd_id','from_page'));
+	}
+
+	public function referals() {
+		configure::write('debug',2);
+		$this->autoRender=FALSE;
+		
+	}
+	
+}

@@ -1,0 +1,654 @@
+<?php
+App::uses('AppController', 'Controller');
+CakePlugin::load('Uploader');
+App::import('Vendor', 'Uploader.Uploader');
+/**
+ * Companies Controller
+ *
+ * @property Company $Company
+ * @property RequestHandlerComponent $RequestHandler
+ */
+class CompaniesController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	var $helpers = array('Ajax', 'Javascript');
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('RequestHandler');
+	
+	function beforeFilter() {
+		parent :: beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Companies';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+
+	}
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index($flash = null) 
+	{
+	//	Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('Brands');
+		$this->loadModel('Staffs');
+		$this->Staffs->recursive = -1;
+		$this->Company->recursive = 0;
+		$this->Brands->recursive = -1;
+		if(($this->data['Search']['comp_name']) && ($this->data['Search']['comp_name'] != "-Company Name-"))
+		{
+			$finding = $this->Company->find('first',array('conditions'=>array('AND'=>array('Company.companyname LIKE'=>$this->data['Search']['comp_name']))));
+			debug($finding);
+			$this->paginate = array('conditions'=>array('Company.id'=>$finding['Company']['id']) );
+			$this->set('companies', $this->paginate());
+			$final = $this->paginate();
+			debug($final);
+		}
+		else
+		{
+			if(!$final = Cache::read('final'))
+			{	
+				Cache::write('final', $final, 86400);
+				$this->paginate = array(  'order' => array('Company.companyname' => 'ASC') );
+				$this->set('companies', $this->paginate());
+				$final = $this->paginate();
+				debug($final);
+				foreach($final as $key1 => $value1)
+				{
+					foreach($value1 as $value11)
+					{
+						$staff_count = $this->Staffs->find('count',array('conditions'=>array('Staffs.company_id'=>$value11['id'])));
+						debug($staff_count);
+						$toggle_staffs = $this->Staffs->find('all',array('conditions'=>array('Staffs.company_id'=>$value11['id'])));
+						debug($toggle_staffs);
+						foreach($toggle_staffs as $toggle_staffs1)
+						{
+							$final_staffs[$toggle_staffs1['Staffs']['company_id']][$toggle_staffs1['Staffs']['id']]['first_name'] = $toggle_staffs1['Staffs']['first_name'];
+							$final_staffs[$toggle_staffs1['Staffs']['company_id']][$toggle_staffs1['Staffs']['id']]['last_name'] = $toggle_staffs1['Staffs']['last_name'];
+							$final_staffs[$toggle_staffs1['Staffs']['company_id']][$toggle_staffs1['Staffs']['id']]['phone'] = $toggle_staffs1['Staffs']['phone'];
+							$final_staffs[$toggle_staffs1['Staffs']['company_id']][$toggle_staffs1['Staffs']['id']]['email1'] = $toggle_staffs1['Staffs']['email1'];
+					
+						}
+						
+						$count = $this->Brands->find('count',array('conditions'=>array('Brands.company_id'=>$value11['id'])));
+						debug($count);
+						$finalcount[$value11['id']] = $count;
+						debug($finalcount);
+						$finalcount2[$value11['id']] = $staff_count;
+						
+						$toogle_brand =  $this->Brands->find('all',array('conditions'=>array('Brands.company_id'=>$value11['id'])));
+						debug($toogle_brand);
+						foreach($toogle_brand as $toogle_brand1)
+						{
+							$final_brands[$toogle_brand1['Brands']['company_id']][$toogle_brand1['Brands']['id']]['brandname'] = $toogle_brand1['Brands']['brandname'];
+							$final_brands[$toogle_brand1['Brands']['company_id']][$toogle_brand1['Brands']['id']]['created_date'] = $toogle_brand1['Brands']['created_date'];
+							$final_brands[$toogle_brand1['Brands']['company_id']][$toogle_brand1['Brands']['id']]['email'] = $toogle_brand1['Brands']['email'];
+							$final_brands[$toogle_brand1['Brands']['company_id']][$toogle_brand1['Brands']['id']]['url'] = $toogle_brand1['Brands']['url'];
+							
+						}
+					}
+				}
+				
+			}
+		}
+		
+		debug($finalcount2); 
+		if(count($final) < 20) $no_pagination = 1;
+		else $no_pagination = 0;
+		$this->set(compact('no_pagination'));
+		$this->set(compact('finalcount','finalcount2','final_brands','final_staffs','flash'));
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) 
+	{
+	//	Configure::write('debug',2);
+		
+		$this->loadModel('Brand');
+		$this->Brand->recursive = -1;
+		$brand_count = $this->Brand->find('all',array('conditions'=>array('Brand.company_id'=>$id)));
+		debug($brand_count);
+		foreach($brand_count as $key => $value)
+		{
+			foreach($value as $value1)
+			{
+				debug($value1);
+				$final[$value1['id']]['brandname'] = $value1['brandname'];
+				$final[$value1['id']]['url'] = $value1['url'];
+			}
+		}
+		debug($final);
+		$this->set(compact('final'));
+		$this->Company->id = $id;
+		if (!$this->Company->exists()) 
+		{
+			throw new NotFoundException(__('Invalid company'));
+		}
+		$this->set('company', $this->Company->read(null, $id));
+		$this->set(compact('id'));
+		
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+ 
+ 	public function add()
+ 	{
+ 		if($this->data)
+ 		{
+ 			if( ( $this->data['Company']['companyname'] &&  $this->data['Company']['owner']) && ( $this->data['Company']['emergencycontact'] &&  $this->data['Company']['email'])  )
+ 			{
+ 				if ($this->request->is('post')) 
+				{
+					//save + redirect	
+					$save->data = null;
+					$this->Company->create();
+					$save->data['Company']['companyname'] = $this->data['Company']['companyname'];
+					$save->data['Company']['owner'] = $this->data['Company']['owner'];
+					$save->data['Company']['address'] = $this->data['Company']['address'];
+					$save->data['Company']['emergencycontact'] = $this->data['Company']['emergencycontact'];
+					$save->data['Company']['email'] = $this->data['Company']['email'];
+					$save->data['Company']['website_name'] = $this->data['Company']['website_name'];
+					$save->data['Company']['facebook_id'] = $this->data['Company']['facebook'];
+					$save->data['Company']['twitter_id'] = $this->data['Company']['twitter'];
+					
+					
+					
+					$this->Uploader = new Uploader(); 
+					$this->Uploader = new Uploader(array('tempDir' => TMP));
+					if($this->data['Company']['logoimage_path'])
+					{
+						$this->Uploader->uploadDir = 'files/uploads/vendors';
+						$data = $this->Uploader->uploadAll(array('logoimage_path'));
+						debug($data);
+						if($data)
+						{
+							$save->data['Company']['logoimage_path_url'] = 'files/uploads/vendors';
+							$save->data['Company']['logoimage_path'] = $data['logoimage_path']['name'];
+							debug($save->data);
+						}
+					}
+					$this->Company->save($save->data);
+				//	debug($this->Company->save($save->data));
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">The company has been saved</div>'));
+					
+					$this->redirect(array('action' => 'index'));
+				}
+ 			}
+ 			
+ 			else
+ 			{
+ 				//list +error
+ 				if(!$this->data['Company']['companyname'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the company name</div>'));
+				}
+				
+				elseif(!$this->data['Company']['owner'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the owner name</div>'));
+				}
+				elseif(!$this->data['Company']['emergencycontact'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the contact number</div>'));
+				}
+				
+				elseif(!$this->data['Company']['email'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the email address</div>'));
+				}
+				
+ 			}
+ 			
+ 			
+ 		}
+ 		
+ 	}
+ 
+	public function addold() 
+	{
+	//	Configure::write('debug',2);
+		debug($this->data);
+	
+		if ($this->request->is('post')) 
+		{
+			debug("here");
+			if(!empty($this->data))
+			{
+				debug("here");
+				$this->Company->create();
+				if(1)
+				{
+					debug("here");
+					$save->data = null;
+					$save->data['Company']['companyname'] = $this->data['Company']['companyname'];
+					$save->data['Company']['owner'] = $this->data['Company']['owner'];
+					$save->data['Company']['address'] = $this->data['Company']['address'];
+					$save->data['Company']['emergencycontact'] = $this->data['Company']['emergencycontact'];
+					$save->data['Company']['email'] = $this->data['Company']['email'];
+					$save->data['Company']['website_name'] = $this->data['Company']['website_name'];
+					$save->data['Company']['facebook_id'] = $this->data['Company']['facebook'];
+					$save->data['Company']['twitter_id'] = $this->data['Company']['twitter'];
+					
+					
+					
+					$this->Uploader = new Uploader(); 
+					$this->Uploader = new Uploader(array('tempDir' => TMP));
+					if($this->data['Company']['logoimage_path'])
+					{
+						$this->Uploader->uploadDir = 'files/uploads/vendors';
+						$data = $this->Uploader->uploadAll(array('logoimage_path'));
+						debug($data);
+						if($data)
+						{
+							$save->data['Company']['logoimage_path_url'] = 'files/uploads/vendors';
+							$save->data['Company']['logoimage_path'] = $data['logoimage_path']['name'];
+							debug($save->data);
+						}
+					}
+					$this->Company->save($save->data);
+				//	debug($this->Company->save($save->data));
+					$this->Session->setFlash(__('The company has been saved'));
+					$yes = 1;
+					$this->redirect(array('action' => 'index',$yes));
+		
+					
+				}
+			}
+			else 
+			{
+				
+				$this->Session->setFlash(__('<font color = "red">The company could not be saved. Please, try again. </font>'));
+			}
+		}
+		
+	/*	$accounts = $this->Company->Account->find('list');
+		$this->set(compact('accounts'));*/
+	}
+	
+
+	public function companynamecheck()
+	{
+		debug($this->data);
+		debug(strlen($this->data['Company']['companyname']));
+		if(strlen($this->data['Company']['companyname']) > 30)
+		{
+			$validatecount = 1;
+		}
+		
+		$details = $this->Company->find('first',array('conditions'=>array('AND'=>array('Company.companyname LIKE'=>$this->data['Company']['companyname']))));
+		if($details)
+		{
+				
+				$validate = 2;
+		}
+		
+		
+		$this->set(compact('validate','validatecount','flagfromedit'));
+	}
+	public function companynamecheckedit()
+	{
+		debug($this->data);
+		$companyname2 = $this->data['Company']['companyname2'];
+		debug(strlen($this->data['Company']['companyname']));
+		if(strlen($this->data['Company']['companyname']) > 30)
+		{
+			$validatecount = 1;
+		}
+		
+		
+		
+		$this->set(compact('validatecount','companyname2'));
+	}
+	public function emergencycontactcheck()
+	{ 
+		//Configure::write('debug',2);
+		debug($this->data);
+		if(   ($this->data['Company']['emergencycontact'] <= 0 || !is_numeric($this->data['Company']['emergencycontact'])) ||  (strlen($this->data['Company']['emergencycontact']) > 10)    )
+		{
+			$validate = 1;
+			
+		}
+		
+		else
+		{
+			$validate = 0;
+		}
+		$this->set(compact('validate'));
+	}
+	public function emergencycontactcheckedit($contact = null)
+	{ 
+		//Configure::write('debug',2);
+		debug($this->data);
+		if(   ($this->data['Company']['emergencycontact'] <= 0 || !is_numeric($this->data['Company']['emergencycontact'])) ||  (strlen($this->data['Company']['emergencycontact']) > 10)    )
+		{
+			$validate = 1;
+			
+		}
+		
+		else
+		{
+			$validate = 0;
+		}
+		$this->set(compact('validate','contact'));
+	}
+	
+
+	public function emailcheck()
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		$email = $this->data['Company']['email'];
+		if (!preg_match("/^([a-zA-Z0-9])+([\.a-zA-Z0-9_-])*@([a-zA-Z0-9_-])+(\.[a-zA-Z0-9_-]+)*\.([a-zA-Z]{2,6})$/", $email))
+		{
+			debug('Yes');
+			$validate = 1;
+		}
+		
+		else
+		{
+			debug('NO');
+			$validate = 0;
+		}
+	
+		$this->set(compact('validate'));
+	}
+	public function emailcheckedit()
+	{
+		//Configure::write('debug',2);
+		$def_email = $this->data['Company']['def_email'];
+		debug($this->data);
+		$email2 = $this->data['Company']['email'];
+		
+		
+		if (preg_match("/^([a-zA-Z0-9])+([\.a-zA-Z0-9_-])*@([a-zA-Z0-9_-])+(\.[a-zA-Z0-9_-]+)*\.([a-zA-Z]{2,6})$/", $email2))
+		{
+			debug('Yes');
+			$validate = 0;
+		}
+		
+		else
+		{
+			debug('NO');
+			$validate = 1;
+		}
+	
+		$this->set(compact('validate','def_email'));
+	}
+	
+	
+	public function website_namecheck()
+	{
+		//Configure::write('debug',2);
+		debug($this->data);
+		
+		$url = $this->data['Company']['website_name'];
+		
+		if (!preg_match("#^www\.[a-z0-9-_.]+\.[a-z]{2,4}$#i",$url))
+		{
+			debug('yrs');
+			$validate = 1;
+		}
+		else
+		{
+			debug('NO');
+			$validate = 0;
+		}
+		$this->set(compact('validate'));
+	}
+	
+	
+	
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+ 
+ 	public function edit($id = null) 
+	{
+		if($this->data)
+		{
+			if( ( $this->data['Company']['companyname'] &&  $this->data['Company']['owner']) && ( $this->data['Company']['email'] &&  $this->data['Company']['emergencycontact'])  )
+ 			{
+				if($this->request->is('post') || $this->request->is('put'))
+				{
+					debug($this->data);
+					//save + redirect
+					$save->data = null;
+					$this->Company->create();
+					$save->data['Company']['id'] = $id;
+					$save->data['Company']['companyname'] = $this->data['Company']['companyname'];
+					$save->data['Company']['owner'] = $this->data['Company']['owner'];
+					$save->data['Company']['address'] = $this->data['Company']['address'];
+					$save->data['Company']['emergencycontact'] = $this->data['Company']['emergencycontact'];
+					$save->data['Company']['website_name'] = $this->data['Company']['website_name'];
+					$save->data['Company']['twitter_id'] = $this->data['Company']['twitter'];
+					$save->data['Company']['email'] = $this->data['Company']['email'];
+					$save->data['Company']['facebook_id'] = $this->data['Company']['facebook'];
+					$this->Uploader = new Uploader(); 
+					$this->Uploader = new Uploader(array('tempDir' => TMP));
+					
+					if($this->data['Company']['logoimage_path'])
+					{
+						$this->Uploader->uploadDir = 'files/uploads/vendors';
+						$data = $this->Uploader->uploadAll(array('logoimage_path'));
+						debug($data);
+						if($data)
+						{
+							$save->data['Company']['logoimage_path_url'] = 'files/uploads/vendors';
+							$save->data['Company']['logoimage_path'] = $data['logoimage_path']['name'];
+						}
+				    }
+					
+					$this->Company->save($save->data);
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">The company has been saved</div>'));
+					
+					$this->redirect(array('action' => 'index'));
+				
+			
+				}
+			}
+			
+			else
+			{
+				//list + error
+				if(!$this->data['Company']['companyname'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the company name</div>'));
+				}
+				
+				elseif(!$this->data['Company']['owner'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the owner name</div>'));
+				}
+				elseif(!$this->data['Company']['emergencycontact'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the contact number</div>'));
+				}
+				
+				elseif(!$this->data['Company']['email'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the email address</div>'));
+				}
+				
+				$this->set(compact('id'));
+	
+				debug($this->data);
+				$details = $this->Company->find('first',array('conditions'=>array('Company.id'=>$id)));
+				debug($details);
+				$companyname2 = $details['Company']['companyname'];
+				$contact = $details['Company']['emergencycontact'];
+				$def_email = $details['Company']['email'];
+				$facebook = $details['Company']['facebook_id'];
+				$twitter = $details['Company']['twitter_id'];
+				$photo = $details['Company']['logoimage_path_url'].'/'.$details['Company']['logoimage_path'];
+				debug($facebook);
+				$this->set(compact('def_email','contact','companyname2','facebook','twitter','photo'));
+				$this->Company->id = $id;
+				$this->request->data = $this->Company->read(null, $id);
+			}
+		}
+		
+		else
+		{
+			//list
+			$this->set(compact('id'));
+	
+			debug($this->data);
+			$details = $this->Company->find('first',array('conditions'=>array('Company.id'=>$id)));
+			debug($details);
+			$companyname2 = $details['Company']['companyname'];
+			$contact = $details['Company']['emergencycontact'];
+			$def_email = $details['Company']['email'];
+			$facebook = $details['Company']['facebook_id'];
+			$twitter = $details['Company']['twitter_id'];
+			$photo = $details['Company']['logoimage_path_url'].'/'.$details['Company']['logoimage_path'];
+			debug($facebook);
+			$this->set(compact('def_email','contact','companyname2','facebook','twitter','photo'));
+			$this->Company->id = $id;
+			$this->request->data = $this->Company->read(null, $id);
+		}
+	}
+ 	
+	public function editold($id = null) 
+	{
+	//	Configure::write('debug',2);
+		$this->set(compact('id'));
+	
+		debug($this->data);
+		$details = $this->Company->find('first',array('conditions'=>array('Company.id'=>$id)));
+		debug($details);
+		$companyname2 = $details['Company']['companyname'];
+		$contact = $details['Company']['emergencycontact'];
+		$def_email = $details['Company']['email'];
+		$facebook = $details['Company']['facebook_id'];
+		$twitter = $details['Company']['twitter_id'];
+		$photo = $details['Company']['logoimage_path_url'].'/'.$details['Company']['logoimage_path'];
+		debug($facebook);
+		$this->set(compact('def_email','contact','companyname2','facebook','twitter','photo'));
+		
+		$this->Company->id = $id;
+		if (!$this->Company->exists()) 
+		{
+			throw new NotFoundException(__('Invalid company'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) 
+		{
+			
+			$save->data = null;
+			$this->Company->create();
+			$save->data['Company']['id'] = $id;
+			$save->data['Company']['companyname'] = $this->data['Company']['companyname'];
+			$save->data['Company']['owner'] = $this->data['Company']['owner'];
+			$save->data['Company']['address'] = $this->data['Company']['address'];
+			$save->data['Company']['emergencycontact'] = $this->data['Company']['emergencycontact'];
+			$save->data['Company']['website_name'] = $this->data['Company']['website_name'];
+			$save->data['Company']['twitter_id'] = $this->data['Company']['twitter'];
+			$save->data['Company']['email'] = $this->data['Company']['email'];
+			$save->data['Company']['facebook_id'] = $this->data['Company']['facebook'];
+			$this->Uploader = new Uploader(); 
+			$this->Uploader = new Uploader(array('tempDir' => TMP));
+			
+			if($this->data['Company']['logoimage_path'])
+			{
+				$this->Uploader->uploadDir = 'files/uploads/vendors';
+				$data = $this->Uploader->uploadAll(array('logoimage_path'));
+				debug($data);
+				if($data)
+				{
+					$save->data['Company']['logoimage_path_url'] = 'files/uploads/vendors';
+					$save->data['Company']['logoimage_path'] = $data['logoimage_path']['name'];
+				}
+		    }
+			
+			$this->Company->save($save->data);
+		//	debug($this->Company->save($save->data));
+			if ($this->Company->save($save->data)) 
+			{
+				$this->Session->setFlash(__('The company has been saved'));
+				$yes = 1;
+				$this->redirect(array('action' => 'index',$yes));
+				
+			} 
+			else 
+			{
+				$this->Session->setFlash(__('The company could not be saved. Please, try again.'));
+			}
+		} 
+		else 
+		{
+			$this->request->data = $this->Company->read(null, $id);
+		}
+		
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) 
+	{
+		$this->loadModel('Brand');
+		
+		if (!$id) {
+			throw new MethodNotAllowedException();
+		}
+		$this->Company->id = $id;
+		if (!$this->Company->exists()) {
+			throw new NotFoundException(__('Invalid company'));
+		}
+		if ($this->Company->delete()) 
+		{
+			debug($this->data);
+			if($this->Brand->deleteAll(array('Brand.company_id'=>$id)));
+		
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Company and related brand are deleted</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		else $this->Session->setFlash(__('<font color = "red">Company was not deleted</font>'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

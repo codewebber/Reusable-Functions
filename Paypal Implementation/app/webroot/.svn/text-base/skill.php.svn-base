@@ -1,0 +1,134 @@
+
+<?php
+
+function getSKILLS($file){ 
+$content = file_get_contents($file); 
+
+$pattern1 = "Skills</span></u></b>"; 
+
+$pattern2 = "<b><u><span"; 
+
+$start_skill_word_pos = strpos($content,$pattern1); 
+
+$output = ""; 
+
+if($start_skill_word_pos!=false){ 
+     
+    $content = substr($content,$start_skill_word_pos,strlen($content)); 
+     
+    $end_skill_word_pos = strpos($content, $pattern2); 
+     
+    $content = substr($content,0,$end_skill_word_pos); 
+     
+    $output = strip_tags($content); 
+     
+} 
+else{ 
+     
+    $pattern1 = "Skills</span></b>"; 
+     
+    $pattern2 = "<b><span"; 
+     
+    $start_skill_word_pos = strpos($content,$pattern1); 
+     
+    $content = substr($content,$start_skill_word_pos,strlen($content)); 
+     
+    $end_skill_word_pos = strpos($content, $pattern2); 
+     
+    $content = substr($content,0,$end_skill_word_pos); 
+     
+    $output = strip_tags($content); 
+} 
+
+$arr_concat_content = str_word_count($output, 1, '&!@#$%^*(){}[]:;\'".,?=1234567890/'); 
+
+
+$next_concat_content = ""; 
+
+
+
+for($i=0; $i<count($arr_concat_content); $i++){ 
+     
+     
+    $str = trim($arr_concat_content[$i]);     
+     
+    $next_concat_content .= $str." "; 
+     
+} 
+return  $next_concat_content; 
+}  
+
+//echo getSKILLS('gopinath_resume.doc');
+
+$file = "gopinath_resume.doc";
+$content = file_get_contents($file); 
+//$content = "1212 main st fullerton ca 92835  949.555.1212";
+$areaCodes = array();
+$threeDigits = array();
+$fourDigits = array();
+
+preg_match_all('/(\d{3})-(\d{3})-(\d{4})/',$content,$matches);
+
+if(count($matches[1])>0)
+{
+    for($i=0; $i<count($matches[1]); $i++)
+    {
+        array_push($areaCodes,$matches[1][$i]); 
+        array_push($threeDigits,$matches[2][$i]);   
+        array_push($fourDigits,$matches[3][$i]);    
+    }
+}
+
+preg_match_all('/\((\d{3})\)-(\d{3})-(\d{4})/',$content,$matches);
+
+if(count($matches[1])>0)
+{
+    for($i=0; $i<count($matches[1]); $i++)
+    {
+        array_push($areaCodes,$matches[1][$i]); 
+        array_push($threeDigits,$matches[2][$i]);   
+        array_push($fourDigits,$matches[3][$i]);    
+    }
+}
+preg_match_all('/(\d{3}).(\d{3}).(\d{4})/',$content,$matches);
+
+if(count($matches[1])>0)
+{
+    for($i=0; $i<count($matches[1]); $i++)
+    {
+        array_push($areaCodes,$matches[1][$i]); 
+        array_push($threeDigits,$matches[2][$i]);   
+        array_push($fourDigits,$matches[3][$i]);    
+    }
+}
+
+preg_match_all('\((\d{3})\).(\d{3}).(\d{4})/',$content,$matches);
+
+if(count($matches[1])>0)
+{
+    for($i=0; $i<count($matches[1]); $i++)
+    {
+        array_push($areaCodes,$matches[1][$i]); 
+        array_push($threeDigits,$matches[2][$i]);   
+        array_push($fourDigits,$matches[3][$i]);    
+    }
+}
+print_r($areaCodes);
+print_r($threeDigits);
+print_r($fourDigits);
+
+  //function extract_email_address ($string) {
+   $emails = array();
+   $string = str_replace("\r\n",' ',$string);
+   $string = str_replace("\n",' ',$string);
+
+   foreach(preg_split('/ /', $string) as $token) {
+        $email = filter_var($token, FILTER_VALIDATE_EMAIL);
+        if ($email !== false) { 
+            $emails[] = $email;
+        }
+    }
+    return $emails;
+//}
+  
+  ?>

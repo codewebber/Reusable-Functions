@@ -1,0 +1,50 @@
+$(document).ready(function() {
+  // third example
+    if($("#red").size() > 0)
+        {
+    	$("#red").treeview({
+    		animated: "medium",
+    		collapsed: true,
+    		control: "#treecontrol"
+    	});
+    	}
+});
+
+
+//jQuery.noConflict();
+$(document).ready(function(){
+	//Hover image change for view,edit,delete,pay.
+	
+		$('img.viewHover').hover(function () {
+	        this.src = '/accounts/img/view_hover.png';
+	    }, function () {
+	    	this.src = '/accounts/img/view2.png';
+	    });
+		
+		$('img.editHover').hover(function () {
+	        this.src = '/accounts/img/edit_hover.png';
+	    }, function () {
+	    	this.src = '/accounts/img/edit2.png';
+	    });
+		
+		$('img.deleteHover').hover(function () {
+	        this.src = '/accounts/img/delete_hover.png';
+	    }, function () {
+	    	this.src = '/accounts/img/delete2.png';
+	    });
+		
+		$('img.payHover').hover(function () {
+	        this.src = '/accounts/img/paybill_hover.png';
+	    }, function () {
+	    	this.src = '/accounts/img/pay_bill.png';
+	    });
+	   
+		
+		$('img.downloadHover').hover(function () {
+	        this.src = '/accounts/img/downloadHover.png';
+	    }, function () {
+	    	this.src = '/accounts/img/download.png';
+	    });
+		
+});
+

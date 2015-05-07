@@ -1,0 +1,105 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * CandidateSkillmappings Controller
+ *
+ * @property CandidateSkillmapping $CandidateSkillmapping
+ */
+class CandidateSkillmappingsController extends AppController {
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->CandidateSkillmapping->recursive = 0;
+		$this->set('candidateSkillmappings', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->CandidateSkillmapping->id = $id;
+		if (!$this->CandidateSkillmapping->exists()) {
+			throw new NotFoundException(__('Invalid candidate skillmapping'));
+		}
+		$this->set('candidateSkillmapping', $this->CandidateSkillmapping->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->CandidateSkillmapping->create();
+			if ($this->CandidateSkillmapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate skillmapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate skillmapping could not be saved. Please, try again.'));
+			}
+		}
+		$candidates = $this->CandidateSkillmapping->Candidate->find('list');
+		$skillMasters = $this->CandidateSkillmapping->SkillMaster->find('list');
+		$this->set(compact('candidates', 'skillMasters'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->CandidateSkillmapping->id = $id;
+		if (!$this->CandidateSkillmapping->exists()) {
+			throw new NotFoundException(__('Invalid candidate skillmapping'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->CandidateSkillmapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate skillmapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate skillmapping could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->CandidateSkillmapping->read(null, $id);
+		}
+		$candidates = $this->CandidateSkillmapping->Candidate->find('list');
+		$skillMasters = $this->CandidateSkillmapping->SkillMaster->find('list');
+		$this->set(compact('candidates', 'skillMasters'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->CandidateSkillmapping->id = $id;
+		if (!$this->CandidateSkillmapping->exists()) {
+			throw new NotFoundException(__('Invalid candidate skillmapping'));
+		}
+		if ($this->CandidateSkillmapping->delete()) {
+			$this->Session->setFlash(__('Candidate skillmapping deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Candidate skillmapping was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

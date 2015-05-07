@@ -1,0 +1,208 @@
+9
+
+dir
+57630
+svn+ssh://visioncarma@192.168.0.116/home/visioncarma/accountssvn/app/View
+svn+ssh://visioncarma@192.168.0.116/home/visioncarma/accountssvn
+
+
+
+2014-12-29T05:03:38.143135Z
+57630
+Annapurna
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+5459c14c-19ae-416b-8e40-2216f653e354
+
+AccountTypes
+dir
+
+AccountsAccounts
+dir
+
+AccountsBillalerts
+dir
+
+AccountsBills
+dir
+
+AccountsBudgetCategories
+dir
+
+AccountsBudgetMappings
+dir
+
+AccountsBudgets
+dir
+
+AccountsClientinvoicedetails
+dir
+
+AccountsClientinvoices
+dir
+
+AccountsClientpaymentdetails
+dir
+
+AccountsClientrecurringinvoices
+dir
+
+AccountsCompanies
+dir
+
+AccountsCompanyloandetails
+dir
+
+AccountsGoldenrules
+dir
+
+AccountsLedgers
+dir
+
+AccountsNewalerts
+dir
+
+AccountsRegularvendors
+dir
+
+AccountsSalaryBreakupcomponents
+dir
+
+AccountsSalarydetails
+dir
+
+AccountsSalaryhikesdues
+dir
+
+AccountsSalaryprocesses
+dir
+
+AccountsSalaryregisters
+dir
+
+AccountsTaxes
+dir
+
+AccountsTaxgroupmappings
+dir
+
+AccountsTaxgroups
+dir
+
+AccountsclientpaymentLedgermappings
+dir
+
+Avatars
+dir
+
+BillingSlots
+dir
+
+BillingUnits
+dir
+
+Brands
+dir
+
+BrandsEstimates
+dir
+
+BrandsPackagedetails
+dir
+
+BrandsPackages
+dir
+
+BrandsServices
+dir
+
+BrandsServiceunits
+dir
+
+ClientContacts
+dir
+
+ClientCreditnotes
+dir
+
+ClientDetails
+dir
+
+Clients
+dir
+
+ClientsCommenthistories
+dir
+
+Companies
+dir
+
+Currencies
+dir
+
+Dashboards
+dir
+
+Designations
+dir
+
+Elements
+dir
+
+EmailSettings
+dir
+
+Emails
+dir
+
+Errors
+dir
+
+Helper
+dir
+
+Layouts
+dir
+
+Pages
+dir
+
+Reports
+dir
+
+Scaffolds
+dir
+
+Settings
+dir
+
+StaffBiodatas
+dir
+
+StaffLevels
+dir
+
+Staffs
+dir
+
+UserDetails
+dir
+
+Usergroups
+dir
+
+Users
+dir
+

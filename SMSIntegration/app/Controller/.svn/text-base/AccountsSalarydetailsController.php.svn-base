@@ -1,0 +1,1392 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * AccountsSalarydetails Controller
+ *
+ * @property AccountsSalarydetail $AccountsSalarydetail
+ */
+class AccountsSalarydetailsController extends AppController {
+	
+	public function beforeFilter(){
+		parent::beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Staff Salaries';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+    }
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index($sort_flag=null,$search_data=NULL) {
+		//Configure::write('debug',2);
+		debug($this->data);
+		$filter = FALSE;
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsVariablepay');
+		$this->loadModel('AccountsSalaryhikesdue');
+		$this->loadModel('Aro');
+		$admin = $this->Aro->find('first',array('conditions'=>array('Aro.alias'=>'Admin','Aro.foreign_key is null'),'fields'=>array('Aro.id')));
+		$empTotalCTC = $this->AccountsSalarydetail->query("SELECT SUM(currentCTC) as TotalCTC FROM accounts_salarydetails where current = 'Y';");
+		$this->AccountsSalarydetail->recursive = 0;
+		if(empty($this->data)):
+		if ($sort_flag == 'staff_name') {
+			$this->request->data['Search']['searchby'] = 'emp_name';
+			$this->request->data['Search']['salarydetails'] = $search_data;
+		}
+		if ($sort_flag == 'emp_code') {
+			$this->request->data['Search']['searchby'] = 'emp_code';
+			$this->request->data['Search']['salarydetails'] = $search_data;
+		}
+		if ($sort_flag == 'ctc') {
+			$this->request->data['Search']['searchby'] = 'ctc';
+			$this->request->data['Search']['salarydetails'] = $search_data;
+		}
+		if ($sort_flag == 'take_home') {
+			$this->request->data['Search']['searchby'] = 'take_home';
+			$this->request->data['Search']['salarydetails'] = $search_data;
+		}
+		endif;
+		if(!empty($this->data)){
+			$flash=null;$q=0;
+			$emp_name = null;$experience =null;$breakups =null;$breakupcomponent =null;$variablepays=null;$hikes=null;$sal_breakups=null;$var_pay=null;
+			$hike_history=null;
+			if($this->data['Delete']){
+				foreach($this->data['Delete'] as $keyid => $delete){
+					if($delete == 1){
+						$this->delete($keyid);
+						$successful =1;
+					}
+				}
+				if (isset($successful)) {
+					$this->Session->setFlash('<div class="flashMessageSuccess">Successfully Deleted!</div>',true);
+					$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'index'));
+				} else {
+					$this->Session->setFlash('<div class="flashMessageError">No records deleted! Please try again</div>',true);
+					$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'index'));
+				}
+			} elseif(empty($this->data['Search']['searchby'])) {
+				$this->Session->setFlash('<div class="flashMessageError">Please select the search category in searchby drop down!</div>');
+				return;
+			} elseif(($this->data['Search']['searchby'] == 'emp_code') || ($this->data['Search']['searchby'] == 'emp_name')) {
+				$staff_id = $this->Staff->find('list',array('conditions'=>array('OR'=>array('Staff.first_name LIKE'=>'%'.$this->data['Search']['salarydetails'].'%','Staff.last_name LIKE'=>'%'.$this->data['Search']['salarydetails'].'%','Staff.emp_code'=>$this->data['Search']['salarydetails'])),'fields'=>array('Staff.id','Staff.id')));
+				$a=0;
+				if($admin['Aro']['id'] != $this->Session->read('Auth.User.usergroup_id')) {
+					$accountsSalarydetail12 = $this->AccountsSalarydetail->find('all',array('conditions'=>array('OR'=>array('AccountsSalarydetail.staff_id'=>$staff_id),'AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.is_confidential'=>'N'),'contain'=>array('Staff'=>array('fields'=>array('Staff.id','Staff.first_name','Staff.last_name','Staff.start_date','Staff.emp_code')))));
+				} else {
+					$accountsSalarydetail12 = $this->AccountsSalarydetail->find('all',array('conditions'=>array('OR'=>array('AccountsSalarydetail.staff_id'=>$staff_id),'AccountsSalarydetail.current'=>'Y'),'contain'=>array('Staff'=>array('fields'=>array('Staff.id','Staff.first_name','Staff.last_name','Staff.start_date','Staff.emp_code')))));
+				}
+				//$accountsSalarydetail12 = $this->paginate();
+			} else { 
+				if($this->data['Search']['searchby'] == 'ctc'){
+					if($admin['Aro']['id'] != $this->Session->read('Auth.User.usergroup_id')) {
+						$accountsSalarydetail12 = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.currentCTC >='=>$this->data['Search']['salarydetails'],'AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.is_confidential'=>'N','Staff.id IS NOT NULL'),'order'=>'Staff.first_name ASC'));
+					} else {
+						$accountsSalarydetail12 = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.currentCTC >='=>$this->data['Search']['salarydetails'],'AccountsSalarydetail.current'=>'Y','Staff.id IS NOT NULL'),'order'=>'Staff.first_name ASC'));
+					}
+					//$accountsSalarydetail12 = $this->paginate();
+				} elseif($this->data['Search']['searchby'] == 'take_home') {
+					if($admin['Aro']['id'] != $this->Session->read('Auth.User.usergroup_id')) {
+						$accountsSalarydetail12 = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.take_home >='=>$this->data['Search']['salarydetails'],'AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.is_confidential'=>'N','Staff.id IS NOT NULL'),'order'=>'Staff.first_name ASC'));
+					} else {
+						$accountsSalarydetail12 = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.take_home >='=>$this->data['Search']['salarydetails'],'AccountsSalarydetail.current'=>'Y','Staff.id IS NOT NULL'),'order'=>'Staff.first_name ASC'));
+					}
+					//$accountsSalarydetail12 = $this->paginate();
+				}
+			}
+			foreach($accountsSalarydetail12 as $accountsSalarydetail){
+				$accountsSalarydetail[$q] = $accountsSalarydetail;$q++;
+				$emp_name[$accountsSalarydetail['Staff']['id']] = $accountsSalarydetail['Staff']['first_name']." ".$accountsSalarydetail['Staff']['last_name'];
+				$experience[$accountsSalarydetail['Staff']['id']] = $this->datecal($accountsSalarydetail['Staff']['start_date'],date('Y-m-d'));
+				
+				$breakups = $this->AccountsSalarybreakup->find('all',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$accountsSalarydetail['AccountsSalarydetail']['id'],'AccountsSalarybreakup.is_deduction'=>'N'),'order'=>array('AccountsSalarybreakup.order ASC')));
+				$total=0;
+				foreach($breakups as $breakup){
+					$breakupcomponent =  $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$breakup['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id'])));
+					$sal_breakups[$breakup['AccountsSalarybreakup']['accounts_salarydetail_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $breakup['AccountsSalarybreakup']['amount'];
+				}
+				$variablepays = $this->AccountsVariablepay->find('all',array('conditions'=>array('AccountsVariablepay.accounts_salarydetail_id'=>$accountsSalarydetail['AccountsSalarydetail']['id']),'order'=>array('AccountsVariablepay.rating DESC')));
+				foreach($variablepays as $variablepay){
+					$var_pay[$variablepay['AccountsVariablepay']['accounts_salarydetail_id']][$variablepay['AccountsVariablepay']['performance_level']] = $variablepay['AccountsVariablepay']['rating'];
+				}
+			
+				$hikes = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$accountsSalarydetail['AccountsSalarydetail']['staff_id'],'AccountsSalarydetail.current'=>'N'),'order'=>array('AccountsSalarydetail.applicable_from DESC')));
+				$k=0;
+				foreach($hikes as $hike) {
+					$hike_history[$hike['AccountsSalarydetail']['staff_id']][$k] = $hike;
+					$k++;
+				}
+			}
+			$filter = TRUE;
+			$this->set(compact('emp_name','experience','sal_breakups','var_pay','hike_history','filter'));
+			$this->set('accountsSalarydetails',$accountsSalarydetail12);
+		}
+		if(empty($this->data)):
+		
+		$conditions=null;
+		if($sort_flag == 1){
+			$sort="Exp";
+			$flag=2;$this->set(compact('sort','flag'));
+			if($admin['Aro']['id'] != $this->Session->read('Auth.User.usergroup_id')) {
+				$conditions = array('conditions' =>array('AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.is_confidential'=>'N','Staff.id IS NOT NULL'),'order'=>'Staff.start_date DESC');
+			} else {
+				$conditions = array('conditions' =>array('AccountsSalarydetail.current'=>'Y','Staff.id IS NOT NULL'),'order'=>'Staff.start_date DESC');
+			}
+		} elseif($sort_flag == 2) {
+			if($admin['Aro']['id'] != $this->Session->read('Auth.User.usergroup_id')) {
+				$conditions=array('conditions' =>array('AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.is_confidential'=>'N','Staff.id IS NOT NULL'),'order'=>'Staff.start_date ASC');
+			} else {
+				$conditions=array('conditions' =>array('AccountsSalarydetail.current'=>'Y','Staff.id IS NOT NULL'),'order'=>'Staff.start_date ASC');
+			}
+		} elseif($sort_flag == 3) {
+			$sort1 = "Empname";
+			$flag1 = 4;
+			if($admin['Aro']['id'] != $this->Session->read('Auth.User.usergroup_id')) {
+				$conditions=array('conditions' =>array('AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.is_confidential'=>'N','Staff.id IS NOT NULL'),'order'=>'Staff.first_name DESC');
+			} else {
+				$conditions=array('conditions' =>array('AccountsSalarydetail.current'=>'Y','Staff.id IS NOT NULL'),'order'=>'Staff.first_name DESC');
+			}
+		} elseif($sort_flag == 4) {
+			if($admin['Aro']['id'] != $this->Session->read('Auth.User.usergroup_id')) {
+				$conditions=array('conditions' =>array('AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.is_confidential'=>'N','Staff.id IS NOT NULL'),'order'=>'Staff.first_name ASC');
+			} else {
+				$conditions=array('conditions' =>array('AccountsSalarydetail.current'=>'Y','Staff.id IS NOT NULL'),'order'=>'Staff.first_name ASC');
+			}
+		} else {
+			if($admin['Aro']['id'] != $this->Session->read('Auth.User.usergroup_id')) {
+				$conditions=array('conditions' =>array('AccountsSalarydetail.current'=>'Y','AccountsSalarydetail.is_confidential'=>'N','Staff.id IS NOT NULL'),'order'=>'Staff.first_name ASC');
+			} else {
+				$conditions=array('conditions' =>array('AccountsSalarydetail.current'=>'Y','Staff.id IS NOT NULL'),'order'=>'Staff.first_name ASC');
+			}
+		}
+		$this->set(compact('sort1','flag1'));
+		$this->AccountsSalarydetail->recursive =0;
+		$this->paginate = $conditions;
+		$this->set(compact('empTotalCTC'));
+		foreach($this->paginate() as $salaryDetails){
+			$employee = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$salaryDetails['AccountsSalarydetail']['staff_id']),'fields'=>array('Staff.id,Staff.first_name,Staff.last_name,Staff.start_date')));
+			$emp_name[$employee['Staff']['id']] = $employee['Staff']['first_name']." ".$employee['Staff']['last_name'];
+			$experience[$employee['Staff']['id']] = $this->datecal($employee['Staff']['start_date'],date('Y-m-d'));
+			$breakups = $this->AccountsSalarybreakup->find('all',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$salaryDetails['AccountsSalarydetail']['id'],'AccountsSalarybreakup.is_deduction'=>'N'),'order'=>array('AccountsSalarybreakup.order ASC')));
+			$total=0;
+			foreach($breakups as $breakup){
+				$breakupcomponent =  $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$breakup['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id'])));
+				$sal_breakups[$breakup['AccountsSalarybreakup']['accounts_salarydetail_id']][$breakupcomponent['AccountsSalaryBreakupcomponent']['salary_component']] = $breakup['AccountsSalarybreakup']['amount'];
+			}
+			$variablepays = $this->AccountsVariablepay->find('all',array('conditions'=>array('AccountsVariablepay.accounts_salarydetail_id'=>$salaryDetails['AccountsSalarydetail']['id']),'order'=>array('AccountsVariablepay.rating DESC')));
+			foreach($variablepays as $variablepay){
+				$var_pay[$variablepay['AccountsVariablepay']['accounts_salarydetail_id']][$variablepay['AccountsVariablepay']['performance_level']] = $variablepay['AccountsVariablepay']['rating'];
+			}
+			$this->AccountsSalarydetail->unbindModel(array('belongsTo'=>array('Staff'),'hasMany'=>array('AccountsSalarybreakup','AccountsVariablepay')));
+			$hikes = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$salaryDetails['AccountsSalarydetail']['staff_id'],'AccountsSalarydetail.current'=>'N'),'order'=>array('AccountsSalarydetail.id DESC'),'limit'=>3));
+			$i=0;
+			foreach($hikes as $hike){
+				$hike_history[$hike['AccountsSalarydetail']['staff_id']][$i] = $hike;
+				$i++;
+			}
+			$hikes_dues = $this->AccountsSalaryhikesdue->find('first',array('conditions'=>array('AccountsSalaryhikesdue.staff_id'=>$salaryDetails['AccountsSalarydetail']['staff_id'],'AccountsSalaryhikesdue.active'=>'Y')));
+			$hike_due[$hikes_dues['AccountsSalaryhikesdue']['staff_id']]= $hikes_dues;
+		}
+		$this->set(compact('emp_name','experience','sal_breakups','var_pay','hike_history','hike_due'));
+		$this->AccountsSalarydetail->recursive = 0;
+		$this->set('accountsSalarydetails', $this->paginate());
+		endif;
+		
+	}
+	
+	
+	
+	function datecal($date1=null,$date2=null) {
+		//to calculate difference between two dates
+		$diff = abs(strtotime($date2) - strtotime($date1));
+		$years = floor($diff / (365*60*60*24));
+		$months = floor(($diff - $years * 365*60*60*24) / (30*60*60*24));
+		$days = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24)/ (60*60*24));
+		$exp = $years."/".$months."/".$days;
+		return($exp);
+	}
+	
+	
+	
+
+/**
+ * view method
+ *
+ * @param string $id      
+ * @return void
+ */
+	public function view($id = null) {
+		//Configure::write('debug',2);
+		//debug($id);
+		$this->loadModel('Aro');
+		$admin = $this->Aro->find('first',array('conditions'=>array('Aro.alias'=>'Admin','Aro.foreign_key is null'),'fields'=>array('Aro.id')));
+		
+		
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('AccountsVariablepay');
+		
+		$this->AccountsSalarydetail->recursive = 0;
+		$this->AccountsSalarydetail->Behaviors->attach('Containable');
+		$accountsSalarydetail = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.id'=>$id,'AccountsSalarydetail.current'=>'Y'),'contain'=>array('Staff'=>array('fields'=>array('Staff.id','Staff.first_name','Staff.last_name','Staff.emp_code')))));
+		//debug($accountsSalarydetail);
+		if($admin['Aro']['id'] != $this->Session->read('Auth.User.usergroup_id')) {
+			if($accountsSalarydetail['AccountsSalarydetail']['is_confidential'] == 'Y') {
+				$this->Session->setFlash('<div class="flashMessageError">Salary is confidential you don\'t have previlage to view it!</div>');
+				$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'index'));
+			}
+		}
+		$staff_id = $accountsSalarydetail['AccountsSalarydetail']['staff_id'];
+		$accountsSalarybreakups = $this->AccountsSalarybreakup->find('all',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$id),'order'=>array('AccountsSalarybreakup.order ASC')));
+		foreach($accountsSalarybreakups as $accountsSalarybreakup){
+			$component_name = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$accountsSalarybreakup['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id'])));
+			if($component_name['AccountsSalaryBreakupcomponent']['deduction'] == 'Y'){
+				$accountsSalarydetail['AccountsSalaryBreakupcomponent']['deductions'][$component_name['AccountsSalaryBreakupcomponent']['salary_component']] = $accountsSalarybreakup['AccountsSalarybreakup']['amount'];
+			}else{
+				$accountsSalarydetail['AccountsSalaryBreakupcomponent']['earnings'][$component_name['AccountsSalaryBreakupcomponent']['salary_component']] = $accountsSalarybreakup['AccountsSalarybreakup']['amount'];
+			}
+		}
+		//$accountsSalarydetail = $this->sorting($accountsSalarydetail['AccountsSalaryBreakupcomponent']['deductions']);
+		if($accountsSalarydetail['AccountsSalarydetail']['variable_component']!=0){
+			$variable_pays = $this->AccountsVariablepay->find('all',array('conditions'=>array('AccountsVariablepay.accounts_salarydetail_id'=>$id),'order'=>array('AccountsVariablepay.amount DESC')));
+			foreach($variable_pays as $variable_pay){
+				$accountsSalarydetail['AccountsVariablepay'][$variable_pay['AccountsVariablepay']['performance_level']] = $variable_pay['AccountsVariablepay']['amount'];
+			}
+			//debug($accountsSalarydetail);
+		}
+		
+		$hike_history = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$accountsSalarydetail['Staff']['id'],'AccountsSalarydetail.current'=>'N'),'order'=>array('AccountsSalarydetail.id DESC')));
+		debug($hike_history);
+		
+		$this->AccountsSalarydetail->id = $id;
+		if (!$this->AccountsSalarydetail->exists()) {
+			throw new NotFoundException(__('Invalid accounts salarydetail'));
+		}
+		$this->set(compact('hike_history','staff_id'));
+		$this->set('accountsSalarydetail', $accountsSalarydetail);
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		//Configure::write('debug',2);
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('AccountsVariablepay');
+		$data = $this->AccountsSalaryBreakupcomponent->find('all',array('order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+		$staffs =  $this->Staff->find('all', array('fields' => array('Staff.id','Staff.first_name','Staff.last_name'),'conditions'=>array('Staff.active'=>'Y')));
+		foreach($staffs as $staff) {
+			$sRes[$staff['Staff']['id']] = $staff['Staff']['first_name'].' '.$staff['Staff']['last_name'];
+		}
+		$this->set(compact('data','sRes'));
+		
+		$staffSalarydetails = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.current'=>'Y'),'fields'=>array('AccountsSalarydetail.staff_id')));
+		foreach($staffSalarydetails as $staffSalarydetail) {
+			if($this->data['AccountsSalarydetail']['staffid']) {
+				$staafff_id = $this->data['AccountsSalarydetail']['staffid'];
+			} else {
+				$staafff_id = $this->data['staffid'];
+			}
+			if( $staafff_id == $staffSalarydetail['AccountsSalarydetail']['staff_id']) {
+				$this->Session->setFlash(__('<div class="flashMessageError">The staff you selected has already have a salary record!</div>'));
+				$this->redirect(array('action'=>'add'));
+			}
+		}
+		
+		/**
+		 * Validation Starts
+		 **/
+		 if(!empty($this->data)) {
+		 	if(isset($this->data['AccountsSalarydetail']['staffid'])) {
+		 		if(empty($this->data['AccountsSalarydetail']['staffid'])) {
+					$this->Session->setFlash('<div class="flashMessageError">Please select the staff!</div>',true);
+					return;
+				}
+		 	}
+			if(isset($this->data['AccountsSalarydetail']['ctc'])) {
+				debug($this->data['AccountsSalarydetail']);
+				if(!empty($this->data['AccountsSalarydetail']['ctc'])) {
+					if((!is_numeric($this->data['AccountsSalarydetail']['ctc'])) || ($this->data['AccountsSalarydetail']['ctc'] <= 0)){
+						$this->Session->setFlash('<div class="flashMessageError">Please enter valid CTC amount!</div>',true);
+						return;
+					}
+				}
+				if(empty($this->data['AccountsSalarydetail']['ctc'])) {
+					$this->Session->setFlash('<div class="flashMessageError">Please enter CTC amount!</div>',true);
+					return;
+				}
+		 	}
+		 	
+		 	if(isset($this->data['staffid'])){
+		 		if(empty($this->data['staffid'])){
+		 			$this->Session->setFlash('<div class="flashMessageError">Please select the staff!</div>',true);
+					return;
+		 		}
+		 	}
+		 	
+		 	if(isset($this->data['ctc'])){
+		 		if((empty($this->data['ctc'])) || (!is_numeric($this->data['ctc'])) || ($this->data['ctc'] <=0)){
+		 			$this->Session->setFlash('<div class="flashMessageError">Please enter valid CTC amount!</div>',true);
+					return;
+		 		}
+			}
+			
+			if(isset($this->data['fixed'])){
+				if((empty($this->data['fixed'])) || (!is_numeric($this->data['fixed'])) || ($this->data['fixed'] <= 0)){
+		 			$this->Session->setFlash('<div class="flashMessageError">Please enter valid fixed CTC amount!</div>',true);
+					return;
+		 		}
+		 		if(($this->data['ctc'] < $this->data['fixed'])){
+		 			$this->Session->setFlash('<div class="flashMessageError">Fixed CTC amount should be less than CTC amount!</div>',true);
+					return;
+		 		}
+			}
+		}
+		 
+		if($this->data['ctc']){
+			$take_homesalary = 0;
+			foreach($this->data['AccountsSalarybreakup'] as $breakupkey => $breakupval){
+				if($this->data['Component']['applicable'][$breakupkey] == 1){
+					if($breakupval['is_deduction'] == 'N') {
+						$take_homesalary = $take_homesalary + $breakupval['amount'];
+					}
+				
+					if($breakupval['is_deduction'] == 'Y') {
+						$deduct = $deduct+$breakupval['amount'];
+					}
+				}
+			}
+			$date =date('Y-m-d',strtotime($this->data['AccountsSalarydetail']['due_on_date']));
+			$take_homesalary1 = $take_homesalary - $deduct;
+			$take_homesalary = $take_homesalary1+$this->data['AccountsSalarydetail']['variable_component'];
+			$joined_date = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$this->data['staffid']),'fields'=>array('Staff.start_date')));
+			$save_salarydetails = null;
+			$save_salarydetails['AccountsSalarydetail']['staff_id'] = $this->data['staffid'];
+			$save_salarydetails['AccountsSalarydetail']['mode_of_payment'] = $this->data['AccountsSalarydetail']['mode_of_payment'];
+			$save_salarydetails['AccountsSalarydetail']['account_no'] = $this->data['AccountsSalarydetail']['account_no'];
+			$save_salarydetails['AccountsSalarydetail']['currentCTC'] = $this->data['ctc'];
+			$save_salarydetails['AccountsSalarydetail']['current'] = 'Y';
+			$save_salarydetails['AccountsSalarydetail']['last_updated'] = date('Y-m-d');
+			$save_salarydetails['AccountsSalarydetail']['applicable_from'] = date('Y-m-d',strtotime($this->data['AccountsSalarydetail']['applicable_from1']));
+			$save_salarydetails['AccountsSalarydetail']['fixed_component'] = $this->data['fixed'];
+			$save_salarydetails['AccountsSalarydetail']['variable_component'] =  $this->data['AccountsSalarydetail']['variable_component'];
+			$save_salarydetails['AccountsSalarydetail']['take_home'] = $take_homesalary;
+			$save_salarydetails['AccountsSalarydetail']['notes'] = $this->data['notes1'];
+			$save_salarydetails['AccountsSalarydetail']['accounts_account_id'] =  $this->data['AccountsSalarydetail']['accounts_account_id'];
+			$save_salarydetails['AccountsSalarydetail']['pf_no'] = $this->data['AccountsSalarydetail']['pf_no'];
+			$save_salarydetails['AccountsSalarydetail']['is_confidential'] = $this->data['AccountsSalarydetail']['is_confidential'];
+			$this->AccountsSalarydetail->create();
+			$this->AccountsSalarydetail->save($save_salarydetails);
+			$salarydetails_id = $this->AccountsSalarydetail->getLastInsertId();
+			foreach($this->data['AccountsSalarybreakup'] as $key => $value){
+				if($this->data['Component']['applicable'][$key] == 0){
+					$save_salarybreakups['AccountsSalarybreakup']['amount'] = 0;
+				} else {
+					$save_salarybreakups['AccountsSalarybreakup']['amount'] = $value['amount'];
+				}
+				
+				$save_salarybreakups['AccountsSalarybreakup']['accounts_salarydetail_id'] = $salarydetails_id;
+				$save_salarybreakups['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id'] = $key;
+				$save_salarybreakups['AccountsSalarybreakup']['is_deduction'] = $value['is_deduction'];
+				$save_salarybreakups['AccountsSalarybreakup']['order'] = $value['order'];
+				$this->AccountsSalarybreakup->create();
+				$this->AccountsSalarybreakup->save($save_salarybreakups);
+			}
+			if($this->data['AccountsVariablepay']){
+				foreach($this->data['AccountsVariablepay'] as $key => $val){
+					$save_variablepay['AccountsVariablepay']['accounts_salarydetail_id'] = $salarydetails_id;
+					$save_variablepay['AccountsVariablepay']['amount'] = $val;
+					$save_variablepay['AccountsVariablepay']['rating'] = $val/1000;
+					$save_variablepay['AccountsVariablepay']['performance_level'] = $key;
+					$this->AccountsVariablepay->create();
+					$this->AccountsVariablepay->save($save_variablepay);
+				}
+			}
+			$this->Session->setFlash('<div class="flashMessageSuccess">Salary has been added successfully!</div>');
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'view',$this->AccountsSalarydetail->getLastInsertId()));
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null,$past=null) {
+		//Configure::write('debug',2);
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsVariablepay');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('SalarySetting');
+		$this->set(compact('id'));
+		if(empty($id)){
+			$this->Session->setFlash('<div class="flashMessageError">Salary information not  available for this staff</div>',true);
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'add'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			$sal = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.id'=>$this->data['AccountsSalarydetail']['id'])));
+		
+			if(isset($this->data['AccountsSalarydetail']['ctc'])){
+				if(empty($this->data['AccountsSalarydetail']['ctc'])){
+					$this->Session->setFlash('<div class="flashMessageError">CTC should be not be left blank!</div>',true);
+					return;
+				}
+				
+				if(empty($this->data['AccountsSalarydetail']['fixed'])){
+					$this->Session->setFlash('<div class="flashMessageError">Fixed CTC should be not be left blank!</div>',true);
+					return;
+				}
+				
+				if($this->data['AccountsSalarydetail']['ctc'] < $this->data['AccountsSalarydetail']['fixed']){
+					$this->Session->setFlash('<div class="flashMessageError">Fixed CTC should be less than CTC!</div>',true);
+					return;
+				}
+			}
+			
+			if(isset($this->data['ctc'])){
+				if(empty($this->data['ctc'])){
+					$this->Session->setFlash('<div class="flashMessageError">CTC should be not be left blank!</div>',true);
+					return;
+				}
+				if(empty($this->data['fixed'])){
+					$this->Session->setFlash('<div class="flashMessageError">Fixed CTC should be not be left blank!</div>',true);
+					return;
+				}
+				if($this->data['ctc'] < $this->data['fixed']){
+					$this->Session->setFlash('<div class="flashMessageError">Fixed CTC should be less than CTC!</div>',true);
+					return;
+				}
+			}
+			 
+			if(!empty($this->data['AccountsSalarybreakupss'])){
+				$deduction=0;$variable_amount=0;$tot_breakup=0;$save=null;
+				foreach($this->data['AccountsSalarybreakupss'] as $breakupkey => $breakupval){
+					if($this->data['Applicable'][$breakupkey] == 1){
+						if(!empty($breakupval['variablecomp'])){
+							$tot_deduct = $tot_deduct+$breakupval['amount'];
+						}
+						if(!empty($breakupval['deduct'])){
+							$tot_deduct = $tot_deduct+$breakupval['amount'];
+						}
+						if (empty($breakupval['variablecomp'])) {
+							if (empty($breakupval['deduct'])) {
+								$tot_breakup = $tot_breakup+$breakupval['amount'];
+							}
+						}
+					}
+					
+					
+					$breakupcomp = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.salary_component'=>$breakupkey)));
+					$breakup = $this->AccountsSalarybreakup->find('first',array('conditions'=>array('AND'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$this->data['AccountsSalarydetail']['id'],'AccountsSalarybreakup.accounts_salary_breakupcomponent_id'=>$breakupcomp['AccountsSalaryBreakupcomponent']['id']))));
+					$this->AccountsSalarybreakup->delete($breakup['AccountsSalarybreakup']['id']);
+					
+					if($this->data['Applicable'][$breakupkey] == 1){
+						$save['AccountsSalarybreakup']['amount']=$breakupval['amount'];
+					} else {
+						$save['AccountsSalarybreakup']['amount'] = 0;
+					}
+					
+					$this->AccountsSalarybreakup->create();
+					$save['AccountsSalarybreakup']['accounts_salarydetail_id'] = $this->data['AccountsSalarydetail']['id'];
+					$save['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id']=$breakupcomp['AccountsSalaryBreakupcomponent']['id'];
+					$save['AccountsSalarybreakup']['is_deduction']=$breakupcomp['AccountsSalaryBreakupcomponent']['deduction'];
+					$save['AccountsSalarybreakup']['order']=$breakupcomp['AccountsSalaryBreakupcomponent']['order'];
+					$this->AccountsSalarybreakup->save($save);
+				}
+				 $variable_varamount = $this->data['AccountsSalarybreakups']['vamount'][0];
+				 $take_home1 = $tot_breakup-$tot_deduct;
+				 $take_home = $take_home1+$variable_varamount;
+				 $s1['AccountsSalarydetail']['id'] = $sal['AccountsSalarydetail']['id'];
+				 $s1['AccountsSalarydetail']['take_home'] = $take_home;
+				 $this->AccountsSalarydetail->save($s1); 
+			}
+			if(!empty($this->data['AccountsVariablepay123'])){
+				foreach($this->data['AccountsVariablepay123'] as $varkey =>$varval){
+					foreach($varval as $vark => $valv){
+						$savevariable['AccountsVariablepay']['id'] = $varkey;
+						$savevariable['AccountsVariablepay']['accounts_salarydetail_id'] = $this->data['AccountsSalarydetail']['id'];
+						$savevariable['AccountsVariablepay']['performance_level'] = $vark;
+						$savevariable['AccountsVariablepay']['amount'] = $valv;
+						$savevariable['AccountsVariablepay']['rating'] = $valv/1000;
+						$this->AccountsVariablepay->save($savevariable);
+					}
+				}
+			}
+			if($this->data['ctc'] || $this->data['AccountsSalarydetail']){
+				
+				if($this->data['ctc']) {
+					$variable_component = $this->data['ctc']-$this->data['fixed'];
+					$fixedCTC = $this->data['fixed'];
+				} else {
+					$variable_component = $this->data['AccountsSalarydetail']['ctc'] - $this->data['AccountsSalarydetail']['fixed'];
+					$fixedCTC = $this->data['AccountsSalarydetail']['fixed'];
+				}
+				if($this->data['AccountsSalarybreakup']) {
+					$take_homesalary = 0;$deduct=0;
+					foreach($this->data['AccountsSalarybreakup'] as $breakupkey => $breakupval) {
+						if($this->data['Applicable'][$breakupkey] == 1){
+							if($breakupval['is_deduction'] == 'Y') {
+								$deduct = $deduct + $breakupval['amount'];
+							}
+						}
+					}
+					$take_home1 = $fixedCTC - $deduct;
+					$take_home = $take_home1+$this->data['AccountsSalarydetail']['variable_component'];
+				}
+				if(!empty($this->data['AccountsSalarydetail'])) {
+					$salarydetails_save['AccountsSalarydetail']['id'] = $this->data['AccountsSalarydetail']['id'];
+					$salarydetails_save['AccountsSalarydetail']['mode_of_payment'] = $this->data['AccountsSalarydetail']['mode_of_payment'];
+					$salarydetails_save['AccountsSalarydetail']['account_no'] = $this->data['AccountsSalarydetail']['account_no'];
+					$salarydetails_save['AccountsSalarydetail']['accounts_account_id'] = $this->data['AccountsSalarydetail']['accounts_account_id'];
+					$salarydetails_save['AccountsSalarydetail']['applicable_from'] = date('Y-m-d',strtotime($this->data['AccountsSalarydetail']['applicable_from1']));
+					$salarydetails_save['AccountsSalarydetail']['pf_no'] = $this->data['AccountsSalarydetail']['pf_no'];
+					$salarydetails_save['AccountsSalarydetail']['is_confidential'] = $this->data['AccountsSalarydetail']['is_confidential'];
+					if($this->data['ctc']){
+						$salarydetails_save['AccountsSalarydetail']['currentCTC'] = $this->data['ctc'];
+					}else{
+						$salarydetails_save['AccountsSalarydetail']['currentCTC'] = $this->data['AccountsSalarydetail']['ctc'];
+					}
+					
+					if($this->data['fixed']){
+						$salarydetails_save['AccountsSalarydetail']['fixed_component'] = $this->data['fixed'];
+					}else{
+						$salarydetails_save['AccountsSalarydetail']['fixed_component'] = $this->data['AccountsSalarydetail']['fixed'];
+					}
+					$salarydetails_save['AccountsSalarydetail']['variable_component'] = $variable_component;
+					
+					if($this->data['notes1']){
+						$salarydetails_save['AccountsSalarydetail']['notes'] = $this->data['notes1'];
+					}elseif($this->data['AccountsSalarydetail']['notes']){
+						$salarydetails_save['AccountsSalarydetail']['notes'] = $this->data['AccountsSalarydetail']['notes'];
+					}else{
+						$salarydetails_save['AccountsSalarydetail']['notes'] =$this->data['notes'];
+					}
+					
+					$salarydetails_save['AccountsSalarydetail']['last_updated'] = date('Y-m-d');
+					$salarydetails_save['AccountsSalarydetail']['take_home'] = $take_home;
+					$this->AccountsSalarydetail->save($salarydetails_save);
+				}
+				
+				if(!empty($this->data['AccountsSalarybreakup'])){
+					$old_breakups = $this->AccountsSalarybreakup->find('all',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$this->data['AccountsSalarydetail']['id'])));
+					foreach($old_breakups as $old_breakup){
+						$this->AccountsSalarybreakup->delete($old_breakup['AccountsSalarybreakup']['id']);
+					}
+					foreach($this->data['AccountsSalarybreakup'] as $key => $value){
+						$breakup = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$key)));
+						if($this->data['Applicable'][$key] == 1) {
+							if(!empty($value['breakupname'])){
+								$sal_breakups['AccountsSalarybreakup']['amount'] = $value['amount'];
+							}else{
+								$sal_breakups['AccountsSalarybreakup']['amount'] = $value['amount'];
+							}
+						} else {
+							$sal_breakups['AccountsSalarybreakup']['amount'] = 0;
+						}
+							$sal_breakups['AccountsSalarybreakup']['accounts_salarydetail_id'] = $this->data['AccountsSalarydetail']['id'];
+							$sal_breakups['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id'] = $key;
+							
+							$sal_breakups['AccountsSalarybreakup']['is_deduction'] =$breakup['AccountsSalaryBreakupcomponent']['deduction'];
+							$sal_breakups['AccountsSalarybreakup']['order'] = $breakup['AccountsSalaryBreakupcomponent']['order'];
+							$this->AccountsSalarybreakup->create();
+							$this->AccountsSalarybreakup->save($sal_breakups);
+					}
+				}
+				if(!empty($this->data['AccountsVariablepay'])){
+					$variablepays = $this->AccountsVariablepay->find('all',array('conditions'=>array('AccountsVariablepay.accounts_salarydetail_id'=>$this->data['AccountsSalarydetail']['id']),'order'=>array('AccountsVariablepay.id ASC')));
+					
+					foreach($variablepays as $variablepay){
+						$this->AccountsVariablepay->delete($variablepay['AccountsVariablepay']['id']);
+					}
+					
+					
+					foreach($this->data['AccountsVariablepay'] as $key1 => $value1){
+						$var_pays = $this->AccountsVariablepay->find('first',array('conditions'=>array('AccountsVariablepay.accounts_salarydetail_id'=>$this->data['AccountsSalarydetail']['id'],'AccountsVariablepay.id'=>$key1)));
+						$sal_variablepay['AccountsVariablepay']['id'] = $key1;
+						$sal_variablepay['AccountsVariablepay']['accounts_salarydetail_id'] = $this->data['AccountsSalarydetail']['id'];
+						$sal_variablepay['AccountsVariablepay']['performance_level'] = $key1;
+						$sal_variablepay['AccountsVariablepay']['rating'] = $value1/1000;
+						$sal_variablepay['AccountsVariablepay']['amount'] = $value1;
+						$this->AccountsVariablepay->create();
+						$this->AccountsVariablepay->save($sal_variablepay);
+					}
+				}
+			}
+			$this->Session->setFlash('<div class="flashMessageSuccess">Salary has been updated successfully!</div>');
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'view',$id));
+		}
+		else {
+			$this->AccountsSalarydetail->recursive = 1;
+			$this->request->data = $this->AccountsSalarydetail->read(null, $id);
+			$emp_code = $this->Staff->find('first',array('conditions' => array('Staff.id'=>$this->request->data['Staff']['id']),'fields'=>array('Staff.id','Staff.first_name,Staff.last_name,Staff.emp_code')));
+			foreach($this->request->data['AccountsSalarybreakup'] as $breakup){
+				$data1 = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$breakup['accounts_salary_breakupcomponent_id'])));
+				if($data1['AccountsSalaryBreakupcomponent']['deduction'] == 'Y') {
+					if($data1['AccountsSalaryBreakupcomponent']['type'] == 'variable') {
+						$data['variable'][$data1['AccountsSalaryBreakupcomponent']['salary_component']] = $breakup['amount'];
+						$component[$data1['AccountsSalaryBreakupcomponent']['salary_component']] = $breakup['accounts_salary_breakupcomponent_id'];
+					} else {
+						$data['deductions'][$data1['AccountsSalaryBreakupcomponent']['salary_component']] = $breakup['amount'];
+						$component[$data1['AccountsSalaryBreakupcomponent']['salary_component']] = $breakup['accounts_salary_breakupcomponent_id'];
+					}
+				} else {
+					$data['earnings'][$data1['AccountsSalaryBreakupcomponent']['salary_component']] = $breakup['amount'];
+					$component[$data1['AccountsSalaryBreakupcomponent']['salary_component']] = $breakup['accounts_salary_breakupcomponent_id'];
+				}
+			}
+		    $accountss = $this->SalarySetting->find('all');
+			foreach($accountss as $account){
+				$acc_detail = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$account['SalarySetting']['accounts_account_id']),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.asset_type')));
+				if($acc_detail['AccountsAccount']['asset_type'] == 'Bank'){
+					$accounts[$acc_detail['AccountsAccount']['id']] = $acc_detail['AccountsAccount']['account_name'];
+				}			
+		     }
+		    
+		     $this->set(compact('accounts'));
+			$this->set(compact('staff','emp_code','data'));
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null,$past=null) {
+		//Configure::write('debug',2);
+		if (!$id){
+			$this->Session->setFlash(__('<span style="color:red">You have selected invalid staff!</span>'));
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'index'));
+		}
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('AccountsVariablepay');
+		$this->loadModel('Staff');
+		$sal_details = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.id'=>$id),'fields'=>array('AccountsSalarydetail.id','AccountsSalarydetail.staff_id')));
+		$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$sal_details['AccountsSalarydetail']['staff_id']),'fields'=>array('Staff.first_name','Staff.last_name')));
+		$staff_name = $staff['Staff']['first_name']." ".$staff['Staff']['last_name'];
+		$salary_breakups = $this->AccountsSalarybreakup->find('list',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$id)));
+		foreach($salary_breakups as $key => $value){
+			$this->AccountsSalarybreakup->delete($value);
+		}
+		
+		$variablepay = $this->AccountsVariablepay->find('list',array('conditions'=>array('AccountsVariablepay.accounts_salarydetail_id'=>$id)));
+		foreach($variablepay as $key1 => $value1){
+			$this->AccountsVariablepay->delete($value1);
+		}
+		$this->AccountsSalarydetail->delete($id);
+		if($past == 'past_hike') {
+			$this->Session->setFlash('<div class="flashMessageSuccess">Salary has been deleted successfully!</div>');
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'index')); 
+		}
+	}
+	
+	
+	function process($id=null,$first_name=null,$last_name=null,$emp_code=null){
+		//Configure::write('debug',2);
+		$this->set(compact('acc_sa_id','first_name','last_name','emp_code'));
+		$this->set('sal',$this->data);
+		$this->set(compact('id'));
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('Staff');
+		$staffs =  $this->Staff->find('all', array('fields' => array('Staff.id','Staff.first_name','Staff.last_name'),'conditions'=>array('Staff.active'=>'Y')));
+		foreach($staffs as $staff) {
+			$sRes[$staff['Staff']['id']] = $staff['Staff']['first_name'].' '.$staff['Staff']['last_name'];
+		}
+		$this->set(compact('sRes'));
+		$staff = $this->Staff->find('first',array('conditions'=>array('OR'=>array(array('Staff.id'=>$this->data['AccountsSalarydetail']['staffid']),array('Staff.id'=>$this->data['staffid'])))));
+		$this->set(compact('staff'));
+		
+		
+		/**
+		 * Validation Starts
+		 **/
+		//if($this->data['AccountsSalarydetail']['ctc'] || empty($this->data['AccountsSalarydetail']['ctc'])){
+			$mainctc = $this->data['AccountsSalarydetail']['ctc'];
+			$this->set(compact('mainctc'));
+			$component = $this->AccountsSalaryBreakupcomponent->find('all',array('order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+			$i=0;
+			foreach($component as $component){
+				$data[$i]['AccountsSalarybreakup']['type'] =  $component['AccountsSalaryBreakupcomponent']['type'];
+				$data[$i]['AccountsSalarybreakup']['breakupcomponentid'] = $component['AccountsSalaryBreakupcomponent']['id'];
+				$data[$i]['AccountsSalarybreakup']['component_name'] = $component['AccountsSalaryBreakupcomponent']['salary_component'];
+				$data[$i]['AccountsSalarybreakup']['is_deduction'] = $component['AccountsSalaryBreakupcomponent']['deduction'];
+				$data[$i]['AccountsSalarybreakup']['amount']=0;
+				$data[$i]['AccountsSalarybreakup']['order'] = $component['AccountsSalaryBreakupcomponent']['order'];
+				$i++;
+			}
+		//}
+		 
+		 $this->set(compact('data'));
+		if($this->data){
+			if(isset($this->data['AccountsSalarydetail']['ctc'])){
+				
+				if(!is_numeric($this->data['AccountsSalarydetail']['ctc'])){
+					$this->Session->setFlash(__('<div class="flashMessageError">CTC should be numeric and greater than zero!</div>'));
+					return;
+				}
+				
+				if($this->data['AccountsSalarydetail']['ctc'] <= 0){
+					$this->Session->setFlash(__('<div class="flashMessageError">CTC should greater than zero!</div>'));
+					return;
+				}
+			}
+			
+			if(isset($this->data['ctc'])){
+				
+				if(!is_numeric($this->data['ctc'])){
+					$this->Session->setFlash(__('<div class="flashMessageError">CTC amount should be numeric and greater than zero!</div>'));
+					return;
+				}
+				
+				if($this->data['ctc'] <= 0){
+					$this->Session->setFlash(__('<div class="flashMessageError">CTC amount should greater than zero!</div>'));
+					return;
+				}
+				
+			}
+			
+			if(isset($this->data['AccountsSalarydetail']['fixed'])){
+				if(is_numeric($this->data['AccountsSalarydetail']['fixed'])){
+					$this->Session->setFlash(__('<div class="flashMessageError">Fixed CTC amount should be numeric and greater than zero!</div>'));
+					return;
+				}
+				
+				if($this->data['AccountsSalarydetail']['fixed'] > $this->data['AccountsSalarydetail']['ctc']){
+					$this->Session->setFlash(__('<div class="flashMessageError">Fixed CTC amount should be less than CTC!</div>'));
+					return;
+				}
+			}
+			
+			if(isset($this->data['fixed'])){
+				if(!is_numeric($this->data['fixed'])){
+					$this->Session->setFlash(__('<div class="flashMessageError">Fixed CTC amount should be numeric and greater than zero!</div>'));
+					return;
+				}
+				
+				if($this->data['fixed'] > $this->data['ctc']){
+					$this->Session->setFlash(__('<div class="flashMessageError">Fixed CTC amount should be less than CTC!</div>'));
+					return;
+				}
+			}
+
+		}
+		
+		/**
+		 * Validation Ends
+		**/
+		 
+		if($this->data['fixed']){
+			
+			$ctc = $this->data['fixed'];
+			$components = $this->AccountsSalaryBreakupcomponent->find('all',array('order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+			$i = 0;
+			foreach($components as $component){
+				$amount=null;
+				if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Basic'){
+					$basic_component = $component['AccountsSalaryBreakupcomponent']['salary_component'];
+					$basic = ($component['AccountsSalaryBreakupcomponent']['value']/100)*$ctc;
+					$amount = $basic;
+				 }
+				if(($component['AccountsSalaryBreakupcomponent']['type'] == '%') && ($component['AccountsSalaryBreakupcomponent']['salary_component']!='Basic')){
+					$amount = ($component['AccountsSalaryBreakupcomponent']['value']/100)*$basic;
+				}
+				elseif($component['AccountsSalaryBreakupcomponent']['type'] == 'fixed'){
+					$amount = $component['AccountsSalaryBreakupcomponent']['value'];
+				}
+				if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Professional Tax') {
+					if($ctc < 15000){
+						$amount = 150;
+					}
+				}
+				$component_name = $this->AccountsSalaryBreakupcomponent->find('first',array('conditions'=>array('AccountsSalaryBreakupcomponent.id'=>$component['AccountsSalaryBreakupcomponent']['id']),'fields'=>array('AccountsSalaryBreakupcomponent.salary_component')));
+				$data[$i]['AccountsSalarybreakup']['type'] =  $component['AccountsSalaryBreakupcomponent']['type'];
+				$data[$i]['AccountsSalarybreakup']['breakupcomponentid'] = $component['AccountsSalaryBreakupcomponent']['id'];
+				$data[$i]['AccountsSalarybreakup']['component_name'] = $component_name['AccountsSalaryBreakupcomponent']['salary_component'];
+				$data[$i]['AccountsSalarybreakup']['is_deduction'] = $component['AccountsSalaryBreakupcomponent']['deduction'];
+				$data[$i]['AccountsSalarybreakup']['amount']=$amount;
+				$data[$i]['AccountsSalarybreakup']['order'] = $component['AccountsSalaryBreakupcomponent']['order'];
+				$i++;
+			}
+		}
+		$this->set(compact('ctc'));
+		$this->set('data',$data);
+	}
+	
+	function empcode(){
+	//	configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('Staff');
+		if($this->data['AccountsSalarydetail']['staffid']){
+			$empcode = $this->Staff->findById($this->data['AccountsSalarydetail']['staffid']);
+		}
+		elseif($this->data['AccountsSalarydetail']['staff_id']){
+			$empcode = $this->Staff->findById($this->data['AccountsSalarydetail']['staff_id']);
+		}elseif($this->data['staffid']){
+			$empcode = $this->Staff->findById($this->data['staffid']);
+		}
+		
+		$this->set(compact('empcode'));
+	}
+	
+	
+	function variablepay($ctc=null){
+		//configure::write('debug',2);
+		debug($this->data);
+		if($this->data['AccountsSalarydetail']['amount']){
+			$value['high'] = $this->data['AccountsSalarydetail']['amount'] - $this->data['AccountsSalarydetail']['fixed'];
+		}else{
+			$value['high'] = $ctc;
+		}
+		$this->set(compact('value'));
+	}
+	function editVariablePay(){
+		//configure::write('debug',2);
+		debug($this->data);
+		if ($this->data['AccountsSalarydetail']['variablepay'] == 'A') {
+			$value['high'] = $this->data['AccountsSalarydetail']['ctc'] - $this->data['AccountsSalarydetail']['fixed'];
+		}
+		$this->set(compact('value'));
+		$this->set('applicable',$this->data['AccountsSalarydetail']['variablepay']);
+	}
+	
+	function addhike($id = null){
+	//	configure::write('debug',2);
+		$this->set(compact('id'));
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsVariablepay');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsSalaryhikesdue');
+		if(!$id){
+			$this->Session->setFlash('<div class="flashMessageError">Invalid Id!</div>');
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'index'));
+		}
+		$this->AccountsSalarydetail->cacheQueries =  false;
+		$this->AccountsSalaryhikesdue->cacheQueries =  false;
+		$this->AccountsSalarydetail->recursive = 0;
+		$sal_details = $this->AccountsSalarydetail->findById($id);
+		$first_salary = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$sal_details['AccountsSalarydetail']['staff_id']),'order'=>array('AccountsSalarydetail.id ASC')));
+		$hike_due = $this->AccountsSalaryhikesdue->find('all',array('conditions'=>array('AccountsSalaryhikesdue.staff_id'=>$sal_details['AccountsSalarydetail']['staff_id'],'AccountsSalaryhikesdue.approved'=>'N','AccountsSalaryhikesdue.active'=>'Y'/*,'AccountsSalaryhikesdue.due_on_date >=' => date('Y-m-d')*/),'order'=>array('AccountsSalaryhikesdue.due_on_date ASC')));
+		//debug($hike_due);
+		$this->set(compact('sal_details','hike_due','first_salary'));
+		
+		//$hike_history = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.staff_id' => $sal_details['AccountsSalarydetail']['staff_id']/*,'AccountsSalarydetail.current'=>'N'*/),'order'=>array('AccountsSalarydetail.id DESC'),'limit'=>3));
+		$hike_history = $this->AccountsSalaryhikesdue->find('all',array('conditions'=>array('AccountsSalaryhikesdue.staff_id'=>$sal_details['AccountsSalarydetail']['staff_id']),'order'=>array('AccountsSalaryhikesdue.due_on_date DESC')));
+		
+		//debug($hike_history);
+		$this->set('hike_history',$hike_history);
+		if(!empty($this->data)){
+		/**Commented temporarily to enter the past data**/	
+		//	if($this->data['AccountsSalarydetail']['amount'] <= $sal_details['AccountsSalarydetail']['currentCTC']){
+		//		$this->Session->setFlash('<div class="flashMessageError">Hiked CTC should be greater than current CTC!</div>');
+		//		return;
+		//	}
+		/**End**/	
+			if(empty($this->data['AccountsSalarydetail']['amount'])){
+				$this->Session->setFlash('<div class="flashMessageError">Please enter the Hiked CTC!</div>');
+				return;
+			}
+			elseif(empty($this->data['AccountsSalarydetail']['fixed'])){
+				$this->Session->setFlash('<div class="flashMessageError">Please enter the Fixed CTC amount!</div>');
+				return;
+			}
+			elseif($this->data['AccountsSalarydetail']['amount'] < $this->data['AccountsSalarydetail']['fixed']){
+				$this->Session->setFlash('<div class="flashMessageError">Fixed CTC amount should not be greater than Total Amount!</div>');
+				return;
+			}
+			elseif($this->data['AccountsSalarydetail']['due_on_date']){
+				$validate_date =date('Y-m-d',strtotime($this->data['AccountsSalarydetail']['due_on_date']));
+				$datee = explode('-',$validate_date);
+				$dueeees = $this->AccountsSalaryhikesdue->find('all',array('conditions'=>array('AccountsSalaryhikesdue.due_on_date LIKE'=>$datee[0].'-'.$datee[1].'%','AccountsSalaryhikesdue.staff_id'=>$sal_details['AccountsSalarydetail']['staff_id'],'AccountsSalaryhikesdue.active'=>'Y'),'fields'=>array('AccountsSalaryhikesdue.id')));
+				if(!empty($dueeees)){
+					$this->Session->setFlash('<div class="flashMessageError">Hike has been already given for this month!</div>');
+					return;
+				}
+			}
+			
+			$xyz=0;
+			foreach($this->data['AccountsVariablepay'] as $key=>$val){
+				$variable[$xyz] = $val;
+				$xyz++;
+			}
+			$variability=$variable[0].'-'.$variable[1].'-'.$variable[2].'-'.$variable[3];
+			$fixed_hike = $this->data['AccountsSalarydetail']['fixed']; 
+			$total_hike = $this->data['AccountsSalarydetail']['amount']; 
+			$variable_hike = $total_hike - $fixed_hike;
+			$date =date('Y-m-d',strtotime($this->data['AccountsSalarydetail']['due_on_date']));
+			$save_due['AccountsSalaryhikesdue']['staff_id'] = $sal_details['AccountsSalarydetail']['staff_id'];
+			$save_due['AccountsSalaryhikesdue']['total_hikedCTC'] = $total_hike;
+			$save_due['AccountsSalaryhikesdue']['fixed_hikedCTC'] = $fixed_hike;
+			$save_due['AccountsSalaryhikesdue']['variable_hike'] = $variable_hike;
+			$save_due['AccountsSalaryhikesdue']['variability'] = $variability;
+			$save_due['AccountsSalaryhikesdue']['due_on_date'] = $date;
+			$save_due['AccountsSalaryhikesdue']['notes'] = $this->data['AccountsSalarydetail']['notes'];
+			$save_due['AccountsSalaryhikesdue']['active'] = 'Y';
+			$save_due['AccountsSalaryhikesdue']['approved'] = 'N';
+			$this->AccountsSalaryhikesdue->create();
+			$this->AccountsSalaryhikesdue->save($save_due);
+			$this->Session->setFlash(' <div class="flashMessageSuccess">Hike due has been successfully saved!</div>',true);
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'addhike',$id));
+		}
+	}
+	
+	function editdelete($id=null,$salarydetail_id=null,$action=null){
+		if(!empty($id)){
+			$this->Session->setFlash(__('Invalid Id',true));	
+		}
+		if($action='delete'){
+			$this->loadModel('AccountsSalaryhikesdue');
+			if($this->AccountsSalaryhikesdue->delete($id)){
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">Hike has been deleted</div>',true));
+				$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'addhike',$salarydetail_id));
+			}
+		}
+	}
+	
+	function edithike($id=null,$hikedue_id=null){
+	//	Configure::write('debug',2);
+		debug($id);
+		debug($hikedue_id);
+		$this->set(compact('id','hikedue_id'));
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsVariablepay');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsSalaryhikesdue');
+		if(!$id){
+			$this->Session->setFlash('<div class="flashMessageError">Invalid Id!</div>');
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'index'));
+		}
+		$this->AccountsSalarydetail->recursive=0;
+		$sal_details = $this->AccountsSalarydetail->findById($id);
+		$hikedue_details = $this->AccountsSalaryhikesdue->findById($hikedue_id);
+		$first_salary = $this->AccountsSalarydetail->find('first',array('conditions'=>array('AccountsSalarydetail.staff_id'=>$sal_details['AccountsSalarydetail']['staff_id']),'order'=>array('AccountsSalarydetail.id ASC')));
+		$hike_due = $this->AccountsSalaryhikesdue->find('all',array('conditions'=>array('AccountsSalaryhikesdue.staff_id'=>$sal_details['AccountsSalarydetail']['staff_id'],'AccountsSalaryhikesdue.approved'=>'N','AccountsSalaryhikesdue.active'=>'Y','AccountsSalaryhikesdue.due_on_date >=' => date('Y-m-d'),'AccountsSalaryhikesdue.id !='=>$hikedue_id),'order'=>array('AccountsSalaryhikesdue.due_on_date ASC')));
+		//debug($hike_due);
+		$this->set(compact('sal_details','hike_due','first_salary','hikedue_details'));
+		
+		//$hike_history = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.staff_id' => $sal_details['AccountsSalarydetail']['staff_id']/*,'AccountsSalarydetail.current'=>'N'*/),'order'=>array('AccountsSalarydetail.id DESC'),'limit'=>3));
+		$hike_history = $this->AccountsSalaryhikesdue->find('all',array('conditions'=>array('AccountsSalaryhikesdue.staff_id'=>$sal_details['AccountsSalarydetail']['staff_id'],'AccountsSalaryhikesdue.id !='=>$hikedue_id),'order'=>array('AccountsSalaryhikesdue.due_on_date DESC')));
+		
+		//debug($hike_history);
+		$this->set('hike_history',$hike_history);
+		if(!empty($this->data)){
+			
+			if(empty($this->data['AccountsSalarydetail']['amount'])){
+				$this->Session->setFlash('<div class="flashMessageError">Please enter the Hiked CTC!</div>');
+				return;
+			}
+			elseif(empty($this->data['AccountsSalarydetail']['fixed'])){
+				$this->Session->setFlash('<div class="flashMessageError">Please enter the Fixed CTC amount!</div>');
+				return;
+			}
+			elseif($this->data['AccountsSalarydetail']['amount'] < $this->data['AccountsSalarydetail']['fixed']){
+				$this->Session->setFlash('<div class="flashMessageError">Fixed CTC amount should not be greater than Total Amount!</div>');
+				return;
+			}elseif($this->data['AccountsSalarydetail']['due_on_date']){
+				$validate_date =date('Y-m-d',strtotime($this->data['AccountsSalarydetail']['due_on_date']));
+				$datee = explode('-',$validate_date);
+				/*$dueeees = $this->AccountsSalaryhikesdue->find('all',array('conditions'=>array('AccountsSalaryhikesdue.due_on_date LIKE'=>$datee[0].'-'.$datee[1].'%','AccountsSalaryhikesdue.staff_id'=>$sal_details['AccountsSalarydetail']['staff_id'],'AccountsSalaryhikesdue.active'=>'Y','AccountsSalaryhikesdue.id !=' => $hikedue_id),'fields'=>array('AccountsSalaryhikesdue.id')));
+				if(!empty($dueeees)){
+					$this->Session->setFlash('<div class="flashMessageError">Hike has been already given for this month!</div>');
+					return;
+				}*/
+			}
+			
+			$xyz=0;
+			foreach($this->data['AccountsVariablepay'] as $key=>$val){
+				$variable[$xyz] = $val;
+				$xyz++;
+			}
+			$variability=$variable[0].'-'.$variable[1].'-'.$variable[2].'-'.$variable[3];
+			$fixed_hike = $this->data['AccountsSalarydetail']['fixed']; 
+			$total_hike = $this->data['AccountsSalarydetail']['amount']; 
+			$variable_hike = $total_hike - $fixed_hike;
+			$date =date('Y-m-d',strtotime($this->data['AccountsSalarydetail']['due_on_date']));
+			$save_due['AccountsSalaryhikesdue']['id'] = $hikedue_id;
+			$save_due['AccountsSalaryhikesdue']['staff_id'] = $sal_details['AccountsSalarydetail']['staff_id'];
+			$save_due['AccountsSalaryhikesdue']['total_hikedCTC'] = $total_hike;
+			$save_due['AccountsSalaryhikesdue']['fixed_hikedCTC'] = $fixed_hike;
+			$save_due['AccountsSalaryhikesdue']['variable_hike'] = $variable_hike;
+			$save_due['AccountsSalaryhikesdue']['variability'] = $variability;
+			$save_due['AccountsSalaryhikesdue']['due_on_date'] = $date;
+			$save_due['AccountsSalaryhikesdue']['notes'] = $this->data['AccountsSalarydetail']['notes'];
+			$save_due['AccountsSalaryhikesdue']['active'] = 'Y';
+			$save_due['AccountsSalaryhikesdue']['approved'] = 'N';
+			$this->AccountsSalaryhikesdue->create();
+			$this->AccountsSalaryhikesdue->save($save_due);
+			$this->Session->setFlash(' <div class="flashMessageSuccess">Hike due has been updated successfully!</div>',true);
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'addhike',$id));
+			
+		}
+		
+		
+	}
+	
+	
+	function sort1(){
+		//configure::write('debug',2);
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsVariablepay');
+		$this->AccountsSalarydetail->Behaviors->attach('Containable');
+		$salary_details = $this->AccountsSalarydetail->find('all',array('conditions'=>array('AccountsSalarydetail.current'=>'Y'),'contain'=>array('Staff'=>array('order'=>array('Staff.start_date DESC')))));
+	}
+	
+	function sorting($array = null){
+		$count = count($array);
+		$j=0;
+		for($i=0; $i<=$count; $i++){
+			foreach($array as $key=>$val){
+				if($val['order']==$i){
+					$array1[$j] = $val;
+					$j++;
+				}
+			}	
+		}
+		return $array1;
+	}
+	
+	function calc(){
+	//	configure::write('debug',2);
+		$variable_amount =null;
+		if($this->data['AccountsSalarydetail']['amount'] < $this->data['AccountsSalarydetail']['fixed']){
+		//	$this->Session->setFlash('<div class="flashMessageError">Fixed CTC amount should not be greater than Total CTC Amount!</div>');
+			return;
+		}
+		$variable_amount = $this->data['AccountsSalarydetail']['amount'] - $this->data['AccountsSalarydetail']['fixed'];
+		$amount = $this->data['AccountsSalarydetail']['amount'];
+		$fixed = $this->data['AccountsSalarydetail']['fixed'];
+		$x=$this->calculate($this->data['AccountsSalarydetail']['amount'],$this->data['AccountsSalarydetail']['fixed']);
+		$this->set(compact('amount','fixed','variable_amount'));
+	}
+	
+	function special_allowance_calc($spl = null,$id=null){
+		//Configure::write('debug',2);
+		debug($this->data);
+		//debug($spl);
+		if($this->data['AccountsSalarybreakup']){
+			foreach($this->data['AccountsSalarybreakup'] as $key => $value){
+				if(!empty($value['spl'])){
+					foreach($value as $k => $v){
+						if($k == 'amount'){
+							$amount = $amount+$v;
+						}
+					}
+				}
+			}
+			$spl_allowance = $spl - $amount;
+			debug($spl_allowance);
+		}
+		
+		if($this->data['AccountsSalarybreakupss']){
+			$amount=0;
+			foreach($this->data['AccountsSalarybreakupss'] as $key2 => $value2){
+				if($value2['spl']){
+					
+				}else{
+					$amount = $amount+$value2['amount'];
+				}
+					
+				
+			}
+			$spl_allowance = $this->data['AccountsSalarydetail']['fixed'] - $amount;
+			debug($spl_allowance);
+		}
+
+		 if($this->data['Component']['applicable'] && $id == 'Enter'){
+		 	$totalAmount=0;
+		 	foreach ($this->data['Component']['applicable'] as $breakUpId => $apply) {
+				 if($apply == 0){
+				 	$totalAmount = $totalAmount + $this->data['AccountsSalarybreakup'][$breakUpId]['amount'];
+				 }
+			 }
+ 			$spl_allowance = $spl + $totalAmount;
+			debug($spl_allowance);
+		 }
+ 		
+		$this->set(compact('spl_allowance'));
+		return $spl_allowance;
+		 
+	}
+	
+	function approve_hike($id=null,$due_id=null){
+	//	configure::write('debug',2);
+		debug($this->data);
+		debug($id);
+		/*if(!$due_id){
+			$this->Session->setFlash('<div class="flashMessageError">No hike due</div>');
+			return;
+		}*/
+		$this->loadModel('Staff');
+		$this->loadModel('AccountsSalarybreakup');
+		$this->loadModel('AccountsVariablepay');
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsSalaryhikesdue');
+		
+		
+		$flag_4_flash=null;
+		if(!empty($this->data['Approve'])){
+			foreach($this->data['Approve'] as $hikedue_id => $checked){
+				if($checked == 1){
+					$hike_dues_details = $this->AccountsSalaryhikesdue->findById($hikedue_id);
+					$exploded_date = date("Y-m", strtotime($hike_dues_details['AccountsSalaryhikesdue']['due_on_date']));
+					
+					/**Commented temporarily to enter the past data**/
+					//if((strtotime($hike_dues_details['AccountsSalaryhikesdue']['due_on_date']) >= strtotime(date('Y-m-d'))) && ($exploded_date == date('Y-m'))){
+					/**End**/
+						/*debug($hike_dues_details);*/
+						$update_due['AccountsSalaryhikesdue']['id'] = $hikedue_id;
+						$update_due['AccountsSalaryhikesdue']['approved'] = 'Y';
+						$update_due['AccountsSalaryhikesdue']['active'] = 'N';
+						$this->AccountsSalaryhikesdue->save($update_due);
+						
+						$sal_record = $this->AccountsSalarydetail->findById($id);
+						$update_salaryrecord['AccountsSalarydetail']['id'] = $sal_record['AccountsSalarydetail']['id'];
+						$update_salaryrecord['AccountsSalarydetail']['current'] = 'N';
+						$this->AccountsSalarydetail->save($update_salaryrecord);
+						
+						$save_salarydetails['AccountsSalarydetail']['staff_id'] = $sal_record['AccountsSalarydetail']['staff_id'];
+						$save_salarydetails['AccountsSalarydetail']['currentCTC'] = $hike_dues_details['AccountsSalaryhikesdue']['total_hikedCTC'];
+						$save_salarydetails['AccountsSalarydetail']['fixed_component'] = $hike_dues_details['AccountsSalaryhikesdue']['fixed_hikedCTC'];
+						$save_salarydetails['AccountsSalarydetail']['variable_component'] = $hike_dues_details['AccountsSalaryhikesdue']['variable_hike'];
+						$save_salarydetails['AccountsSalarydetail']['current'] = 'Y';
+						$save_salarydetails['AccountsSalarydetail']['last_updated'] = date('Y-m-d');
+						$save_salarydetails['AccountsSalarydetail']['applicable_from'] = $hike_dues_details['AccountsSalaryhikesdue']['due_on_date'];
+						$save_salarydetails['AccountsSalarydetail']['notes'] = $hike_dues_details['AccountsSalaryhikesdue']['notes'];
+						$save_salarydetails['AccountsSalarydetail']['account_no'] = $sal_record['AccountsSalarydetail']['account_no'];
+						$save_salarydetails['AccountsSalarydetail']['mode_of_payment'] = $sal_record['AccountsSalarydetail']['mode_of_payment'];
+						$save_salarydetails['AccountsSalarydetail']['accounts_account_id'] = $sal_record['AccountsSalarydetail']['accounts_account_id'];
+						$this->AccountsSalarydetail->create();
+						$this->AccountsSalarydetail->save($save_salarydetails);
+						$salarydetails_id = $this->AccountsSalarydetail->getLastInsertId();
+						
+						$components = $this->AccountsSalaryBreakupcomponent->find('all',array('order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+						foreach($components as $component){
+							$amount=null;
+							if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Basic'){
+								$basic_component = $component['AccountsSalaryBreakupcomponent']['salary_component'];
+								$basic = ($component['AccountsSalaryBreakupcomponent']['value']/100)*($hike_dues_details['AccountsSalaryhikesdue']['fixed_hikedCTC']);
+								$amount = $basic;
+							}
+							if(($component['AccountsSalaryBreakupcomponent']['type'] == '%') && ($component['AccountsSalaryBreakupcomponent']['salary_component']!='Basic')){
+								$amount = ($component['AccountsSalaryBreakupcomponent']['value']/100)*$basic;
+							}
+							elseif($component['AccountsSalaryBreakupcomponent']['type'] == 'fixed'){
+								$amount = $component['AccountsSalaryBreakupcomponent']['value'];
+							}
+							if($component['AccountsSalaryBreakupcomponent']['type'] == 'variable'){
+								$foodcoupons = $this->AccountsSalarybreakup->find('first',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$sal_record['AccountsSalarydetail']['id'],'AccountsSalarybreakup.accounts_salary_breakupcomponent_id'=>$component['AccountsSalaryBreakupcomponent']['id'])));
+								if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Special Allowance'){
+									$breakupcomp_id = $component['AccountsSalaryBreakupcomponent']['id'];
+								}else{
+									$amount = $foodcoupons['AccountsSalarybreakup']['amount'];
+								}
+							}
+							$data['AccountsSalarybreakup']['accounts_salarydetail_id'] =  $salarydetails_id;
+							$data['AccountsSalarybreakup']['accounts_salary_breakupcomponent_id'] = $component['AccountsSalaryBreakupcomponent']['id'];
+							$data['AccountsSalarybreakup']['is_deduction'] = $component['AccountsSalaryBreakupcomponent']['deduction'];
+							$data['AccountsSalarybreakup']['amount']=$amount;
+							$data['AccountsSalarybreakup']['order'] = $component['AccountsSalaryBreakupcomponent']['order'];
+							$this->AccountsSalarybreakup->create();
+							$this->AccountsSalarybreakup->save($data);
+							$special_alowance = $special_alowance+$amount;
+							if($component['AccountsSalaryBreakupcomponent']['deduction'] == 'N'){
+								$take_homesalary = $take_homesalary + $amount;
+							}
+						}
+						
+						$spl_alwnce = $hike_dues_details['AccountsSalaryhikesdue']['fixed_hikedCTC'] - $special_alowance;
+						$spl_alwance = $this->AccountsSalarybreakup->find('first',array('conditions'=>array('AccountsSalarybreakup.accounts_salary_breakupcomponent_id'=>$breakupcomp_id,'AccountsSalarybreakup.accounts_salarydetail_id'=>$salarydetails_id)));
+						$spl_alownace_breakup['AccountsSalarybreakup']['id'] = $spl_alwance['AccountsSalarybreakup']['id'];
+						$spl_alownace_breakup['AccountsSalarybreakup']['amount'] = $spl_alwnce;
+						$this->AccountsSalarybreakup->save($spl_alownace_breakup);
+							
+						$take_home = $take_homesalary+$hike_dues_details['AccountsSalaryhikesdue']['variable_hike']+$spl_alwnce;
+						$save['AccountsSalarydetail']['id'] = $salarydetails_id;
+						$save['AccountsSalarydetail']['take_home'] = $take_home;
+						$this->AccountsSalarydetail->save($save);
+						$variability = $hike_dues_details['AccountsSalaryhikesdue']['variability'];
+						$variable_amounts = explode('-',$variability);
+						
+						$variable_amounts12['High'] = $variable_amounts[0];
+						$variable_amounts12['Good'] = $variable_amounts[1];
+						$variable_amounts12['Average'] = $variable_amounts[2];
+						$variable_amounts12['Poor'] = $variable_amounts[3];
+						foreach($variable_amounts12 as $key => $variable_amount){
+							$variablepay['AccountsVariablepay']['performance_level'] = $key;
+							$variablepay['AccountsVariablepay']['amount'] = $variable_amount;
+							$variablepay['AccountsVariablepay']['rating'] = $variable_amount/1000;
+							$variablepay['AccountsVariablepay']['accounts_salarydetail_id'] = $salarydetails_id;
+							$this->AccountsVariablepay->create();
+							$this->AccountsVariablepay->save($variablepay);
+						}
+						$flag_4_flash = 'Updated Salary';
+					//}
+					/**Commented temporarily to enter the past data**/
+					/*
+					else{
+											$update_due=null;
+											$update_due['AccountsSalaryhikesdue']['id'] = $hikedue_id;
+											$update_due['AccountsSalaryhikesdue']['approved'] = 'Y';
+											$this->AccountsSalaryhikesdue->save($update_due);
+										}*/
+					/**End**/
+					
+				}
+			}
+			if($flag_4_flash == 'Updated Salary'){
+				$this->Session->setFlash('<div class="flashMessageSuccess">Successfully updated salary!</div>');
+			}
+			else{
+				$this->Session->setFlash('<div class="flashMessageSuccess">Hikes has been approved!</div>');
+			}
+			$this->redirect(array('controller'=>'accounts_salarydetails','action'=>'view',$salarydetails_id));
+		}
+	}
+	
+	public function test1() {
+		
+	}
+	
+	function calculate($val1,$val2){
+		$variable_amount = $val1 -$val2;
+		return $variable_amount;
+	}
+	
+	function process_edit($ctc=null,$first_name=null,$last_name=null,$emp_code=null,$id=null,$mode=null){
+		//Configure::write('debug',2);
+		debug($this->data);
+		debug($id);
+		$this->set('data',$this->data);
+		$this->set(compact('ctc','first_name','last_name','emp_code','id','mode'));
+		
+		if($this->data['AccountsSalarydetail']['ctc']){
+			$fixed_ctc = $this->data['AccountsSalarydetail']['fixed'];
+		}else{
+			$fixed_ctc = $this->data['fixed'];
+		}
+		if($this->data['AccountsSalarydetail']['id']){
+			$id=$this->data['AccountsSalarydetail']['id'];
+		}else{
+			$id = $id;
+		}
+		
+		debug($id);
+		
+		$this->loadModel('AccountsSalaryBreakupcomponent');
+		$this->loadModel('AccountsSalarybreakup');
+		
+		$components = $this->AccountsSalaryBreakupcomponent->find('all',array('order'=>array('AccountsSalaryBreakupcomponent.order ASC')));
+		
+		$i=0;
+		foreach($components as $component){
+			$amount=null;
+				if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Basic'){
+					$basic_component = $component['AccountsSalaryBreakupcomponent']['salary_component'];
+					$basic = ($component['AccountsSalaryBreakupcomponent']['value']/100)*$fixed_ctc;
+					$amount = $basic;
+				 }
+				if(($component['AccountsSalaryBreakupcomponent']['type'] == '%') && ($component['AccountsSalaryBreakupcomponent']['salary_component']!='Basic')){
+					$amount = ($component['AccountsSalaryBreakupcomponent']['value']/100)*$basic;
+				}
+				elseif($component['AccountsSalaryBreakupcomponent']['type'] == 'fixed'){
+					$amount = $component['AccountsSalaryBreakupcomponent']['value'];
+				}
+				elseif($component['AccountsSalaryBreakupcomponent']['type'] == 'variable'){
+					$old_breakup = $this->AccountsSalarybreakup->find('first',array('conditions'=>array('AccountsSalarybreakup.accounts_salarydetail_id'=>$id,'AccountsSalarybreakup.accounts_salary_breakupcomponent_id'=>$component['AccountsSalaryBreakupcomponent']['id'])));
+					debug($old_breakup);
+					$amount = $old_breakup['AccountsSalarybreakup']['amount'];
+				}
+				if($component['AccountsSalaryBreakupcomponent']['salary_component'] == 'Professional Tax') {
+					if($fixed_ctc < 15000) {
+						$amount = 150;
+					}
+				}
+				$components[$i]['AccountsSalaryBreakupcomponent']['calculated_amount'] = $amount;
+				
+				if($component['AccountsSalaryBreakupcomponent']['salary_component']!='Special Allowance'){
+					$sp_amount = $sp_amount+$amount;
+					if($component['AccountsSalaryBreakupcomponent']['deduction'] == 'N'){
+						$earning_amount += $amount;
+					}
+				}
+				
+				$i++;
+		}
+		debug($amount);
+		debug($components);
+		$spl_allowance1 = $fixed_ctc-$earning_amount;
+		debug($spl_allowance1);
+		//debug($components);
+		$this->set(compact('components','spl_allowance1'));
+	}
+	
+	
+	public function accountdetails(){
+	//	Configure::write('debug',2);
+		/*debug($this->data);
+		$this->loadModel('AccountsAccount');
+		if($this->data['AccountsSalarydetail']['mode_of_payment']=='Account'){
+			$display=1;
+			$accounts = $this->AccountsAccount->find('list',array('condiitons'=>array('AccountsAccount.asset_type'=>'Bank'),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name')));
+			$this->set(compact('accounts'));
+		}*/
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('SalarySetting');
+		if($this->data['AccountsSalarydetail']['mode_of_payment']=='Account'){
+			$display=1;
+		    $accountss = $this->SalarySetting->find('all');
+			foreach($accountss as $account){
+				$acc_detail = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$account['SalarySetting']['accounts_account_id']),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.asset_type')));
+				if($acc_detail['AccountsAccount']['asset_type'] == 'Bank'){
+					$accounts[$acc_detail['AccountsAccount']['id']] = $acc_detail['AccountsAccount']['account_name'];
+				}			
+		     }
+		     $this->set(compact('accounts'));
+	     }
+		$this->set(compact('display'));
+	}
+	
+	public function specialAllowance(){
+		Configure::write('debug',2);
+		debug($this->data);
+		$this->autoRender = FALSE;
+		
+	}	
+}

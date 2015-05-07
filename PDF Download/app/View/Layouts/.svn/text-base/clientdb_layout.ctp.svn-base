@@ -1,0 +1,28 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>ClientDB</title>
+<?php echo $this->Html->css('ClientDB_styles.css');?>
+<?php echo $this->Html->css('ClientDB_selectbox.css');?>
+<?php echo  $this->Html->script('jquery.js'); ?>
+<?php echo $this->Html->script('jquery-ui.min.js'); ?>
+<?php echo $this->Html->script('jquery_1.7.1.js'); ?>
+<?php echo $this->Html->script('jquerySelectbox.js'); ?>
+<?php echo $this->Html->script('jquery_accord.js'); ?>
+<?php echo $this->Html->script('jquery.raty.js'); ?>
+<?php echo $this->Html->script('jquerySelectbox_client.js'); ?>
+<?php echo $this->Html->script('tabs.js'); ?>
+<?php echo $this->Html->script('popupscript.js'); ?>
+<!--[if gte IE 9]>
+  <style type="text/css">
+    .gradient {
+       filter: none;
+    }
+  </style>
+<![endif]-->
+</head>
+<body id="content" >
+	<?php echo $this->fetch('content'); ?>
+</body>
+</html>

@@ -1,0 +1,601 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+         <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>VISION CARMA</title>
+    
+    	<?php 
+    	      echo $this->Html->css('style_vc.css'); 
+		      echo $this->Html->css('selectbox.css'); 
+		      echo $this->Html->css('jquery.ui.datepicker.css'); 
+		      echo $this->Html->css('jquery-ui-1.8.21.custom.css'); 
+		      echo $this->Html->css('calendar.css');
+		      echo $this->Html->css('fullcalendar.css');
+			  echo $this->Html->css('jquery-ui.css');
+			  echo $this->Html->css('flexdropdown.css');
+			  echo $this->Html->css('jquerycssmenu.css');
+			  echo $this->Html->css('popupcss');
+			  echo $this->Html->css('style_480');
+			  echo $this->Html->css('style_1024');
+			  
+			  
+			  
+			  
+			  
+			 
+		?>
+	
+	   <?php 
+	        
+	          echo $this->Html->script('jquery.js');  
+	          echo $this->Html->script('fullcalendar.js');  
+			  echo $this->Html->script('jquery-ui.min.js');
+		      echo $this->Html->script('jquerySelectbox.js'); 
+		      echo $this->Html->script('jquery.custom_radio_checkbox.js');  
+			  //echo $this->Html->script('jquery.raty.js');  
+			  echo $this->Html->script('Vcscript.js');  
+			  echo $this->Html->script('jquery-ui-1.8.21.custom.js');  
+			  echo $this->Html->script('jquery.datepicker.js'); 
+			  echo $this->Html->script('/js/ckeditor/ckeditor'); 
+			  echo $this->Html->script('calendar.jquery');  
+			  echo $this->Html->script('jquery.validate.js');  
+			  echo $this->Html->script('ready.js'); 
+			  echo $this->Html->script('jquery.tools_tooltip.min.js');
+			  echo $this->Html->script('jquery.cssmenu.js');  
+			  
+		 
+ 
+			  
+			  
+			 
+	        
+			 
+		 ?>
+		
+</head>
+<body>
+
+<?php 
+      $work_type = $this->Session->read('Auth.User.WorkType');
+      //$roleName = $this->Session->read('Auth.User.role_name');
+	  $roleName = $this->requestAction('users/rolename');
+?> 
+
+    <div class="vcMainWrapper" >
+            <div class="Vcinner_wrapperShadow" >
+		    <div class="Vcinner_wrapper" >
+			
+			    <div id='hideme'>
+				     <div class="newSmain" >
+					      <div class="new_head" >NEWS </div>
+					      <div class ="imgplacement">
+					           <img title="close"  src="<?php echo $this->webroot?>img/cross.png"    onClick="hide('hideme')" >
+					      </div>
+					      <div class="new_scrolling" >
+					    
+					    <?php $news = $this->requestAction('Users/layout_news');?>
+					    <marquee behavior="scroll" direction="left" scrolldelay="190"><?php echo $news ;?> </marquee>
+					 </div>
+				</div>
+		</div>	
+			
+			
+		<div class="header" >
+				 <div class="megamenu">
+					  <div class="megamenuLeft">&nbsp;</div>
+						   <div class="megamenuMain">
+								   
+								   <?php 
+								    
+								   /* if(($roleName!=='Admin') && ($roleName!=='Team Lead')){*/?>
+								  
+								  
+									
+									<?php /*}else{*/?>
+									       <?php echo $this->element('toplinks'); ?>
+									<?php /*}*/?>
+									<div class="last_ico">
+										 <span class="menu_bar_ico" style="padding-top: 0px; padding-right: 9px; color: white; cursor: pointer;">
+											<div id="for_idea">
+							                   	<?php echo $this->Html->image('ideator.png',array('title'=>'Ideator','style'=>'height: 28px;'));?>
+					   		                </div>
+										 </span>
+										 <script type="text/javascript" >
+											$(document).ready(function(){
+												$('#for_idea').click(function(){
+													slidepopup("stepoutfor_new_idea");	
+												});
+												
+												function slidepopup(getPopid){
+												    console.log(getPopid);
+													var popID = getPopid;//Get Popup Name
+													var popMargTop = ($('#' + popID).height() + 30) / 2;
+													var popMargLeft = ($('#' + popID).width() + 80) / 2;
+													$('#' + popID).css({ 
+														'margin-top' : -popMargTop,
+														'margin-left' : -popMargLeft
+													}).fadeIn();
+													$('body').append('<div id="fade"></div>'); //Add the fade layer to bottom of the body tag.
+													$('#fade').css({'filter' : 'alpha(opacity=80)'}).fadeIn(); //Fade in the fade layer 
+												    //return false;
+											   }
+												
+											});
+											
+											$(document).keydown(function(e) {
+								    			// ESCAPE key pressed
+												if (e.keyCode == 27) {
+								                    $('#fade').fadeOut();
+													$('#fade').fadeOut(function() {
+														$('#stepoutfor_new_idea').hide(1);
+														$("#fade").remove();
+													});
+								                }
+							                });
+										</script>
+										
+										<script type="text/javascript">
+											$(function(){
+											// Attach a submit handler to the form
+												$( "#for_idea_popup" ).submit(function( event ) {   
+												event.preventDefault();   
+												var $form = $( this ),term = $form.find( "input[name='data[NewIdeas][ideas]']" ).val(),url = $form.attr( "action" );
+												var checkdet=$('#ideas1').val();
+												var firstval = 'data[NewIdeas][ideas]';
+												$('#ideas1').val(' ');
+												var posting = $.post( url, { 'data[NewIdeas][ideas]':checkdet} ); 
+												posting.done(function( data ) {    var content = $( data );
+												$( "#stepoutfor_new_idea" ).empty().append( content ); 
+												 });
+												});
+												});
+										</script>
+										<style>
+											.step_out {
+												width: 539px;
+												height: 221px;
+												float: left;
+												background: #f1f1f1; /* Old browsers */
+												background: -moz-linear-gradient(top, #f1f1f1 0%, #efefec 30%, #e9e9e1 72%, #e7e7dd
+													100%); /* FF3.6+ */
+												background: -webkit-gradient(linear, left top, left bottom, color-stop(0%, #f1f1f1),
+													color-stop(30%, #efefec), color-stop(72%, #e9e9e1),
+													color-stop(100%, #e7e7dd) ); /* Chrome,Safari4+ */
+												background: -webkit-linear-gradient(top, #f1f1f1 0%, #efefec 30%, #e9e9e1 72%,
+													#e7e7dd 100%); /* Chrome10+,Safari5.1+ */
+												background: -o-linear-gradient(top, #f1f1f1 0%, #efefec 30%, #e9e9e1 72%, #e7e7dd
+													100%); /* Opera 11.10+ */
+												background: -ms-linear-gradient(top, #f1f1f1 0%, #efefec 30%, #e9e9e1 72%, #e7e7dd
+													100%); /* IE10+ */
+												background: linear-gradient(to bottom, #f1f1f1 0%, #efefec 30%, #e9e9e1 72%, #e7e7dd
+													100%); /* W3C */
+												filter: progid : DXImageTransform.Microsoft.gradient (   startColorstr =
+													'#f1f1f1', endColorstr = '#e7e7dd', GradientType = 0 ); /* IE6-9 */
+												-webkit-border-radius: 10px;
+												-moz-border-radius: 10px;
+												border-radius: 10px;
+												-webkit-box-shadow: -5px 5px 5px rgba(50, 50, 50, 0.75);
+												-moz-box-shadow: -5px 5px 5px rgba(50, 50, 50, 0.75);
+												box-shadow: -5px 5px 5px rgba(50, 50, 50, 0.75);
+											}
+											.step_out .Btn_func {
+												float: left;
+												margin-top:8px;
+											}
+											.step_out .Btn_func_layout {
+												float: left;
+												margin-left: 240px;
+											}
+											.step_out_timimgDetails {
+												float: left;
+												width: 100%;
+											}
+											
+											.step_out_timimgDetails h2 {
+												color: #434343;
+												font-family: 'Myriad Web Pro', arial;
+												font-size: 20px;
+												font-weight: bold;
+												margin-top: 20px;
+												float: left;
+												width: auto;
+												margin-left: 159px;
+												padding-top: 4px;
+											}
+											
+											.step_out_timimgDetails span {
+												float: left;
+												margin-top: 10px;
+											}
+											.step_out_Comments {
+												float: left;
+												margin-left: 46px;
+												margin-top: 12px;
+											}
+											.step_outReason {
+												width: 447px;
+												height: 92px;
+												background-color: #FFF;
+												border: 1px solid #a6a6a6;
+												-webkit-border-radius: 5px;
+												-moz-border-radius: 5px;
+												border-radius: 5px;
+												color: #696868;
+												font-family: 'Myriad Web Pro', arial;
+												font-size: 13px;
+												text-indent: 5px;
+											}
+											.Btn_func {
+												height: auto;
+												width: auto;
+												float: right;
+												margin-top: 15px;
+											}
+
+										</style>
+										
+										 <span class="menu_bar_ico">
+						
+						   
+											 <?php
+												 
+										    if(($roleName =='Executive Team Member') || ($roleName =='Admin')){
+										    	
+										    	 echo $this->Html->link($this->Html->image('WM_icon.png',array('title'=>'Work Manager')),'../work_ticketdetails/exec_interface',array('escape'=>FALSE,'target' => '_blank'));
+											}elseif($work_type == 'Ticketing'){
+                                                 echo $this->Html->link($this->Html->image('WM_icon.png',array('title'=>'Work Manager')),'../client_ticketdetails/ticket_interface',array('escape'=>FALSE,'target' => '_blank'));
+                                            }else{
+										         echo $this->Html->link($this->Html->image('WM_icon.png',array('title'=>'Work Manager'/*,'id'=>'confirm'*/)),'../workdelegation_tasks/task_interface',array('escape'=>FALSE,'target' => '_blank'));
+										   }
+										   ?>
+										 </span>
+										    <span class="menu_bar_ico">
+											  <a href="#">
+											     <!--<?php echo $this->Html->image('top_ico2.png',array('title'=>'My Profile'));?>-->
+											     <?php echo $this->Html->link($this->Html->image('top_ico2.png',array('title'=>'My Profile')),'../evalreport_types/my_profile',array('escape'=>FALSE)); ?>
+											  </a>
+										    </span>
+										    <span class="menu_bar_ico">
+											  <a href="#">
+											  <?php 
+											     echo $this->Html->link($this->Html->image('logout1.png',array('title'=>'Log out')),'../users/logout',array('escape'=>FALSE));
+											     ?>
+											  </a>
+										    </span>
+									</div>
+							    </div><!--megamenuMain ends here-->
+							    
+							    <div class="megamenuRight">&nbsp;</div>
+						 </div><!--megamenuEndfs-->
+						 
+						 
+						 <div class="menuLogoLoginCont"> 
+						        <div class="logoContainer">
+								   <a href="#">
+								   <?php if($roleName == 'Executive Team Member'){
+								        	      echo $this->Html->link($this->Html->image('logo.png',array('title'=>'Vision Carma Logo')),'../visioncarma_newscategories/exec_dashboard',array('escape'=>FALSE)); 
+								              }elseif($roleName  == 'Admin'){
+								        	       echo $this->Html->link($this->Html->image('logo.png',array('title'=>'Vision Carma Logo')),'../visioncarma_newscategories/admin_dashboard',array('escape'=>FALSE)); 
+								              }elseif($roleName =='HR Admin'){
+								        	       echo $this->Html->link($this->Html->image('logo.png',array('title'=>'Vision Carma Logo')),'../emp_designationmappings/hr_dashboard',array('escape'=>FALSE)); 
+								              }else{
+								        	      echo $this->Html->link($this->Html->image('logo.png',array('title'=>'Vision Carma Logo')),'../workdelegation_categories/index',array('escape'=>FALSE)); 
+								              }
+								        
+								         ?>
+								  </a>
+							    </div>
+							  
+							 <?php echo $this->Html->image('VC-preloader.gif', array('id' => 'busy-indicator3', 'style'=>' display:none; padding-left: 352px; padding-top:28px;')); ?>
+							    
+							    <div class="loggedInContainer">
+									 <div class="loggedWrap">
+									      <div class="loggedInContainerInner">	
+											<div style="display: none;" class="loggedinNoraml">
+												<span class="logoutLink">
+													
+													<?php echo $this->Html->link('Logout',array('controller'=>'users','action'=>'logout') , array("class"=>'drop_logout'));?>
+												</span>											
+												<span class="editProfileLink">
+													<?php echo $this->Html->link('My Profile',array('controller'=>'evalreport_types','action' =>'my_profile') , array("class"=>'drop_logout'));?>
+												</span>
+											</div>
+											
+											<div class="loggedinHover">
+												<div class="loggedInContainerLeft">&nbsp;</div>
+													<div class="loggedInContainerMainCP">
+														<a href="javascript:void(0)"><?php echo $this->Session->read('Auth.User.username')?></a>
+															<img alt="loggedin" src="<?php echo $this->webroot?>img/loggedInArrow.png">													</div>
+												<div class="loggedInContainerRight">&nbsp;</div>
+											</div>
+										</div>	
+									</div>
+								</div>
+						 </div><!--menuLogoLoginContEndss-->
+					</div><!--header-->
+					
+					
+					<div class="main_content" style="width:91%">
+						  <div class="main_content_left" >
+							     <!--
+								 <div class="main_content_LeftInner" >
+																		<div class="calender_main" >
+																		   <div class="heading_main_left" > Calendar</div>
+																		   <div class="calender_start" id="calendar123" >
+																																						  <?php //echo $this->Html->image('calender.png',array('alt'=>'loggedin'));
+																			   ?>
+																			  <?php// echo $this->element('calendar'); 
+																			  ?>
+																		   </div>
+																		</div>
+																	   <?php echo $this->element('project_graph'); ?>
+																  </div>  
+								 
+							     <!--<div id="pageContent" class="main_content_RightInner" style="height: auto">-->
+							     	 <div id="pageContent" class="main_content_RightInneracllayout" style="height: auto">
+													     <div class="right_arrow"></div> 
+													     <?php $present_url=$this->params->url;
+															   $url = explode('/',$present_url);
+															   $present_controller =  $url[0];
+													     ?> 
+								    
+														 <?php echo $this->fetch('content'); ?>
+							     </div><!--PagecontentEnds-->
+						  </div><!--main_content_leftEnds-->
+						  
+						  <div class="main_content_right" >
+						         
+						         <?php if($present_controller =='workdelegation_categories' || $present_controller=='workdelegation_task_recurringdetails' || $present_controller=='workdelegation_tasks' || $present_controller=='workdelegation_priorities' || $present_controller =='workdelegation_task_points' || $present_controller =='workdelegation_organizational_settings' || $present_controller =='workdelegation_category_points'):?>
+							    <ul class="right_section_iconUlist">
+							      
+							      
+							      <?php $role_name = $this->requestAction('users/rolename'); 
+							       
+							      if(($role_name == 'Admin')||($role_name == 'Executive Team Member')||($role_name == 'Team Lead')||($role_name == 'Project Manager')||($role_name == 'HR Admin')):?>
+							        
+							         
+							      <li class="listpjt_selected_ico">
+								     <div class="Righticon_img">
+								           <?php echo $this->Js->link(' ',array('controller'=>'workdelegation_categories','action'=>'add',1),array('update'=>'#pageContent','class'=>'link_nav_image', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?>
+								     		
+									 </div>
+								     <div class="Righticon_text"><?php echo $this->Js->link('Add Project',array('controller'=>'workdelegation_categories','action'=>'add'),array('update'=>'#pageContent','class'=>'link_nav', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?></div>
+								  </li>
+							       
+							       
+							      <li class="listpjt_selected_ico">
+								     <div class="Righticon_img">
+								    <?php echo $this->Html->link(' ',array('controller'=>'workdelegation_task_recurringdetails','action'=>'add_recurring_task1'),array('update'=>'#pageContent','class'=>'link_nav_image3', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?>
+								     
+								     </div>
+								     <div class="Righticon_text"><?php echo $this->Html->link('Add Task',array('controller'=>'workdelegation_task_recurringdetails','action'=>'add_recurring_task1'),array('update'=>'#pageContent','class'=>'link_nav', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?></a></div>
+								  </li>
+								  
+								  
+								  
+								  <?endif;?>
+								  
+								  <li class="listpjt_selected_ico">
+								     <div class="Righticon_img">
+								    <?php echo $this->Html->link(' ',array('controller'=>'VisioncarmaTodolists','action'=>'index'),array('update'=>'#pageContent','class'=>'manageuser_image', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?>
+								     
+								     </div>
+								     <div class="Righticon_text"><?php echo $this->Html->link('To-Dos',array('controller'=>'VisioncarmaTodolists','action'=>'index'),array('update'=>'#pageContent','class'=>'link_nav', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?></a></div>
+								  </li>
+								 
+								  <li class="listpjt_selected_ico">
+								      <div class="Righticon_img">
+									
+									<?php echo $this->Html->link(' ',array('controller'=>'workdelegation_categories','action'=>'index'),array('update'=>'#pageContent','class'=>'clientdb_image', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?>
+									
+									</div>
+								      <div class="Righticon_text"><?php echo $this->Html->link('List Projects',array('controller'=>'workdelegation_categories','action'=>'index'),array('update'=>'#pageContent','class'=>'link_nav','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()"));?></a></div>
+								  </li>
+								  
+								  
+								   <li>
+								      <div class="Righticon_img">
+									
+									    <?php echo $this->Js->link(' ',array('controller'=>'workdelegation_duedates','action'=>'task_view'),array('update'=>'#pageContent','class'=>'link_nav_image4', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?>
+									</div>																					
+								      <div class="Righticon_text"><?php echo $this->Js->link('My Tasks',array('controller'=>'workdelegation_duedates','action'=>'task_view'),array('update'=>'#pageContent','class'=>'link_nav','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()"));?></a></div>
+								  </li>
+								  
+								  <li>
+								      <div class="Righticon_img">
+									
+									<?php echo $this->Js->link(' ',array('controller'=>'workdelegation_tasks','action'=>'tasks_assigned'),array('update'=>'#pageContent','class'=>'link_nav_image5', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?>
+									
+									
+									</div>																							
+								      <div class="Righticon_text"><?php echo $this->Js->link('Assigned Tasks',array('controller'=>'workdelegation_tasks','action'=>'tasks_assigned'),array('update'=>'#pageContent','class'=>'link_nav', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?></a></div>
+								  </li>
+								  <?php if(($role_name == 'Admin')||($role_name == 'Executive Team Member')||($role_name == 'Team Lead')||($role_name == 'Project Manager')||($role_name == 'HR Admin')) { ?>
+								   <li>
+								      <div class="Righticon_img">
+									
+									<?php echo $this->Js->link(' ',array('controller'=>'workdelegation_tasks','action'=>'assigned_tasks_list'),array('update'=>'#pageContent','class'=>'link_nav_image3', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?>
+									
+									
+									</div>																							
+								      <div class="Righticon_text"><?php echo $this->Js->link('Project Tasks',array('controller'=>'workdelegation_tasks','action'=>'assigned_tasks_list'),array('update'=>'#pageContent','class'=>'link_nav', 'async'=>true, 'dataExpression'=>true, 'method'=>'post','before' => "$('#busy-indicator3').fadeIn()",'complete' => "$('#busy-indicator3').fadeOut()" , 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))));?></a></div>
+								  </li>
+								  <?php } ?>
+								  
+								  
+								  </ul>
+							    
+							    <?php endif;?>
+							       
+							   
+						  </div><!--main_content_rightEnds-->
+					</div><!--main_contentEndfss-->
+					 <div class="footer" >
+					    &copy;2013-14, VisionCarma. All rights reserved. 
+					 </div> 
+					 
+		    </div><!--Vcinner_wrapperEnds-->
+		    <div class="clear"></div>
+	    </div><!--Vcinner_wrapperShadow-->
+</div><!--vcMainWrapperEnds-->
+
+<div class="step_out simple_overlay" id="stepoutfor_new_idea" style="display:none;width: 539px;">
+	<?php  echo $this->Form->create('NewIdeas',array('id'=>'for_idea_popup','url'=>array('controller'=>'Users','action'=>'new_ideas')));?>
+	
+		<div class="popup_close_bar ">
+			<img class="right pointer popup_close_bar_cross forclosestepin" src="<?php echo $this->webroot;?>img/close_popup.png" title="Close"/>
+		</div>
+		<div class="step_out_timimgDetails">
+			<h2 style="margin-left: 45px;">Share your ideas and start something good...</h2>
+	 	</div>
+	  	
+	 	<div class="step_out_Comments">
+	 		<?php echo $this->Form->textarea('ideas',array('div'=>FALSE,'label'=>FALSE,'id'=>'ideas1','class'=>'step_outReason','cols'=>'','rows'=>''));?>
+			<!--<textarea name="" cols="" rows="" class="step_outReason"  value="" onblur="if (this.value == '') this.value = 'Reason';" onfocus="if (this.value == 'Reason') this.value = '';">Reason</textarea>-->
+	 	</div>
+	 	<div class="Btn_func" style="margin-bottom: 29px;">
+	    	<div class="Btn_func_layout">
+	        	<span class="btn_left"></span>
+	        	<span style="padding:1px 5px 0 5px;">
+	        		<input type="submit" value="Submit" class="btn_mid" />
+	        	</span>
+	            <span class="btn_right"></span>
+	   		</div>                   
+		</div>  
+		<div class="step_out_timimgDetails" style="width: 98%;">
+			<span style="margin-left: 17px; font-size: 11px; text-align: center;">
+				"You can have brilliant ideas, but if you can't get them across, your ideas won't get you anywhere."<br /> - Lee Iacocca
+			</span>
+	 	</div>
+		<?php echo $this->Form->end();?>   
+	</div>
+			
+		<script type="text/javascript" >
+			$(document).ready(function(){
+				$('.forclosestepin').click(function(){
+					$('#fade').fadeOut();
+					$('#fade').fadeOut(function() {
+						$('#stepoutfor_new_idea').hide(1);
+						$("#fade").remove();
+					});
+				});
+			});
+		</script>
+
+
+	<?php echo $this->Js->writeBuffer();?>			
+				
+	<script type="text/javascript">			
+				
+		function hide(obj) {
+
+    var el = document.getElementById(obj);
+
+        el.style.display = 'none';
+
+}
+	</script>			
+				
+				
+				     
+<script type="text/javascript">
+	$(function () {
+		$(".custom_select").selectbox();
+	});
+	 $(document).click(function(event) {
+		if ( !$(event.target).hasClass('sbHolder') && !$(event.target).parents().hasClass('sbHolder')) {
+			   $(".custom_select").selectbox('close'); 
+		    }
+	});
+	$(document).ready(function(){
+			$(".radio_custom").dgStyle();
+			$(".checkbox_custom").dgStyle();
+      
+		$( ".datepicker" ).datepicker({
+			showOn: "button",
+			buttonImage: "../img/icon_datepicker.jpg",
+			buttonImageOnly: true
+		});
+      });
+</script>
+
+<script type="text/javascript" >
+	
+	$(document).ready(function(){
+		
+		$(".project_percent_reading").each(function() {
+		  var readingget = $(this).attr("data-percent");
+		  pa = {
+		  	width: readingget+'%'
+		  };
+		  $(this).animate(pa , 2000);
+		});
+		
+		
+		
+	});
+</script>	
+	
+
+
+
+<script type="text/javascript" >
+
+$('#calendar123').fullCalendar({
+	 
+    events: '<?php echo $this->webroot ?>workdelegation_categories/project_highlight',
+    eventClick: function(calEvent, jsEvent, view) {
+    	 // console.log(events);
+    	
+    	var monthStart = calEvent.start.getUTCMonth()+1;
+        var dayStart   = calEvent.start.getUTCDate()+1;
+        var yearStart  = calEvent.start.getUTCFullYear();
+        
+         
+        if(monthStart<=9){
+        	monthStart = '0'+monthStart;
+        } 
+        if(dayStart<=9){
+        	dayStart = '0'+dayStart;
+        }
+        
+       
+        
+        //var monthEnd = calEvent.enddate.getUTCMonth();
+       // var dayEnd   = calEvent.enddate.getUTCDate();
+       // var yearEnd  = calEvent.enddate.getUTCFullYear();
+
+        newdateStart = yearStart + "-" + monthStart + "-" + dayStart + " " + "00:00:00";
+       
+       // newdateEnd = yearEnd + "/" + monthEnd + "/" + dayEnd;
+    	
+       
+        alert('Project Name: ' + calEvent.title 
+                               + "\nStart Date:"+newdateStart 
+                               + "\nEnd Date:" +calEvent.enddate);
+        
+
+    }
+});
+
+
+</script>
+
+
+
+
+
+<script type="text/javascript">	
+	$("#confirm").click(function(){
+      $("#busy-indicator3").show();
+	})
+</script>
+
+
+
+
+
+
+</body>
+</html>

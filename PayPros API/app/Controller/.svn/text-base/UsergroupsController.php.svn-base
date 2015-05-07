@@ -1,0 +1,1356 @@
+<?php
+App :: uses('AppController', 'Controller');
+/**
+ * Usergroups Controller
+ *
+ * @property Usergroup $Usergroup
+ * @property RequestHandlerComponent $RequestHandler
+ */
+class UsergroupsController extends AppController {
+var $uses = array('User','Aro');
+	/**
+	 * Helpers
+	 *
+	 * @var array
+	 */
+	/**
+	 * index method
+	 *
+	 * @return void
+	 */
+	
+	public function beforeFilter(){
+		Configure::write('debug',2);
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		parent::beforeFilter();
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+		if($controller == 'usergroups'){
+			if(($url == 'menuindex') || ($url == 'menuedit') || ($url == 'menuview') || ($url == 'deletemenu') || ($url == 'addmenu') || ($url == 'addmenu1')){
+				$module_name = 'Modules';
+			}elseif(($url == 'index') || ($url == 'edit') || ($url == 'view') || ($url == 'delete') || ($url == 'adduser') || ($url == 'adduser1') || ($url == 'addusergroup')){
+				$module_name = 'User Groups';
+			}
+		
+		
+		$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+		$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+		$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+		
+		if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    	$proceed=1;
+	    }
+	    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    	$proceed=1;
+	    }
+	    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    	$proceed=1;
+	    }
+	    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+	    	$proceed=1;
+	    }	    
+	    }
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+	}
+	
+	
+	 
+	 
+	 
+	public function index($page=null,$limit=null,$count=null,$field=NULL,$searchdata=NULL) {
+		//Configure::write('debug',2);	
+		if(!$page) $page=1; //Initialize the page 
+		if(!$limit) $limit=20; // Initialize the limit 
+		$offset=$this->countPages($count,$limit,$page);//Get Offset value 
+		if(!$offset)  $offset=0;
+		$this->loadModel('Aro');
+		if (!empty($field) && !empty($searchdata)) {
+			$this->request->data['Search']['usrgroup'] = $searchdata ;
+		}
+		$usergroup_parents = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id IS NULL','Aro.foreign_key IS NULL'),'limit'=>$limit,'offset'=>$offset));
+		$count = $this->Aro->find('count',array('conditions'=>array('Aro.parent_id IS NULL','Aro.foreign_key IS NULL')));
+		$i = 0;
+		if(!$final = Cache::read('final')){
+		foreach($usergroup_parents as $k => $v){
+			$final[$i]['id'] = $v['Aro']['id'];
+			$final[$i]['aroname'] = $v['Aro']['alias'];
+			$usergroup_users = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id' => $v['Aro']['id'],'Aro.foreign_key IS NOT NULL')));
+			$usergroup_groups = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id' => $v['Aro']['id'],'Aro.foreign_key IS NULL')));
+			$final[$i]['no_users'] = count($usergroup_users);
+			$final[$i]['no_groups'] = count($usergroup_groups);
+			$j=0;
+			foreach($usergroup_users as $k1 => $v1){
+				$final[$i]['Users'][$j]['id'] = $v1['Aro']['id'];
+				$final[$i]['Users'][$j]['aroname'] = $v1['Aro']['alias'];
+				$j++;
+			}
+			$k=0;
+			foreach($usergroup_groups as $k2 => $v2){
+				$final[$i]['Childgroup'][$k]['id'] = $v2['Aro']['id'];
+				$final[$i]['Childgroup'][$k]['aroname'] = $v2['Aro']['alias'];
+				$usergroup_childusers = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id' => $v2['Aro']['id'],'Aro.foreign_key IS NOT NULL')));
+				$final[$i]['Childgroup'][$k]['no_users'] = count($usergroup_childusers);
+				$l=0;
+				foreach($usergroup_childusers as $k3=>$v3){
+					$final[$i]['Childgroup'][$k]['Users'][$l]['id'] = $v3['Aro']['id'];
+					$final[$i]['Childgroup'][$k]['Users'][$l]['aroname'] = $v3['Aro']['alias'];
+					$l++;
+				}
+				$k++;
+			}
+			$i++;
+		}
+		Cache::write('final', $final, 86400);
+		}
+		$this->set(compact('page','limit','count'));
+		if(!empty($this->data)){
+			$usergroup_parents=null;$final=null;
+			$usergroup_parents = $this->Aro->find('all',array('conditions'=>array('Aro.foreign_key IS NULL','Aro.alias LIKE'=>$this->data['Search']['usrgroup'].'%')));
+			foreach($usergroup_parents as $k => $v){
+				$final[$i]['id'] = $v['Aro']['id'];
+				$final[$i]['aroname'] = $v['Aro']['alias'];
+				$usergroup_users = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id' => $v['Aro']['id'],'Aro.foreign_key IS NOT NULL')));
+				$final[$i]['no_users'] = count($usergroup_users);
+				$i++;
+			}
+		}
+		
+		debug($final);
+		$this->set(compact('final'));
+	}
+
+	/**
+	 * view method
+	 *
+	 * @param string $id
+	 * @return void
+	 */
+	public function view($id = null,$ismenu=null) {
+	//	configure::write('debug',2);
+		$menuflag = null;
+		$this->loadModel('ArosAcos');
+		$this->loadModel('Aro');
+		$this->loadModel('Aco');
+		$this->Aco->recursive = -1;
+		$ismenu='Y';
+		/*if($ismenu){
+			$ismenu = $ismenu;
+		}else{
+			$ismenu='Y';
+		}*/
+		$this->set(compact('ismenu'));
+		$arosacos = $this->ArosAcos->find('all',array('conditions'=>array('AND'=>array('ArosAcos.aro_id' => $id))));
+		$aro = $this->Aro->find('first',array('conditions'=>array('Aro.id'=>$id)));
+		$parent = $this->Aro->find('first',array('conditions'=>array('Aro.id'=>$aro['Aro']['parent_id'])));
+		$i = 0;$final1=null;$final1=null;
+		foreach($arosacos as $k => $v){
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$v['ArosAcos']['aco_id'],'Aco.ismenu'=>'Y')));
+			if(!$aco['Aco']['parent_id']){
+			if($aco['Aco']['alias']){
+				$final1[$i]['id'] = $v['ArosAcos']['id'];
+				$final1[$i]['acid'] = $aco['Aco']['id'];
+				$final1[$i]['parent_id'] = $aco['Aco']['parent_id'];
+				$final1[$i]['module'] = $aco['Aco']['alias'];
+				$final1[$i]['create'] = $v['ArosAcos']['_create'];
+				$final1[$i]['read'] = $v['ArosAcos']['_read'];
+				$final1[$i]['update'] = $v['ArosAcos']['_update'];
+				$final1[$i]['delete'] = $v['ArosAcos']['_delete'];
+				$final1[$i]['order'] = $aco['Aco']['order'];
+			}	
+			}
+			else{
+			if($aco['Aco']['alias'] && $aco['Aco']['ismenu']=='Y'){
+				$final2[$aco['Aco']['parent_id']][$i]['id'] = $v['ArosAcos']['id'];
+				$final2[$aco['Aco']['parent_id']][$i]['acid'] = $aco['Aco']['id'];
+				$final2[$aco['Aco']['parent_id']][$i]['parent_id'] = $aco['Aco']['parent_id'];
+				$final2[$aco['Aco']['parent_id']][$i]['module'] = $aco['Aco']['alias'];
+				$final2[$aco['Aco']['parent_id']][$i]['create'] = $v['ArosAcos']['_create'];
+				$final2[$aco['Aco']['parent_id']][$i]['read'] = $v['ArosAcos']['_read'];
+				$final2[$aco['Aco']['parent_id']][$i]['update'] = $v['ArosAcos']['_update'];
+				$final2[$aco['Aco']['parent_id']][$i]['delete'] = $v['ArosAcos']['_delete'];
+				$final2[$aco['Aco']['parent_id']][$i]['order'] = $aco['Aco']['order'];
+				$thirdlevel_menus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$aco['Aco']['id'],'Aco.ismenu'=>'Y')));
+				$k=0;
+				foreach($thirdlevel_menus as $thirdlevel_menu){
+				if($thirdlevel_menu['Aco']['alias'] && $aco['Aco']['ismenu']=='Y'){
+					$aros_acos_third = $this->ArosAcos->find('first',array('conditions'=>array('ArosAcos.aro_id'=>$aro['Aro']['id'],'ArosAcos.aco_id'=>$thirdlevel_menu['Aco']['id'])));
+					$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['id'] = $aros_acos_third['ArosAcos']['id'];
+					$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['acid'] = $thirdlevel_menu['Aco']['id'];
+					$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['parent_id'] = $thirdlevel_menu['Aco']['parent_id'];
+					$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['module'] = $thirdlevel_menu['Aco']['alias'];
+					$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['create'] = $aros_acos_third['ArosAcos']['_create'];
+					$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['read'] =  $aros_acos_third['ArosAcos']['_read'];
+					$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['update'] = $aros_acos_third['ArosAcos']['_update'];
+					$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['delete'] = $aros_acos_third['ArosAcos']['_delete'];
+					$k++;
+				}
+				}
+			}				
+			}
+			$i++;
+		}
+		$final1 = $this->sorting($final1);
+		$final=null;$s=0;
+		foreach($final1 as $k1=>$v1){
+			$final[$s]=$v1;
+			++$s;
+		    	foreach($final2[$v1['acid']] as $m1=>$n1){
+		    			$final[$s]['id'] = $n1['id'];
+		    			$final[$s]['acid'] = $m1;
+						$final[$s]['parent_id'] = $n1['parent_id'];
+						$final[$s]['module'] = '-'.$n1['module'];
+						$final[$s]['create'] = $n1['create'];
+						$final[$s]['read'] = $n1['read'];
+						$final[$s]['update'] = $n1['update'];
+						$final[$s]['delete'] = $n1['delete'];
+			        	 ++$s;
+			        	foreach($final3[$n1['acid']] as $k3 => $v3){
+			        		$final[$s]['id'] = $v3['id'];
+			        		$final[$s]['acid'] = $v3['acid'];
+							$final[$s]['parent_id'] = $v3['parent_id'];
+							$final[$s]['module'] = '-'.'-'.$v3['module'];
+							$final[$s]['create'] = $v3['create'];
+							$final[$s]['read'] = $v3['read'];
+							$final[$s]['update'] = $v3['update'];
+							$final[$s]['delete'] = $v3['delete'];
+			     		   ++$s;
+			        	}	
+		    	}
+		}
+		
+		$users = $this->User->find('all',array('conditions'=>array('User.usergroup_id'=>$id)));
+		$increment = 0;
+		if(!empty($users)){
+			$this->loadModel('Staff');
+			foreach($users as $user){
+				$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$user['User']['staff_id']),'fields'=>array('Staff.first_name','Staff.last_name')));
+				if(!empty($staff)){
+					$final_users[$increment]['name'] = $staff['Staff']['first_name'].' '.$staff['Staff']['last_name'];
+					$final_users[$increment]['username'] = $user['User']['username'];
+					$increment++;
+				}
+			}
+		}
+		$this->set(compact('final','aro','parent','id','final_users'));
+	}
+
+	/**
+	 * add method
+	 *
+	 * @return void
+	 */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->Usergroup->create();
+			if ($this->Usergroup->save($this->request->data)) {
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The usergroup has been saved</div>'));
+				$this->redirect(array (
+					'action' => 'index'
+				));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The usergroup could not be saved. Please, try again.</div>'));
+			}
+		}
+	}
+
+	/**
+	 * edit method
+	 *
+	 * @param string $id
+	 * @return void
+	 */
+	function edit($id = null,$menu=null) {
+	//	Configure::write('debug',2);
+		$menuflag = null;
+		$aro =& $this->Acl->Aro;
+		$this->loadModel('ArosAcos');
+		$this->loadModel('Aro');
+		$this->loadModel('Aco');
+		$this->Aco->recursive = -1;
+		$this->set('id',$id);
+		if($menu){
+			$ismenu = $menu;
+			$menuflag = $menu;
+		}else{
+			$ismenu='Y';
+			$menuflag = 'Y';
+		}
+		$this->set(compact('menuflag'));
+		if(!$id){
+			$id = $this->data['UserGroup']['id_return'];
+		}
+		$arosacos = $this->ArosAcos->find('all',array('conditions'=>array('ArosAcos.aro_id' => $id)));
+		$aro = $this->Aro->find('first',array('conditions'=>array('Aro.id'=>$id)));
+		$parent = $this->Aro->find('first',array('conditions'=>array('Aro.id'=>$aro['Aro']['parent_id'])));
+		$i = 0;$final1=null;$final1=null;
+		foreach($arosacos as $k => $v){
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$v['ArosAcos']['aco_id'],'Aco.ismenu'=>'Y')));
+			if(!$aco['Aco']['parent_id']){
+				if($aco['Aco']['alias']){
+					$final1[$i]['id'] = $v['ArosAcos']['id'];
+					$final1[$i]['acid'] = $aco['Aco']['id'];
+					$final1[$i]['parent_id'] = $aco['Aco']['parent_id'];
+					$final1[$i]['module'] = $aco['Aco']['alias'];
+					$final1[$i]['create'] = $v['ArosAcos']['_create'];
+					$final1[$i]['read'] = $v['ArosAcos']['_read'];
+					$final1[$i]['update'] = $v['ArosAcos']['_update'];
+					$final1[$i]['delete'] = $v['ArosAcos']['_delete'];
+					$final1[$i]['order'] = $aco['Aco']['order'];
+				}
+			}
+			else{
+				if($aco['Aco']['alias'] && $aco['Aco']['ismenu']=='Y'){				
+					$final2[$aco['Aco']['parent_id']][$i]['id'] = $v['ArosAcos']['id'];
+					$final2[$aco['Aco']['parent_id']][$i]['acid'] = $aco['Aco']['id'];
+					$final2[$aco['Aco']['parent_id']][$i]['parent_id'] = $aco['Aco']['parent_id'];
+					$final2[$aco['Aco']['parent_id']][$i]['module'] = $aco['Aco']['alias'];
+					$final2[$aco['Aco']['parent_id']][$i]['create'] = $v['ArosAcos']['_create'];
+					$final2[$aco['Aco']['parent_id']][$i]['read'] = $v['ArosAcos']['_read'];
+					$final2[$aco['Aco']['parent_id']][$i]['update'] = $v['ArosAcos']['_update'];
+					$final2[$aco['Aco']['parent_id']][$i]['delete'] = $v['ArosAcos']['_delete'];
+					$final2[$aco['Aco']['parent_id']][$i]['order'] = $aco['Aco']['order'];
+					$thirdlevel_menus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$aco['Aco']['id'],'Aco.ismenu'=>'Y')));
+					$k=0;
+					foreach($thirdlevel_menus as $thirdlevel_menu){
+						if($thirdlevel_menu['Aco']['alias'] && $aco['Aco']['ismenu']=='Y'){
+							$aros_acos_third = $this->ArosAcos->find('first',array('conditions'=>array('ArosAcos.aro_id'=>$aro['Aro']['id'],'ArosAcos.aco_id'=>$thirdlevel_menu['Aco']['id'])));
+							$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['id'] = $aros_acos_third['ArosAcos']['id'];
+							$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['acid'] = $thirdlevel_menu['Aco']['id'];
+							$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['parent_id'] = $thirdlevel_menu['Aco']['parent_id'];
+							$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['module'] = $thirdlevel_menu['Aco']['alias'];
+							$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['create'] = $aros_acos_third['ArosAcos']['_create'];
+							$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['read'] =  $aros_acos_third['ArosAcos']['_read'];
+							$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['update'] = $aros_acos_third['ArosAcos']['_update'];
+							$final3[$thirdlevel_menu['Aco']['parent_id']][$k]['delete'] = $aros_acos_third['ArosAcos']['_delete'];
+							$k++;
+						}
+					}
+				}	
+			}
+			$i++;
+		}
+		$final1 = $this->sorting($final1);
+		$final=null;$s=0;
+		foreach($final1 as $k1=>$v1){
+			$final[$s]=$v1;
+			++$s;
+		    	foreach($final2[$v1['acid']] as $m1=>$n1){
+		    		$final[$s]['id'] = $n1['id'];
+		    		$final[$s]['acid'] = $m1;
+					$final[$s]['parent_id'] = $n1['parent_id'];
+					$final[$s]['module'] = '-'.$n1['module'];
+					$final[$s]['create'] = $n1['create'];
+					$final[$s]['read'] = $n1['read'];
+					$final[$s]['update'] = $n1['update'];
+					$final[$s]['delete'] = $n1['delete'];
+			        ++$s;
+			        	foreach($final3[$n1['acid']] as $k3 => $v3){
+			        		$final[$s]['id'] = $v3['id'];
+			        		$final[$s]['acid'] = $v3['acid'];
+							$final[$s]['parent_id'] = $v3['parent_id'];
+							$final[$s]['module'] = '-'.'-'.$v3['module'];
+							$final[$s]['create'] = $v3['create'];
+							$final[$s]['read'] = $v3['read'];
+							$final[$s]['update'] = $v3['update'];
+							$final[$s]['delete'] = $v3['delete'];
+			     		   ++$s;
+			        	}
+		    	}
+			}
+		debug($final);	
+		//$final = $this->sorting($final);
+		$show=null;
+		$parentUserGroups1 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+		foreach($parentUserGroups1 as $k=>$v){
+			$show[$k]=$v;
+			$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+			foreach($l2 as $k1=>$v2){
+				$show[$k1]='---'.$v2;
+			}
+		}
+		
+		
+		
+		
+		
+		$users = $this->User->find('all',array('conditions'=>array('User.usergroup_id'=>$id)));
+		$increment = 0;
+		if(!empty($users)){
+			$this->loadModel('Staff');
+			foreach($users as $user){
+				$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$user['User']['staff_id']),'fields'=>array('Staff.first_name','Staff.last_name')));
+				if(!empty($staff)){
+					$final_users[$increment]['id'] = $user['User']['id'];
+					$final_users[$increment]['name'] = $staff['Staff']['first_name'].' '.$staff['Staff']['last_name'];
+					$final_users[$increment]['username'] = $user['User']['username'];
+					$increment++;
+				}
+			}
+		}
+		
+		
+		
+		
+		
+		$this->set(compact('final','aro','parent','show','id','ismenu','staff','final_users'));
+		if($this->data){
+			if(!$this->data['UserGroup']['name']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Name cannot be left blank</div>', true));
+				return;
+			}
+		}
+		if($this->data['UserGroup']['aro_id']){
+			debug($this->data);
+			$this->Aro->create();
+			$data['id'] = $this->data['UserGroup']['aro_id'];
+			$data['parent_id'] = $this->data['UserGroup']['parent_id'];
+			$data['alias'] = $this->data['UserGroup']['name'];
+			$this->Aro->save($data);
+			foreach($this->data['permissions'] as $k=>$v){
+				$save->data = null;
+				$this->ArosAcos->create();
+				$data['id'] = $k;
+				if($v['delete'] == 1){
+					$data['_create'] = 1;
+					$data['_read'] = 1;
+					$data['_update'] = 1;
+					$data['_delete'] = 1;
+					$this->ArosAcos->save($data);
+				}else{
+					$data['_create'] = $v['create'];
+					$data['_read'] = $v['read'];
+					$data['_update'] = $v['update'];
+					$data['_delete'] = $v['delete'];
+					$this->ArosAcos->save($data);
+				}
+			}
+		$this->Session->setFlash(__('<div class="flashMessageSuccess">Successfully updated</div>', true));	
+		$this->redirect(array('action'=>'index'));	
+		}
+	}
+	
+	public function deleteuser($id=null,$user_id=null){
+	//	Configure::write('debug',2);
+		$aro =& $this->Acl->Aro;
+		$this->loadModel('ArosAcos');
+		$this->loadModel('Aro');
+		$this->loadModel('Aco');
+		$this->loadModel('Staff');
+		$this->loadModel('User');
+		
+		$users = $this->User->find('all',array('conditions'=>array('User.usergroup_id'=>$id)));
+		$increment = 0;
+		if(!empty($users)){
+			$this->loadModel('Staff');
+			foreach($users as $user){
+				$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$user['User']['staff_id']),'fields'=>array('Staff.first_name','Staff.last_name')));
+				if(!empty($staff)){
+					$final_users[$increment]['id'] = $user['User']['id'];
+					$final_users[$increment]['name'] = $staff['Staff']['first_name'].' '.$staff['Staff']['last_name'];
+					$final_users[$increment]['username'] = $user['User']['username'];
+					$increment++;
+				}
+			}
+		}
+		$this->set(compact('final_users','id'));
+		debug($user_id);
+		if($user_id){
+			$user_update = $this->User->find('first',array('conditions'=>array('User.id'=>$user_id),'fields'=>array('User.id','User.staff_id')));
+			$stafff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$user_update['User']['staff_id']),'fields'=>array('Staff.id','Staff.aro_id')));
+			$aro_record = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$user_id)));
+			if(!empty($stafff)){
+			//	debug($stafff);
+				$update_staff['Staff']['id'] = $stafff['Staff']['id'];
+				$update_staff['Staff']['aro_id'] = '0';
+				$this->Staff->save($update_staff);
+				
+				$update_user['User']['id'] = $user_update['User']['id'];
+				$update_user['User']['usergroup_id'] = '0';
+				$this->User->save($update_user);
+				
+				$update_aros['Aro']['id'] = $aro_record['Aro']['id'];
+				$update_aros['Aro']['parent_id'] = '0';
+				$this->Aro->save($update_aros);
+				$flash=1;
+				$this->redirect(array('action'=>'deleteuser',$id));
+			}
+		}
+	}
+	
+	public function adduser(){
+		$this->loadModel('Staff');
+		$staffs =  $this->Staff->find('all', array('fields' => array('Staff.id','Staff.first_name','Staff.last_name'),'conditions'=>array('Staff.active'=>'Y')));
+		foreach($staffs as $staff)
+		{
+			$final_staff[$staff['Staff']['id']] = $staff['Staff']['first_name'].' '.$staff['Staff']['last_name'];
+		}
+		$this->set(compact('$final_staff'));
+		
+		if(!empty($this->data)){
+			
+		}
+	}
+	
+	
+	/**
+	 * delete method
+	 *
+	 * @param string $id
+	 * @return void
+	 */
+	public function delete($id = null) {
+		if (!$id) {
+			$this->Session->setFlash(__('<div class="flashMessageError">Invalid user group id</div>', true));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->loadModel('Aro');
+		$this->loadModel('ArosAcos');
+		$acos_aros = $this->ArosAcos->find('first',array('conditions'=>array('ArosAcos.aro_id'=>$id)));
+		$child_aros = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id'=>$id)));
+		foreach($child_aros as $k=>$v){
+			$child_acos_aros = $this->ArosAcos->find('all',array('conditions'=>array('ArosAcos.aro_id'=>$v['Aro']['id'])));
+			foreach($child_acos_aros as $k1=>$v1){
+				$this->ArosAcos->delete($v1['ArosAcos']['id']);	
+			}
+			$this->Aro->delete($v['Aro']['id']);
+		}
+		$this->ArosAcos->delete($acos_aros['ArosAcos']['id']);
+		if ($this->Aro->delete($id)) {
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">User group deleted</div>', true));
+			$this->redirect(array('action'=>'index'));
+		}
+	
+		/*if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->Usergroup->id = $id;
+		if (!$this->Usergroup->exists()) {
+			throw new NotFoundException(__('Invalid usergroup'));
+		}
+		if ($this->Usergroup->delete()) {
+			$this->Session->setFlash(__('Usergroup deleted'));
+			$this->redirect(array (
+				'action' => 'index'
+			));
+		}
+		$this->Session->setFlash(__('Usergroup was not deleted'));
+		$this->redirect(array (
+			'action' => 'index'
+		));*/
+	}
+
+	function addusergroup($menu=null) {
+		//$aro =& $this->Acl->Aro;
+		$menuflag = null;
+		if($menu){
+			$ismenu = $menu;
+			$menuflag = $menu;
+		}else{
+			$ismenu='Y';
+			$menuflag='Y';
+		}
+		$this->set(compact('menuflag'));
+
+		$show=null;
+		$parentUserGroups1 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+		foreach($parentUserGroups1 as $k=>$v){
+			$show[$k]=$v;
+			$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+			foreach($l2 as $k1=>$v2){
+				$show[$k1]='|----'.$v2;
+			}
+		}
+		$this->loadModel('Aco');
+		$show1=null;
+		$parentmenu1 = $this->Aco->find('list',array('conditions'=>array('Aco.parent_id IS NULL'),'fields'=>array('Aco.id','Aco.alias'),'order'=>array('Aco.order ASC')));
+		foreach($parentmenu1 as $k3=>$v3){
+			$show1[$k3]=$v3;
+			$menul2 = $this->Aco->find('list',array('conditions'=>array('Aco.parent_id'=>$k3),'fields'=>array('Aco.id','Aco.alias')));
+			foreach($menul2 as $k4=>$v4){
+				$show1[$k4]='-'.$v4;
+				$menul3 = $this->Aco->find('list',array('conditions'=>array('Aco.parent_id'=>$k4),'fields'=>array('Aco.id','Aco.alias')));
+				foreach($menul3 as $k444  => $v555){
+					$show1[$k444]='--'.$v555;
+				}
+			}
+		}
+		$this->set(compact('show','show1'));
+		if($this->data){
+			if(!$this->data['UserGroup']['name']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Name cannot be left blank</div>', true));
+				return;
+			}
+			
+			if(isset($this->data['permissions'])){
+				foreach($this->data['permissions'] as $keyy => $valuee){
+					foreach($valuee as $keyy1 => $valuee1){
+						if($valuee1 == 1){
+							$donot_proceed = 'No error';
+						}
+					}
+				}
+				
+				if(!isset($donot_proceed)){
+					$this->Session->setFlash(__('<div class="flashMessageError">Atleast one module access has to be given! Couldn\'t save!</div>', true));
+					return;
+				}
+			}
+			
+		}
+		
+		$aro =& $this->Acl->Aro;
+		if ($this->data['UserGroup']['name'] && !$this->data['UserGroup']['parent_id']) {
+			$aro->create();
+			$data['alias'] = $this->data['UserGroup']['name'];
+			$aro->save($data);
+			$this->loadModel('Aro');
+			$this->loadModel('ArosAcos');
+			$lastaro=$this->Aro->getLastInsertID();
+			foreach($this->data['permissions'] as $k=>$v){
+				/*$child_menus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$k,'Aco.ismenu'=>'Y')));
+				if(!empty($child_menus)){
+					foreach($child_menus as $child_menu){
+						if($child_menu['Aco']['id']){
+							$third_levelmenus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$child_menu['Aco']['id'],'Aco.ismenu'=>'Y')));
+							foreach($third_levelmenus as $third_levelmenu){
+								if($third_levelmenu['Aco']['id']){
+									$third_levelmenu_data=null;
+									$this->ArosAcos->create();
+									$third_levelmenu_data['aro_id'] = $lastaro;
+									$third_levelmenu_data['aco_id'] = $third_levelmenu['Aco']['id'];
+									if($v['delete'] == 1){
+										$third_levelmenu_data['_create'] = 1;
+										$third_levelmenu_data['_read'] = 1;
+										$third_levelmenu_data['_update'] = 1;
+										$third_levelmenu_data['_delete'] = 1;
+										$this->ArosAcos->save($third_levelmenu_data);
+									}else{
+										$third_levelmenu_data['_create'] = $v['create'];
+										$third_levelmenu_data['_read'] = $v['read'];
+										$third_levelmenu_data['_update'] = $v['update'];
+										$third_levelmenu_data['_delete'] = $v['delete'];
+										$this->ArosAcos->save($third_levelmenu_data);
+									}
+								}
+							}
+							$data1 = null;
+							$this->ArosAcos->create();
+							$data1['aro_id'] = $lastaro;
+							$data1['aco_id'] = $child_menu['Aco']['id'];
+							if($v['delete'] == 1){
+								$data1['_create'] = 1;
+								$data1['_read'] = 1;
+								$data1['_update'] = 1;
+								$data1['_delete'] = 1;
+								$this->ArosAcos->save($data1);
+							}else{
+								$data1['_create'] = $v['create'];
+								$data1['_read'] = $v['read'];
+								$data1['_update'] = $v['update'];
+								$data1['_delete'] = $v['delete'];
+								$this->ArosAcos->save($data1);
+							}
+						}
+					}
+				}
+				$actions  = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$k,'Aco.ismenu'=>'N')));
+				if(!empty($actions)){
+					foreach($actions as $action){
+						if($action['Aco']['id']){
+							$thirdlevel_actions = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$action['Aco']['id'],'Aco.ismenu'=>'N')));
+							foreach($thirdlevel_actions as $thirdlevel_action){
+								$actions_data = null;
+								$this->ArosAcos->create();
+								$actions_data['aro_id'] = $lastaro;
+								$actions_data['aco_id'] = $thirdlevel_action['Aco']['id'];
+								if($v['delete'] == 1){
+									$actions_data['_create'] = 1;
+									$actions_data['_read'] = 1;
+									$actions_data['_update'] = 1;
+									$actions_data['_delete'] = 1;
+									$this->ArosAcos->save($actions_data);
+								}else{
+									$actions_data['_create'] = $v['create'];
+									$actions_data['_read'] = $v['read'];
+									$actions_data['_update'] = $v['update'];
+									$actions_data['_delete'] = $v['delete'];
+									$this->ArosAcos->save($actions_data);
+								}
+							}
+							$data2 = null;
+							$this->ArosAcos->create();
+							$data2['aro_id'] = $lastaro;
+							$data2['aco_id'] = $action['Aco']['id'];
+							if($v['delete'] == 1){
+								$data2['_create'] = 1;
+								$data2['_read'] = 1;
+								$data2['_update'] = 1;
+								$data2['_delete'] = 1;
+								$this->ArosAcos->save($data2);
+							}else{
+								$data2['_create'] = $v['create'];
+								$data2['_read'] = $v['read'];
+								$data2['_update'] = $v['update'];
+								$data2['_delete'] = $v['delete'];
+								$this->ArosAcos->save($data2);
+							}
+						}
+					}
+				}
+				*/
+				$save->data = null;
+				$this->ArosAcos->create();
+				$data['aro_id'] = $lastaro;
+				$data['aco_id'] = $k;
+				if( $v['delete'] == 1){
+					$data['_create'] = 1;
+					$data['_read'] = 1;
+					$data['_update'] = 1;
+					$data['_delete'] = 1;
+					$this->ArosAcos->save($data);
+				}else{
+					$data['_create'] = $v['create'];
+					$data['_read'] = $v['read'];
+					$data['_update'] = $v['update'];
+					$data['_delete'] = $v['delete'];
+					$this->ArosAcos->save($data);
+				}
+			}
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Usergroup added successfully</div>', true));
+			$this->redirect(array('controller'=>'usergroups','action' => 'index'));
+		}
+		if ($this->data['UserGroup']['parent_id']) {
+			$aro->create();
+			$data['alias'] = $this->data['UserGroup']['name'];
+			$data['parent_id'] = $this->data['UserGroup']['parent_id'];
+			$aro->save($data);
+			$this->loadModel('Aro');
+			$lastaro=$this->Aro->getLastInsertID();
+			foreach($this->data['permissions'] as $k=>$v){
+				$this->loadModel('ArosAcos');
+				/*$child_menus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$k,'Aco.ismenu'=>'Y')));
+				foreach($child_menus as $child_menu){
+					$third_levelmenus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$child_menu['Aco']['id'],'Aco.ismenu'=>'Y')));
+					foreach($third_levelmenus as $third_levelmenu){
+						if($third_levelmenu['Aco']['id']){
+							$third_levelmenu_data = null;
+							$this->ArosAcos->create();
+							$third_levelmenu_data['aro_id'] = $lastaro;
+							$third_levelmenu_data['aco_id'] = $third_levelmenu['Aco']['id'];
+							if($v['delete'] == 1){
+								$third_levelmenu_data['_create'] = 1;
+								$third_levelmenu_data['_read'] = 1;
+								$third_levelmenu_data['_update'] = 1;
+								$third_levelmenu_data['_delete'] = 1;
+								$this->ArosAcos->save($third_levelmenu_data);
+							}else{
+								$third_levelmenu_data['_create'] = $v['create'];
+								$third_levelmenu_data['_read'] = $v['read'];
+								$third_levelmenu_data['_update'] = $v['update'];
+								$third_levelmenu_data['_delete'] = $v['delete'];
+								$this->ArosAcos->save($third_levelmenu_data);
+							}
+						}
+					}
+					if($child_menu['Aco']['id']){
+						$data1 = null;
+						$this->ArosAcos->create();
+						$data1['aro_id'] = $lastaro;
+						$data1['aco_id'] = $child_menu['Aco']['id'];
+						if($v['delete'] == 1){
+							$data1['_create'] = 1;
+							$data1['_read'] = 1;
+							$data1['_update'] = 1;
+							$data1['_delete'] = 1;
+							$this->ArosAcos->save($data1);
+						}else{
+							$data1['_create'] = $v['create'];
+							$data1['_read'] = $v['read'];
+							$data1['_update'] = $v['update'];
+							$data1['_delete'] = $v['delete'];
+							$this->ArosAcos->save($data1);
+						}
+					}
+				}*/
+				
+				/*$actions  = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$k,'Aco.ismenu'=>'N')));
+				if(!empty($actions)){
+					foreach($actions as $action){
+						if($action['Aco']['id']){
+							$thirdlevel_actions = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$action['Aco']['id'],'Aco.ismenu'=>'N')));
+							foreach($thirdlevel_actions as $thirdlevel_action){
+								$actions_data = null;
+								$this->ArosAcos->create();
+								$actions_data['aro_id'] = $lastaro;
+								$actions_data['aco_id'] = $thirdlevel_action['Aco']['id'];
+								if($v['delete'] == 1){
+									$actions_data['_create'] = 1;
+									$actions_data['_read'] = 1;
+									$actions_data['_update'] = 1;
+									$actions_data['_delete'] = 1;
+									$this->ArosAcos->save($actions_data);
+								}else{
+									$actions_data['_create'] = $v['create'];
+									$actions_data['_read'] = $v['read'];
+									$actions_data['_update'] = $v['update'];
+									$actions_data['_delete'] = $v['delete'];
+									$this->ArosAcos->save($actions_data);
+								}
+							}
+							$data2 = null;
+							$data2['aro_id'] = $lastaro;
+							$data2['aco_id'] = $action['Aco']['id'];
+							$this->ArosAcos->create();
+							if($v['delete'] == 1){
+								$data2['_create'] = 1;
+								$data2['_read'] = 1;
+								$data2['_update'] = 1;
+								$data2['_delete'] = 1;
+								$this->ArosAcos->save($data2);
+							}else{
+								$data2['_create'] = $v['create'];
+								$data2['_read'] = $v['read'];
+								$data2['_update'] = $v['update'];
+								$data2['_delete'] = $v['delete'];
+								$this->ArosAcos->save($data2);
+							}
+						}
+					}
+				}*/
+				
+				$save->data = null;
+				$this->ArosAcos->create();
+				$data['aro_id'] = $lastaro;
+				$data['aco_id'] = $k;
+				if($v['delete'] == 1){
+					$data['_create'] = 1;
+					$data['_read'] = 1;
+					$data['_update'] = 1;
+					$data['_delete'] = 1;
+					$this->ArosAcos->save($data);
+				}else{
+					$data['_create'] = $v['create'];
+					$data['_read'] = $v['read'];
+					$data['_update'] = $v['update'];
+					$data['_delete'] = $v['delete'];
+					$this->ArosAcos->save($data);
+				}
+			}
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Usergroup added successfully </div>', true));	
+			$this->redirect(array('controller'=>'usergroups','action' => 'index'));
+		}
+	}
+	
+	//function to make a word camelcase
+	function camelcase($string = null) {
+	//Configure :: write('debug', 2);
+	$str = $string;
+	$strlen = strlen($str);
+	$arr1 = str_split($str);
+	$frst = strtoupper($arr1[0]);
+	$i=0;
+	foreach($arr1 as $k => $v){
+		if($k == 0){
+			$last[$i] = $frst;
+		}else{
+			$last[$i] =  $v;
+		}
+		$i++;
+	}
+	for($j=0 ; $j<=$strlen-1; $j++){
+		$remain=$remain.$last[$j];
+	}
+	return $remain;
+	}
+	
+	function addmenu(){
+	//	Configure::write('debug',2);
+		debug($this->data);
+		$this->loadModel('Aro');
+		$this->loadModel('Aco');		
+		$level1 = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id IS NULL')));
+		
+		//$this->loadModel('Aco');
+		$show1=null;
+		$parentmenu1 = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id IS NULL','Aco.ismenu'=>'Y'),'fields'=>array('Aco.id','Aco.alias'),'order'=>array('Aco.order ASC')));
+		foreach($parentmenu1 as $k3=>$v3){
+			$show1[$v3['Aco']['id']]=$v3['Aco']['alias'];
+			$menul2 = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$v3['Aco']['id'],'Aco.ismenu'=>'Y'),'fields'=>array('Aco.id','Aco.alias'),'order'=>array('Aco.order ASC')));
+			foreach($menul2 as $k4=>$v4){
+				$show1[$v4['Aco']['id']]='---'.$v4['Aco']['alias'];
+			}
+		}
+		$this->set(compact('level1','show1'));
+		if($this->data['UserGroup']['l1']){
+			$this->loadModel('Aro');
+			$groups = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id'=>$this->data['UserGroup']['l1'],'Aro.foreign_key IS NULL')));
+			$this->set(compact('groups'));
+		}
+		if($this->data){
+			
+			if(strlen($this->data['UserGroup']['menu_name'])>50){
+				$this->Session->SetFlash('<div class="flashMessageError">Menu Name exceeded its character limit.</div>',true);
+				return;
+			}
+			
+			if(!$this->data['UserGroup']['menu_name']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Name cannot be left blank</div>', true));
+				return;
+			}
+			if(!$this->data['UserGroup']['url']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Url cannot be left blank</div>', true));
+				return;
+			}
+			if(!$this->data['UserGroup']['order']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Order cannot be left blank</div>', true));
+				return;
+			}
+			if(!is_numeric($this->data['UserGroup']['order'])){
+				$this->Session->setFlash(__('<div class="flashMessageError">Order should be numeric</div>', true));
+				return;
+			}
+			if($this->data['UserGroup']['order'] > 100){
+				$this->Session->setFlash(__('<div class="flashMessageError">Order limit is exceeded! Try again.</div>', true));
+				return;
+			}
+			if(!isset($this->data['permissions'])){
+				$this->Session->setFlash(__('<div class="flashMessageError">Access has to be given to atleast to any one of the user group.</div>', true));
+				return;
+			}
+			
+			if(isset($this->data['permissions'])){
+				foreach($this->data['permissions'] as $keyy => $valuee){
+					foreach($valuee as $keyy1 => $valuee1){
+						if($valuee1 == 1){
+							$no_error = 'No error';
+						}
+					}
+				}
+				
+				if(!isset($no_error)){
+					$this->Session->setFlash(__('<div class="flashMessageError">Atleast any one access has to be given to atleast to any of the user group.</div>', true));
+					return;
+				}
+			}
+		}
+	
+		if(($this->data['UserGroup']['menu_name']) && (!$this->data['UserGroup']['parent_id'])){
+			$this->loadModel('Aco');
+			$menuname = $this->camelcase($this->data['UserGroup']['menu_name']);
+			$save->data = null;
+			$this->Aco->create();
+			$data['alias'] = $menuname;
+			$data['url'] = $this->data['UserGroup']['url'];
+			$data['ismenu'] = $this->data['UserGroup']['ismenu'];
+			$data['order'] = $this->data['UserGroup']['order'];
+			$this->Aco->save($data);
+			$lastaco=$this->Aco->getLastInsertID();
+			foreach($this->data['permissions'] as $k=>$v){
+				$this->loadModel('ArosAcos');
+				$save->data = null;
+				$this->ArosAcos->create();
+				if($v['delete'] == 1){
+					$data['aro_id'] = $k;
+					$data['aco_id'] = $lastaco;
+					$data['_create'] = 1;
+					$data['_read'] = 1;
+					$data['_update'] = 1;
+					$data['_delete'] = 1;
+					$this->ArosAcos->save($data);
+				}
+				else{
+					$data['aro_id'] = $k;
+					$data['aco_id'] = $lastaco;
+					$data['_create'] = $v['create'];
+					$data['_read'] = $v['read'];
+					$data['_update'] = $v['update'];
+					$data['_delete'] = $v['delete'];
+					$this->ArosAcos->save($data);
+				}
+				
+			}
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Menu has been added</div>', true));
+			$this->redirect(array('controller'=>'usergroups','action' => 'menuindex'));
+		}
+		if($this->data['UserGroup']['parent_id']){
+			$this->loadModel('Aco');
+			$save->data = null;
+			$menuname = $this->camelcase($this->data['UserGroup']['menu_name']);
+			$this->Aco->create();
+			$data['parent_id'] = $this->data['UserGroup']['parent_id'];
+			$data['alias'] = $menuname;
+			$data['url'] = $this->data['UserGroup']['url'];
+			$data['ismenu'] = $this->data['UserGroup']['ismenu'];
+			$data['order'] = $this->data['UserGroup']['order'];
+			$this->Aco->save($data);
+			$lastaco=$this->Aco->getLastInsertID();
+			foreach($this->data['permissions'] as $k=>$v){
+				$this->loadModel('ArosAcos');
+				$save->data = null;
+				$this->ArosAcos->create();
+				if($v['delete'] == 1){
+					$data['aro_id'] = $k; 
+					$data['aco_id'] = $lastaco;
+					$data['_create'] = 1;
+					$data['_read'] = 1;
+					$data['_update'] = 1;
+					$data['_delete'] = 1;
+					$this->ArosAcos->save($data);
+				}
+				else{
+					$data['aro_id'] = $k; 
+					$data['aco_id'] = $lastaco;
+					$data['_create'] = $v['create'];
+					$data['_read'] = $v['read'];
+					$data['_update'] = $v['update'];
+					$data['_delete'] = $v['delete'];
+					$this->ArosAcos->save($data);
+				}
+			}
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Menu has been added</div>', true));
+			$this->redirect(array('controller'=>'usergroups','action' => 'menuindex'));
+		}
+		
+	}
+	
+	
+	
+	function addmenu1($key,$testd){
+	//	Configure::write('debug',2);
+	//	debug($this->data);
+	//	debug($key);
+	//	debug($testd);
+		$level1 = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id IS NULL')));
+		$this->set(compact('level1'));
+		if(($this->data['UserGroup']['l1'] || $this->data['l1'])  && !$testd){
+			$l1=$this->data['UserGroup']['l1'];
+			if(!$l1) $l1=$this->data['l1'];
+			$this->loadModel('Aro');
+			$groups = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id'=>$l1,'Aro.foreign_key IS NULL')));
+			$usergroup_name = $this->Aro->findById($l1);
+			$this->set(compact('groups','l1','usergroup_name'));
+		}
+		//THIS PART IS A TESTING PART
+		if($testd)
+		{
+			$this->loadModel('Aco');
+			$this->loadModel('Aro');
+			$this->Aco->recursive = 1;
+			$this->Aro->recursive = 1;
+			$acos = $this->Aco->find('first',array('conditions'=>array('Aco.id' => $testd)));
+			$ijk = 0;
+			foreach($acos['Aro'] as $aco_value){
+				$groups[$ijk] = $aco_value;
+				$groups[$ijk]['Aro']['alias'] = $aco_value['alias'];
+				$groups[$ijk]['Aro']['id'] = $aco_value['id'];
+				$ijk++;
+			}
+			
+			$proceed=null;$j=0;
+			foreach($groups as $groupvalue){
+				if(($groupvalue['id'] == $this->data['UserGroup']['l1']) || ($groupvalue['parent_id'] == $this->data['UserGroup']['l1'])){
+					$proceed = 1;
+					$proceed_ID[$j] = $groupvalue['id'];
+					$j++;
+				}
+			}
+			if($proceed!=1 && $this->data['UserGroup']['l1']){
+				$aros123 = $this->Aro->find('first',array('conditions'=>array('Aro.id'=>$this->data['UserGroup']['l1'])));
+				$aros1234 = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id'=>$aros123['Aro']['id'],'Aro.foreign_key IS NULL')));
+				if(!empty($aros1234)){
+					foreach($aros1234 as $aros1234val){
+						$groups[$ijk] = $aros1234val;
+						$ijk++;
+				}
+				}else{
+					$groups[$ijk] = $aros123;
+					$ijk++;
+				}
+			}
+			$this->set(compact('groups'));
+		}
+	}
+	
+	// Function to display the modules.
+	function menuindex($page=null,$limit=null,$count=null,$field=NULL,$searchdata=NULL){
+	//	configure::write('debug',2);
+		if(!$page) $page=1; //Initialize the page 
+		if(!$limit) $limit=20; // Initialize the limit 
+		$offset=$this->countPages($count,$limit,$page);//Get Offset value 
+		if(!$offset)  $offset=0;
+		$this->loadModel('Aco');
+		if (!empty($field)) {
+			$this->request->data['Search']['menu'] = $searchdata;
+		}
+		$parentmenu = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id IS NULL','Aco.ismenu'=>'Y'),'order'=>array('Aco.order ASC'),'limit'=>$limit,'offset'=>$offset));
+		$count = $this->Aco->find('count',array('conditions'=>array('Aco.parent_id IS NULL','Aco.ismenu'=>'Y')));
+		$i = 0;
+		if(!$final = Cache::read('final')){
+		foreach($parentmenu as $k => $v){
+			$final[$i]['id'] = $v['Aco']['id'];
+			$final[$i]['aclname'] = $v['Aco']['alias'];
+			$child_menus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id' => $v['Aco']['id'],'Aco.ismenu'=>'Y'),'order'=>array('Aco.order ASC')));
+			$k=0;
+			foreach($child_menus as $k2 => $v2){
+				$final[$i]['Childmenu'][$k]['id'] = $v2['Aco']['id'];
+				$final[$i]['Childmenu'][$k]['aclname'] = $v2['Aco']['alias'];
+				$grandchild_menu = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id' => $v2['Aco']['id'],'Aco.ismenu'=>'Y'),'order'=>array('Aco.order ASC')));
+				$l=0;
+				foreach($grandchild_menu as $k3=>$v3){
+					$final[$i]['Childmenu'][$k2]['grandChildmenu'][$l]['id'] = $v3['Aco']['id'];
+					$final[$i]['Childmenu'][$k2]['grandChildmenu'][$l]['aclname'] = $v3['Aco']['alias'];
+					$l++;
+				}
+				$k++;
+			}
+			$i++;
+		}
+		Cache::write('final', $final, 86400);
+		
+		}
+		$this->set(compact('page','limit','count'));
+		if(!empty($this->data)){
+			$parentmenu=null;$final=null;
+			$parentmenu = $this->Aco->find('all',array('conditions'=>array('Aco.ismenu'=>'Y','Aco.alias LIKE'=>$this->data['Search']['menu'].'%'),'order'=>array('Aco.id ASC')));
+			if (!empty($parentmenu)) {
+				foreach($parentmenu as $k => $v){
+					$final[$i]['id'] = $v['Aco']['id'];
+					$final[$i]['aclname'] = $v['Aco']['alias'];
+					$i++;
+				}
+			}
+		}
+		
+		$this->set(compact('final'));
+	}
+	
+	function menuedit($id = null){
+	//Configure::write('debug',2);
+	$this->set(compact('id'));
+	
+	/*if(!$id){
+		$id = $this->data['UserGroup']['id_return'];
+	}*/
+	//	if($id){
+			$this->loadModel('Aco');
+			$this->loadModel('Aro');
+			$this->Aco->recursive = 1;
+			$this->Aro->recursive = 1;
+			$acos = $this->Aco->find('first',array('conditions'=>array('Aco.id' => $id)));
+			foreach($acos['Aro'] as $k => $v){
+				$parentname = $this->Aro->find('first',array('conditions'=>array('Aro.id'=>$v['parent_id'],'Aro.foreign_key IS NULL')));
+				$parents_display[$v['parent_id']] = $parentname['Aro']['alias'];
+			}
+			$this->set(compact('parents_display'));
+			$parent = $this->Aco->find('first',array('conditions'=>array('Aco.id' => $acos['Aco']['parent_id'])));
+			$typei=0;
+			foreach($acos['Aro'] as $value1){
+				$aros = $this->Aro->find('first',array('conditions'=>array('Aro.id' => $value1['Permission']['aro_id'])));
+				$abc = $this->Aro->find('first',array('conditions'=>array('Aro.id' => $aros['Aro']['parent_id'])));
+				if(!empty($abc)){
+					$type[$typei] = $abc;
+				}else{
+					$type[$typei] = $aros;
+				}
+				$typei++;
+			}
+			$this->set(compact('acos','parent','type','id'));
+	//	}
+		/*if($this->data['UserGroup']['l1']){
+			$this->loadModel('Aro');
+			$this->Aro->recursive = 1;
+			$groups = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id'=>$this->data['UserGroup']['l1'])));
+			$this->set(compact('groups'));
+		}*/
+		$this->loadModel('Aro');
+		$this->loadModel('Aco');
+		$this->Aco->recursive = 1;
+		$this->Aro->recursive = 1;		
+		$level1 = $this->Aro->find('all',array('conditions'=>array('Aro.parent_id IS NULL')));
+		$show1=null;
+		$parentmenu1 = $this->Aco->find('list',array('conditions'=>array('Aco.parent_id IS NULL','Aco.ismenu'=>'Y'),'fields'=>array('Aco.id','Aco.alias'),'order'=>array('Aco.order ASC')));
+		foreach($parentmenu1 as $k3=>$v3){
+			$show1[$k3]=$v3;
+			$menul2 = $this->Aco->find('list',array('conditions'=>array('Aco.parent_id'=>$k3,'Aco.ismenu'=>'Y'),'fields'=>array('Aco.id','Aco.alias'),'order'=>array('Aco.order ASC')));
+			foreach($menul2 as $k4=>$v4){
+				$show1[$k4]='---'.$v4;
+			}
+		}
+		debug($level1);
+		$this->set(compact('level1','show1'));
+		if($this->data){
+			if(!$this->data['UserGroup']['menu_name']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Menu Name cannot be left blank</div>', true));
+				return;
+			}
+			if(strlen($this->data['UserGroup']['menu_name'])>50){
+				$this->Session->SetFlash('<div class="flashMessageError">Menu Name exceeded its character limit.</div>',true);
+				return;
+			}
+			if(!$this->data['UserGroup']['url']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Url cannot be left blank</div>', true));
+				return;
+			}
+			if(!$this->data['UserGroup']['order']){
+				$this->Session->setFlash(__('<div class="flashMessageError">Order cannot be left blank</div>', true));
+				return;
+			}
+			if(!is_numeric($this->data['UserGroup']['order'])){
+				$this->Session->setFlash(__('<div class="flashMessageError">Order should be numeric</div>', true));
+				return;
+			}
+			if($this->data['UserGroup']['order'] > 100){
+				$this->Session->setFlash(__('<div class="flashMessageError">Order limit is exceeded! Try again.</div>', true));
+				return;
+			}
+			if(!isset($this->data['permissions'])){
+				$this->Session->setFlash(__('<div class="flashMessageError">Access has to be given to atleast to any one of the user group.</div>', true));
+				return;
+			}
+			
+			if(isset($this->data['permissions'])){
+				foreach($this->data['permissions'] as $keyy => $valuee){
+					foreach($valuee as $keyy1 => $valuee1){
+						if($valuee1 == 1){
+							$no_error = 'No error';
+						}
+					}
+				}
+				
+				if(!isset($no_error)){
+					$this->Session->setFlash(__('<div class="flashMessageError">Atleast any one access has to be given to atleast to any of the user group.</div>', true));
+					return;
+				}
+			}
+		}
+		if($this->data['UserGroup']['parent_id']){
+			$this->loadModel('Aco');
+			$save->data = null;
+			$data['id'] = $this->data['UserGroup']['aco_id'];
+			$data['alias'] = $this->data['UserGroup']['menu_name'];
+			$data['ismenu'] = $this->data['UserGroup']['ismenu'];
+			$data['order'] = $this->data['UserGroup']['order'];
+			$data['url'] = $this->data['UserGroup']['url'];
+			if(($this->data['UserGroup']['parent_id']=='parent')){
+				$data['parent_id'] = 0;
+			}else{
+				$data['parent_id'] = $this->data['UserGroup']['parent_id'];
+			}
+			debug($this->data);
+			debug($data);
+			$this->Aco->save($data);
+			foreach($this->data['permissions'] as $k=>$v){
+				$this->loadModel('ArosAcos');
+				$oldmenu_permissions = $this->ArosAcos->find('list',array('conditions'=>array('AND'=>array('ArosAcos.aro_id'=>$k,'ArosAcos.aco_id'=>$this->data['UserGroup']['aco_id']))));
+				if(!empty($oldmenu_permissions)){
+					foreach($oldmenu_permissions as $key => $val){
+						$this->ArosAcos->delete($key);
+					}
+				}
+				$save->data = null;
+				$data = null;
+				$this->ArosAcos->create();
+				if($v['delete']){
+					$data['aro_id'] = $k;
+					$data['aco_id'] = $this->data['UserGroup']['aco_id'];;
+					$data['_create'] = 1;
+					$data['_read'] = 1;
+					$data['_update'] = 1;
+					$data['_delete'] = 1;
+					$this->ArosAcos->save($data);
+				}
+				else{
+					$data['aro_id'] = $k;
+					$data['aco_id'] = $this->data['UserGroup']['aco_id'];;
+					$data['_create'] = $v['create'];
+					$data['_read'] = $v['read'];
+					$data['_update'] = $v['update'];
+					$data['_delete'] = $v['delete'];
+					$this->ArosAcos->save($data);
+				}
+			}
+			$this->Session->setFlash('<div class="flashMessageSuccess">Successfully Updated</div>',true);	
+			$this->redirect(array('action' => 'menuindex'));
+		}
+	}
+	
+	
+	function menuview($id = null){
+		//Configure::write('debug',2);
+		$this->loadModel('Aco');
+		$this->loadModel('Aro');
+		$this->Aco->recursive = 1;
+		$this->Aro->recursive = 1;
+		$acos = $this->Aco->find('first',array('conditions'=>array('Aco.id' => $id)));
+		foreach($acos['Aro'] as $k => $v){
+			$parentname = $this->Aro->find('first',array('conditions'=>array('Aro.id'=>$v['parent_id'])));
+			$parents_display[$v['parent_id']] = $parentname['Aro']['alias'];
+		}
+		$parent = $this->Aco->find('first',array('conditions'=>array('Aco.id' => $acos['Aco']['parent_id'])));
+		$aros = $this->Aro->find('first',array('conditions'=>array('Aro.id' => $acos['Aro']["0"]['Permission']['aro_id'])));
+		$type = $this->Aro->find('first',array('conditions'=>array('Aro.id' => $aros['Aro']['parent_id'])));
+		$this->set(compact('acos','parent','type','parents_display','id'));
+	}
+	
+	
+	function deletemenu($id = null){
+		if (!$id) {
+			$this->Session->setFlash(__('<div class="flashMessageError">Invalid id for Menu</div>', true));
+			$this->redirect(array('action'=>'menuindex'));
+		}
+		if($id){
+			$this->loadModel('Aco');
+			$this->loadModel('ArosAcos');
+			$acos_aros = $this->ArosAcos->find('first',array('conditions'=>array('ArosAcos.aco_id'=>$id)));
+			$child_acos = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$id)));
+			foreach($child_acos as $k=>$v){
+				$child_acos_aros = $this->ArosAcos->find('all',array('conditions'=>array('ArosAcos.aco_id'=>$v['Aco']['id'])));
+			foreach($child_acos_aros as $k1=>$v1){
+				$this->ArosAcos->delete($v1['ArosAcos']['id']);	
+				}
+				$this->Aco->delete($v['Aco']['id']);
+			}	
+			$this->ArosAcos->delete($acos_aros['ArosAcos']['id']);
+				if ($this->Aco->delete($id)) {
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">Menu deleted successfully</div>', true));
+					$this->redirect(array('action'=>'menuindex'));
+				}
+			}
+	}
+	
+	function sorting($array = null){
+		$count = count($array);
+		$j=0;
+		for($i=0; $i<=$count; $i++){
+			foreach($array as $key=>$val){
+				if($val['order']==$i){
+					$array1[$j] = $val;
+					$j++;
+				}
+			}	
+		}
+		return $array1;
+	}
+		function countPages($numHits, $limit, $page)
+	{
+		$numHits  = (int) $numHits;
+		$limit    = max((int) $limit, 1);
+		$page     = (int) $page;
+		$numPages = ceil($numHits / $limit);
+
+		$page = max($page, 1);
+		$page = min($page, $numPages);
+
+		if($numHits == 0) {
+			$offset = 0;
+		} else 	$offset = ($page - 1) * $limit;
+
+		return $offset;
+	}	
+	
+	
+	
+}

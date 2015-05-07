@@ -1,0 +1,105 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * RoleSkillmappings Controller
+ *
+ * @property RoleSkillmapping $RoleSkillmapping
+ */
+class RoleSkillmappingsController extends AppController {
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->RoleSkillmapping->recursive = 0;
+		$this->set('roleSkillmappings', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->RoleSkillmapping->id = $id;
+		if (!$this->RoleSkillmapping->exists()) {
+			throw new NotFoundException(__('Invalid role skillmapping'));
+		}
+		$this->set('roleSkillmapping', $this->RoleSkillmapping->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->RoleSkillmapping->create();
+			if ($this->RoleSkillmapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The role skillmapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The role skillmapping could not be saved. Please, try again.'));
+			}
+		}
+		$roles = $this->RoleSkillmapping->Role->find('list');
+		$skillMasters = $this->RoleSkillmapping->SkillMaster->find('list');
+		$this->set(compact('roles', 'skillMasters'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->RoleSkillmapping->id = $id;
+		if (!$this->RoleSkillmapping->exists()) {
+			throw new NotFoundException(__('Invalid role skillmapping'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->RoleSkillmapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The role skillmapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The role skillmapping could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->RoleSkillmapping->read(null, $id);
+		}
+		$roles = $this->RoleSkillmapping->Role->find('list');
+		$skillMasters = $this->RoleSkillmapping->SkillMaster->find('list');
+		$this->set(compact('roles', 'skillMasters'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->RoleSkillmapping->id = $id;
+		if (!$this->RoleSkillmapping->exists()) {
+			throw new NotFoundException(__('Invalid role skillmapping'));
+		}
+		if ($this->RoleSkillmapping->delete()) {
+			$this->Session->setFlash(__('Role skillmapping deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Role skillmapping was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

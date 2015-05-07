@@ -1,0 +1,112 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * JobdescriptionSkillmappings Controller
+ *
+ * @property JobdescriptionSkillmapping $JobdescriptionSkillmapping
+ */
+class JobdescriptionSkillmappingsController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	//public $helpers = array(''Ajax', 'Javascript', 'Time'');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->JobdescriptionSkillmapping->recursive = 0;
+		$this->set('jobdescriptionSkillmappings', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->JobdescriptionSkillmapping->id = $id;
+		if (!$this->JobdescriptionSkillmapping->exists()) {
+			throw new NotFoundException(__('Invalid jobdescription skillmapping'));
+		}
+		$this->set('jobdescriptionSkillmapping', $this->JobdescriptionSkillmapping->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->JobdescriptionSkillmapping->create();
+			if ($this->JobdescriptionSkillmapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The jobdescription skillmapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The jobdescription skillmapping could not be saved. Please, try again.'));
+			}
+		}
+		$jobDescriptions = $this->JobdescriptionSkillmapping->JobDescription->find('list');
+		$skillMasters = $this->JobdescriptionSkillmapping->SkillMaster->find('list');
+		$this->set(compact('jobDescriptions', 'skillMasters'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->JobdescriptionSkillmapping->id = $id;
+		if (!$this->JobdescriptionSkillmapping->exists()) {
+			throw new NotFoundException(__('Invalid jobdescription skillmapping'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->JobdescriptionSkillmapping->save($this->request->data)) {
+				$this->Session->setFlash(__('The jobdescription skillmapping has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The jobdescription skillmapping could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->JobdescriptionSkillmapping->read(null, $id);
+		}
+		$jobDescriptions = $this->JobdescriptionSkillmapping->JobDescription->find('list');
+		$skillMasters = $this->JobdescriptionSkillmapping->SkillMaster->find('list');
+		$this->set(compact('jobDescriptions', 'skillMasters'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->JobdescriptionSkillmapping->id = $id;
+		if (!$this->JobdescriptionSkillmapping->exists()) {
+			throw new NotFoundException(__('Invalid jobdescription skillmapping'));
+		}
+		if ($this->JobdescriptionSkillmapping->delete()) {
+			$this->Session->setFlash(__('Jobdescription skillmapping deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Jobdescription skillmapping was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

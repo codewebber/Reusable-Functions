@@ -1,0 +1,81 @@
+<?php 
+App::import('Vendor','tcpdf/tcpdf'); 
+
+class XTCPDF  extends TCPDF 
+{ 
+
+    var $xheadertext  = 'PDF created using CakePHP and TCPDF'; 
+    var $xheadercolor = array(13,73,97); 
+    var $xfootertext  = 'Copyright Â© %d XXXXXXXXXXX. All rights reserved.'; 
+    var $xfooterfont  = PDF_FONT_NAME_MAIN ; 
+    var $xfooterfontsize = 8 ; 
+
+
+    /** 
+    * Overwrites the default header 
+    * set the text in the view using 
+    *    $fpdf->xheadertext = 'YOUR ORGANIZATION'; 
+    * set the fill color in the view using 
+    *    $fpdf->xheadercolor = array(0,0,100); (r, g, b) 
+    * set the font in the view using 
+    *    $fpdf->setHeaderFont(array('YourFont','',fontsize)); 
+    */ 
+    function Header() 
+    { 
+
+        list($r, $b, $g) = $this->xheadercolor; 
+        $this->setY(10); // shouldn't be needed due to page margin, but helas, otherwise it's at the page top 
+        $image_file = K_PATH_IMAGES.'instaCarma_03.jpg';
+       // $this->Image($image_file, 10, 10, 15, "", 'JPG', '', 'T', false, 300, 'L', false, '1', 0, false, false, false);
+        $this->Image($image_file, 15, 12, 15, '', 'JPG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+        $this->SetFont('helvetica', 'B', 10);
+        // Title
+		$this->Cell(0, 3, 'Carmatec IT Solutions Pvt Ltd', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+		$this->Ln(); 
+		$this->SetFont('helvetica', '', 8);
+		$this->Cell(0, 3, '#27, Ambalipura', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+		$this->Ln();
+		$this->SetFont('helvetica', '', 8); 
+		$this->Cell(0, 3, 'Bellandur Gate', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+		$this->Ln();
+		$this->SetFont('helvetica', '', 8); 
+		$this->Cell(0, 3, 'Bangalore, Karnataka 560103', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+	   	$this->Ln();
+	   	$this->SetFont('helvetica', '', 8); 
+	    $this->Cell(0, 3, 'India', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+	    $this->Ln();
+	    $this->SetFont('helvetica', '', 8); 
+	    $this->Cell(0, 3, 'Phone: 91 80 4131 7700', 0, false, 'R', 0, '', 0, false, 'M', 'M');
+	    $this->Ln();
+	    $this->SetFont('helvetica', '', 8); 
+	    $this->Cell(0, 3, 'Fax: 91 80 4131 7702', 0, false, 'R', 0, '', 0, false, 'M', 'M');    
+        $this->Ln();
+        $this->SetMargins(PDF_MARGIN_LEFT, PDF_MARGIN_TOP, PDF_MARGIN_RIGHT);
+        
+        
+        $this->SetFillColor(13,73,97,'',false,''); 
+         $this->Cell(0,8, '','T',1,'C'); 
+       // $this->SetFillColor($r, $b, $g); 
+        //$this->Cell(0,0, '', 0, false, 'R', 1, '', 0, false, 'M', 'M'); 
+        //$this->Cell(0,2, '', 0,false,'C', 0); 
+        //$this->SetTextColor(0 , 0, 0); 
+        
+        //$this->Text(15,26,$this->xheadertext ); 
+    } 
+
+    /** 
+    * Overwrites the default footer 
+    * set the text in the view using 
+    * $fpdf->xfootertext = 'Copyright Â© %d YOUR ORGANIZATION. All rights reserved.'; 
+    */ 
+    function Footer() 
+    { 
+        $year = date('Y'); 
+        $footertext = sprintf($this->xfootertext, $year); 
+        $this->SetY(-20); 
+        $this->SetTextColor(0, 0, 0); 
+        $this->SetFont($this->xfooterfont,'',$this->xfooterfontsize); 
+        $this->Cell(0,8, $footertext,'T',1,'C'); 
+    } 
+} 
+?>

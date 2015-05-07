@@ -1,0 +1,642 @@
+<?php 
+App::import('Vendor','xtcpdf');  
+App::import('Vendor','class.bargraph');
+
+  
+$tcpdf = new XTCPDF();
+$tcpdf->SetPrintHeader(false);
+//$tcpdf->SetPrintFooter(false);  
+$tcpdf->AddPage(); 
+$monthnumber = date('m').' - '.date('Y');
+//$monthnumber = "Jun - 2014";
+$date = date("F",mktime(0,0,0,$monthnumber,1,2011)).' - '.date('Y');
+ 
+ $tt=date('M Y');
+ //$tt="Jun 2014";
+ 
+$tcpdf->SetFont( '', 'b', 12);
+$tcpdf->setY(12);
+$tcpdf->SetTextColor(75,75,75); 
+$tcpdf->Cell(60, 3, "Project-Wise Summary Report of ".$team_name." - ".$tt, 0, false, 'L', 0, '', 0, false, 'M', 'M');
+$tcpdf->Ln();
+/***Horizontal line****/
+$tcpdf->SetFillColor(226,226,216,'',false,''); 
+$tcpdf->Cell(0,3, '','T',1,'C'); 
+$tcpdf->SetTextColor(226,226,226); 
+/***End of Horizontal line*/
+
+
+$tcpdf->Ln();
+$tcpdf->SetFont( '', 'b',12 );
+$tcpdf->SetDrawColor(255,255,255);
+$tcpdf->SetTextColor(255,255,248);
+$tcpdf->SetFillColor(109,184,210,'',false,''); 
+$tcpdf->SetX(11);
+$tcpdf->Cell( 38, 6, 'Project Summary', 1, 0, 'L',1 );
+$tcpdf->Ln();
+
+
+
+/*** Table starts here **/ 
+ 
+	
+	/********Table content beings here ************/
+	
+	$tcpdf->SetFont( '', '',8); 
+	$tcpdf->SetTextColor(70,70,70);
+	$tcpdf->SetDrawColor(255,225,255);
+	$tcpdf->SetFillColor(237,243,246,'',false,''); 
+	
+	
+	
+	
+	
+	
+	
+	
+			
+
+ $detials = null;
+ $testing=null;
+  $i=0;
+ foreach($final as $k=>$v):
+  $detials = null;
+ 	$testing=null;
+ 	$project=explode(':-',$k);
+	$name=$project[0];	
+	$tot_tsk=$project[1];
+	$cmp_tsk=$project[2];
+	$prj_sts=$project[3];	
+	if($prj_sts=='Overdue'){
+		$testing.='<table><tr style="background-color:#e6e6db;"><td></td><td></td></tr>
+					<tr style="float:left;background-color:#e6e6db;"><td style="width:5px;float:left;color:#0f6082;"></td>
+                    <td style="width:430px;float:left;color:#0f6082;font-family:Arial;font-weight:Bold;text-align:left; font-size: 12pt;">'.$name.'
+                   	<span style="color:#696969;padding:0px 3px;">(</span><span style="color:#696969;">'.$tot_tsk.' Task Assigned, </span><span style="color:#10901c;padding-left:3px;">'.$cmp_tsk.' Completed</span><span style="color:#696969;padding: 0px 3px;">)</span>
+                    </td>
+                    <td style="width:75px;float:left;background-color:#a7161b;text-align:left;text-indent:8px;color:#fff; font-size: 12pt;">
+                         '.$prj_sts.'
+                    </td>' .
+                    '<td style="width:23px;float:left;background-color:#e6e6db;"></td>
+                 </tr>
+                 <tr style="background-color:#e6e6db;"><td style="width:400px;"></td><td style="width:133px;"></td></tr></table>'; 
+		
+	}elseif($prj_sts=='Completed'){
+		$testing.='<table><tr style="background-color:#e6e6db;"><td></td><td></td></tr>
+					<tr style="float:left;background-color:#e6e6db;"><td style="width:5px;float:left;color:#0f6082;"></td>
+                    <td style="width:430px;float:left;color:#0f6082;font-family:Arial;font-weight:Bold;text-align:left; font-size: 12pt;">'.$name.'
+                   	<span style="color:#696969;padding:0px 3px;">(</span><span style="color:#696969;">'.$tot_tsk.' Task Assigned, </span><span style="color:#10901c;padding-left:3px;">'.$cmp_tsk.' Completed</span><span style="color:#696969;padding: 0px 3px;">)</span>
+                   </td>
+                    <td style="width:75px;float:left;background-color:#10901c;text-align:left;color:#fff; font-size: 12pt; text-indent:2px;">
+                         '.$prj_sts.'
+                    </td>' .
+                    '<td style="width:23px;float:left;background-color:#e6e6db;"></td>
+                 </tr>
+                 <tr style="background-color:#e6e6db;"><td style="width:400px;"></td><td style="width:133px;"></td></tr></table>'; 
+		
+	}else{
+		$testing.='<table><tr style="background-color:#e6e6db;"><td></td><td></td></tr>
+					<tr style="float:left;background-color:#e6e6db;"><td style="width:5px;float:left;color:#0f6082;"></td>
+                    <td style="width:430px;float:left;color:#0f6082;font-family:Arial;font-weight:Bold;text-align:left; font-size: 12pt;">'.$name.'
+                   	<span style="color:#696969;padding:0px 3px;">(</span><span style="color:#696969;">'.$tot_tsk.' Task Assigned, </span><span style="color:#10901c;padding-left:3px;">'.$cmp_tsk.' Completed</span><span style="color:#696969;padding: 0px 3px;">)</span>
+                   </td>
+                    <td style="width:75px;float:left;background-color:#948a80;text-align:left;color:#fff; font-size: 12pt;">
+                         '.$prj_sts.'
+                    </td>' .
+                    '<td style="width:23px;float:left;background-color:#e6e6db;"></td>
+                 </tr>
+                 <tr style="background-color:#e6e6db;height:2px;"><td style="width:400px;height:2px"></td><td style="width:133px;"></td></tr></table>'; 
+		
+	}		
+	
+  
+	$tcpdf->SetFont( '', '',8); 
+	$tcpdf->SetTextColor(70,70,70);
+	$tcpdf->SetDrawColor(255,225,255);
+	$tcpdf->SetFillColor(237,243,246,'',false,''); 
+ 	$j=1;
+ 	foreach($v as $k1=>$v1):
+ 		if(!$v1['percentage_completed']) $v1['percentage_completed']=35;
+ 	  
+ 	  	if($v1['rating'] ==1){
+		  	if($v1['status']=='Overdue' || $v1['status']=='In Progress'){
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle"><span>'.$v1['status'].'</span><span style="color:#1999CE">'.' -'.$v1['percentage_completed'].'%</span></td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/1star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}else{
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['status'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/1star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}
+		  	
+		  }elseif($v1['rating'] ==2){
+		  	if($v1['status']=='Overdue' || $v1['status']=='In Progress'){
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle"><span>'.$v1['status'].'</span><span style="color:#1999CE">'.' -'.$v1['percentage_completed'].'%</span></td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/2star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}else{
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['status'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/2star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}
+		  	
+		  }elseif($v1['rating'] ==3){
+		  	if($v1['status']=='Overdue' || $v1['status']=='In Progress'){
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle"><span>'.$v1['status'].'</span><span style="color:#1999CE">'.' -'.$v1['percentage_completed'].'%</span></td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/3star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}else{
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['status'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/3star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}
+		  	
+		  	
+		  }elseif($v1['rating'] ==4){
+		  	if($v1['status']=='Overdue' || $v1['status']=='In Progress'){
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle"><span>'.$v1['status'].'</span><span style="color:#1999CE">'.' -'.$v1['percentage_completed'].'%</span></td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/4star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}else{
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['status'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/4star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}
+		  	
+		  }elseif($v1['rating'] ==5){
+		  	if($v1['status']=='Overdue' || $v1['status']=='In Progress'){
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle"><span>'.$v1['status'].'</span><span style="color:#1999CE">'.' -'.$v1['percentage_completed'].'%</span></td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/5star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}else{
+		  		$detials.='<tr>
+				    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+				    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['status'].'</td>
+				    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+				    <td class ="taskdata tdstyle">'.'<img src="/home/vcnew/public_html/app/webroot/img/5star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+				 </tr>';
+		  	}
+		  }else{
+		  	if($v1['rating'] =='SA'){
+		  		   if($v1['status']=='Overdue' || $v1['status']=='In Progress'){
+			  		$detials.='<tr>
+					    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+					    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+					    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+					    <td class ="taskdata tdstyle"><span>'.$v1['status'].'</span><span style="color:#1999CE">'.' -'.$v1['percentage_completed'].'%</span></td>
+					    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+					    <td class ="taskdata tdstyle">'.'SA'.' </td>	
+					 </tr>';
+			  	}else{
+			  		$detials.='<tr>
+					    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+					    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+					    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+					    <td class ="taskdata tdstyle">'.$v1['status'].'</td>
+					    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+					    <td class ="taskdata tdstyle">'.'SA'.' </td>	
+					 </tr>';
+			  	}
+		  	}else{
+		  		 if($v1['status']=='Overdue' || $v1['status']=='In Progress'){
+			  		$detials.='<tr>
+					    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+					    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+					    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+					    <td class ="taskdata tdstyle"><span>'.$v1['status'].'</span><span style="color:#1999CE">'.' -'.$v1['percentage_completed'].'%</span></td>
+					    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+					    <td class ="taskdata tdstyle">'.'Not Rated'.' </td>	
+					 </tr>';
+			  	}else{
+			  		$detials.='<tr>
+					    <td class ="taskdata tdstyle" style="text-indent:5px;">'.$j.'</td>
+					    <td class ="taskdata tdstyle">'.$v1['task_name'].'</td>
+					    <td class ="taskdata tdstyle">'.$v1['handled_by'].'</td>
+					    <td class ="taskdata tdstyle">'.$v1['status'].'</td>
+					    <td class ="taskdata tdstyle">'.$v1['date_assigned'].'</td>	
+					    <td class ="taskdata tdstyle">'.'Not Rated'.' </td>	
+					 </tr>';
+			  	}
+		  	}
+			
+		  	
+		  }
+ 	 
+	  
+	 $j++;
+	endforeach;
+	
+$html = <<<EOD
+<style>
+
+  .headerRow{background-color:#e6e6db;border:1px solid #FFF;}
+  .tname{color:#0f6082;font-family:Arial;font-weight:Bold;width:300px;height:30px;}
+  .totalTask{color:#696969;width:}
+  th {
+    color: #505050;
+    background-color : #D2E1E9;
+    font-family: times;
+    font-size: 12pt;
+    font-weight:bold;
+    text-decoration: none;
+    border-bottom : 0.5px solid #D2E1E9;
+     
+  }
+  
+  p {
+    color: red;
+    font-family: helvetica;
+    font-size: 12pt;
+  }
+  .tech_name {
+  	background: none repeat scroll 0 0 #D2E1E9;
+  	float: left;
+  }
+  .taskdata {
+  	background: none repeat scroll 0 0 #EDF3F6;
+    border : 0.5px solid #EDF3F6;
+    float: left;
+    height: 2px;
+    line-height:2px;
+    font-family: times;
+    font-size: 12pt;
+    text-decoration: none;
+    border-bottom: 1px solid #E8ECEB;
+  }
+  
+  .tdstyle{
+  	background-color:#EDF3F6;
+    //border-bottom: 1px solid #E8ECEB;
+  }
+  .txt_id{
+  	text-indent:5px;
+  }
+</style>
+ 
+	
+	$testing
+
+<table  cellpadding="0">
+	
+  <tr>
+    <th class ="tech_name txt_id" style="width:23px;">&nbsp;&nbsp;Id</th>
+    <th class ="tech_name" style="width:140px;">Tasks</th>
+    <th class ="tech_name" style="width:100px;">Handled By</th>
+    <th class ="tech_name" style="width:96px;">Status</th>
+    <th class ="tech_name" style="width:108px;">Date Assigned</th>
+    <th class ="tech_name" style="width:66px;">Rating</th>
+  </tr>
+  
+  $detials
+ 
+</table>
+ 
+EOD;
+ 
+
+$tcpdf->writeHTMLCell($w=0, $h=0, $x='', $y='', $html, $border=0, $ln=1, $fill=0, $reseth=true, $align='', $autopadding=true);  
+	
+endforeach; 
+
+/***Horizontal line****/
+$tcpdf->SetFillColor(226,226,216,'',false,''); 
+$tcpdf->Cell(0,3, '','T',1,'C'); 
+$tcpdf->SetTextColor(226,226,226); 
+/***End of Horizontal line*/  
+$tcpdf->Ln();
+$tcpdf->Ln();
+$tcpdf->Ln();
+$tcpdf->SetFont( '', 'b',12 );
+$tcpdf->SetDrawColor(255,255,255);
+$tcpdf->SetTextColor(255,255,248);
+$tcpdf->SetFillColor(109,184,210,'',false,''); 
+$tcpdf->SetX(11);
+$tcpdf->Cell( 43, 6, 'Techwise Summary', 1, 0, 'L',1 );
+$tcpdf->Ln();
+
+
+
+	$tcpdf->SetFont( '', '',8); 
+	$tcpdf->SetTextColor(70,70,70);
+	$tcpdf->SetDrawColor(255,225,255);
+	$tcpdf->SetFillColor(237,243,246,'',false,''); 
+ 	$j=1;
+ 	$summary=null;
+ 	foreach($tech_summary as $k=>$v1):
+ 	  if($v1['avg_rating'] ==1){
+ 	  	$summary.='<tr>
+			    <td class ="taskdata1 tdstyle1 text_align" style="text-indent:5px;">'.$j.'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-indent:6px;">'.$v1['name'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_hour_worked'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_task'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['compltd_task'].'</td>	
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.'<img src="/home/vcnew/public_html/app/webroot/img/1star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+			 </tr>';
+ 	  }elseif($v1['avg_rating'] ==2){
+ 	  	$summary.='<tr>
+			    <td class ="taskdata1 tdstyle1 text_align" style="text-indent:5px;">'.$j.'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-indent:6px;">'.$v1['name'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_hour_worked'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_task'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['compltd_task'].'</td>	
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.'<img src="/home/vcnew/public_html/app/webroot/img/2star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+			 </tr>';
+ 	  }elseif($v1['avg_rating'] ==3){
+ 	  	$summary.='<tr>
+			    <td class ="taskdata1 tdstyle1 text_align" style="text-indent:5px;">'.$j.'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-indent:6px;">'.$v1['name'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_hour_worked'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_task'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['compltd_task'].'</td>	
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.'<img src="/home/vcnew/public_html/app/webroot/img/3star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+			 </tr>';
+ 	  }elseif($v1['avg_rating'] ==4){
+ 	  	$summary.='<tr>
+			    <td class ="taskdata1 tdstyle1 text_align" style="text-indent:5px;">'.$j.'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-indent:6px;">'.$v1['name'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_hour_worked'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_task'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['compltd_task'].'</td>	
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.'<img src="/home/vcnew/public_html/app/webroot/img/4star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+			 </tr>';
+ 	  }elseif($v1['avg_rating'] ==5){
+ 	  	$summary.='<tr>
+			    <td class ="taskdata1 tdstyle1 text_align" style="text-indent:5px;">'.$j.'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-indent:6px;">'.$v1['name'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_hour_worked'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_task'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['compltd_task'].'</td>	
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.'<img src="/home/vcnew/public_html/app/webroot/img/5star.png" alt="test alt attribute" width="40" height="8" border="0" />'.'</td>	
+			 </tr>';
+ 	  }else{
+ 	  	$summary.='<tr>
+			    <td class ="taskdata1 tdstyle1 text_align" style="text-indent:5px;">'.$j.'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-indent:6px;">'.$v1['name'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_hour_worked'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_task'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['compltd_task'].'</td>	
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.'Not Rated'.'</td>	
+			 </tr>';
+ 	  }
+ 	  
+ 	  
+	$j++;
+	endforeach;
+	 $summary.='<tr>
+			    <td class ="taskdata1 tdstyle1" style="width:89px;">'.''.'</td>
+			    <td class ="taskdata1 tdstyle1" style="width:109px;">'.''.'</td>	
+			    <td class ="taskdata1 tdstyle1" style="width:128px;">'.''.'</td>	 
+			    <td class ="taskdata1 tdstyle1" style="text-indent:15px;font-weight:Bold;width:128px;">'.'Total Productive Hrs'.'</td>
+			    <td class ="taskdata1 tdstyle1" style="width:50px;float:left;background-color:#31c650;text-align:center;color:#fff; font-weight:Bold;"><span>'.$total.' Hrs'.'</span></td> 
+			    <td class ="taskdata1 tdstyle1" style="width:30px;">'.''.'</td>		
+			 </tr>';
+	
+$html = <<<EOD
+<style>
+
+  .headerRow{background-color:#e6e6db;border:1px solid #FFF;}
+  .tname{color:#0f6082;font-family:Arial;font-weight:Bold;width:300px;height:30px;}
+  .totalTask{color:#696969;width:}
+  th{
+    color: #505050;
+    background-color : #e6e6db;
+    height: 18px;
+    font-family: times;
+    font-size: 12pt;
+    text-decoration: none;
+    border-bottom : 0.5px solid #cfcfc4;
+     
+  }
+  
+  p {
+    color: red;
+    font-family: helvetica;
+    font-size: 12pt;
+  }
+  .tech_name1 {
+  	background: none repeat scroll 0 0 #e6e6db;
+    float: left;
+    font-weight:bold;
+  }
+  .taskdata1 {
+  	background: none repeat scroll 0 0 #e6e6db;
+    border : 0.5px solid #e6e6db;
+    float: left;
+    height: 2px;
+    line-height:2px;
+    font-family: times;
+    font-size: 12pt;
+    text-decoration: none;
+    border-bottom: 1px solid #cfcfc4;
+  }
+  .text_align{
+  	text-align:center;
+  }
+  .tdstyle1{
+  	background-color:#e6e6db;
+    //border-bottom: 1px solid #E8ECEB;
+  }
+  .txt_id{
+  	text-indent:5px;
+  }
+</style>
+ 
+	
+
+<table  cellpadding="0">
+	
+  <tr>
+    <th class ="tech_name1 txt_id text_align" style="width:23px;">&nbsp;&nbsp;Id</th>
+    <th class ="tech_name1 " style="width:100px;">&nbsp;&nbsp;Tech Name</th>
+    <th class ="tech_name1 text_align" style="width:120px;">Productive Hrs (hh:mm)</th>
+    <th class ="tech_name1 text_align" style="width:97px;">Tasks Assigned </th>
+    <th class ="tech_name1 text_align" style="width:97px;">Tasks Completed</th>
+    <th class ="tech_name1 text_align" style="width:97px;">Avg Rating</th>
+  </tr>
+  
+  $summary
+ 
+</table>
+ 
+EOD;
+ 
+
+$tcpdf->writeHTMLCell($w=0, $h=0, $x='', $y='', $html, $border=0, $ln=1, $fill=0, $reseth=true, $align='', $autopadding=true);  
+
+
+
+/***projectwise Summary***/
+
+/***Horizontal line****/
+$tcpdf->SetFillColor(226,226,216,'',false,''); 
+$tcpdf->Cell(0,3, '','T',1,'C'); 
+$tcpdf->SetTextColor(226,226,226); 
+/***End of Horizontal line*/  
+$tcpdf->Ln();
+$tcpdf->Ln();
+$tcpdf->Ln();
+$tcpdf->SetFont( '', 'b',12 );
+$tcpdf->SetDrawColor(255,255,255);
+$tcpdf->SetTextColor(255,255,248);
+$tcpdf->SetFillColor(109,184,210,'',false,''); 
+$tcpdf->SetX(11);
+$tcpdf->Cell( 47, 6, 'Project wise Summary', 1, 0, 'L',1 );
+$tcpdf->Ln();
+
+
+
+	$tcpdf->SetFont( '', '',8); 
+	$tcpdf->SetTextColor(70,70,70);
+	$tcpdf->SetDrawColor(255,225,255);
+	$tcpdf->SetFillColor(237,243,246,'',false,''); 
+ 	$q=1;
+ 	$summary_project=null;
+ 	foreach($project_summary as $k=>$v1):
+ 	  $summary_project.='<tr>
+			    <td class ="taskdata1 tdstyle1 text_align" style="text-indent:5px;">'.$q.'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-indent:6px;">'.$v1['project_name'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['total_hours'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['assigned_tasks'].'</td>
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['completed_tasks'].'</td>	
+			    <td class ="taskdata1 tdstyle1" style="text-align:center;">'.$v1['self_assigned_tasks'].'</td>	
+			 </tr>';
+	$q++;
+	endforeach;
+	
+	
+$html = <<<EOD
+<style>
+
+  .headerRow{background-color:#e6e6db;border:1px solid #FFF;}
+  .tname{color:#0f6082;font-family:Arial;font-weight:Bold;width:300px;height:30px;}
+  .totalTask{color:#696969;width:}
+  th{
+    color: #505050;
+    background-color : #e6e6db;
+    height: 18px;
+    font-family: times;
+    font-size: 12pt;
+    text-decoration: none;
+    border-bottom : 0.5px solid #cfcfc4;
+     
+  }
+  
+  p {
+    color: red;
+    font-family: helvetica;
+    font-size: 12pt;
+  }
+  .tech_name1 {
+  	background: none repeat scroll 0 0 #e6e6db;
+    float: left;
+    font-weight:bold;
+  }
+  .taskdata1 {
+  	background: none repeat scroll 0 0 #e6e6db;
+    border : 0.5px solid #e6e6db;
+    float: left;
+    height: 2px;
+    line-height:2px;
+    font-family: times;
+    font-size: 12pt;
+    text-decoration: none;
+    border-bottom: 1px solid #cfcfc4;
+  }
+  .text_align{
+  	text-align:center;
+  }
+  .tdstyle1{
+  	background-color:#e6e6db;
+    //border-bottom: 1px solid #E8ECEB;
+  }
+  .txt_id{
+  	text-indent:5px;
+  }
+</style>
+ 
+	
+
+<table  cellpadding="0">
+	
+  <tr>
+    <th class ="tech_name1 txt_id text_align" style="width:23px;">&nbsp;&nbsp;Id</th>
+    <th class ="tech_name1 " style="width:100px;">&nbsp;&nbsp;Project Name</th>
+    <th class ="tech_name1 text_align" style="width:120px;">Total Hours Spent</th>
+    <th class ="tech_name1 text_align" style="width:97px;">Tasks Assigned </th>
+    <th class ="tech_name1 text_align" style="width:97px;">Tasks Completed</th>
+    <th class ="tech_name1 text_align" style="width:97px;">Self Assigned Tasks</th>
+  </tr>
+  
+  $summary_project
+ 
+</table>
+ 
+EOD;
+ 
+
+$tcpdf->writeHTMLCell($w=0, $h=0, $x='', $y='', $html, $border=0, $ln=1, $fill=0, $reseth=true, $align='', $autopadding=true);  
+
+
+
+
+
+//debug($this->webroot);
+//debug($_SERVER['DOCUMENT_ROOT']);
+//debug($_SERVER);
+//$tmp = $_SERVER['PWD']."/webroot/eompdf/";
+//debug($tmp);
+//$tmp = $_SERVER['DOCUMENT_ROOT'].$this->webroot."app/webroot/eompdf/";
+//$tmp = $_SERVER['DOCUMENT_ROOT']."app/webroot/EOMReport/";
+$tmp = "/home/vcnew/public_html/app/webroot/EOMReport/";
+//$tmp = "/home/visioncarma/public_html/VC/app/webroot/eompdf/";
+$tcpdf->Output($tmp."EOM1121.pdf", 'F'); 
+$path1=$this->webroot."app/webroot/eompdf/";
+?>
+
+<div>

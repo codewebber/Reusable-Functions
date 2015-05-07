@@ -1,0 +1,143 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * FeedbackQuestions Controller
+ *
+ * @property FeedbackQuestion $FeedbackQuestion
+ */
+class FeedbackQuestionsController extends AppController {
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	/*
+	public function index() {
+			$this->FeedbackQuestion->recursive = 0;
+			$this->set('feedbackQuestions', $this->paginate());
+		}*/
+	
+	public function index() {
+       $this->FeedbackQuestion->recursive = 0;	 
+	   $feedbackQuestions=$this->FeedbackQuestion->find('all',array('conditions'=>array('FeedbackQuestion.active'=>'Y')/*,'order' => array('FeedbackQuestion.question ASC')*/));	
+	   $this->set(compact('feedbackQuestions', $this->paginate()));
+	}	
+   
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->FeedbackQuestion->id = $id;
+		if (!$this->FeedbackQuestion->exists()) {
+			throw new NotFoundException(__('Invalid feedback question'));
+		}
+		$this->set('feedbackQuestion', $this->FeedbackQuestion->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	/*
+	public function add(){
+			if ($this->request->is('post')) {
+				$this->FeedbackQuestion->create();
+				if ($this->FeedbackQuestion->save($this->request->data)) {
+					$this->Session->setFlash(__('The feedback question has been saved'));
+					$this->redirect(array('action' => 'index'));
+				} else {
+					$this->Session->setFlash(__('The feedback question could not be saved. Please, try again.'));
+				}
+			}
+		}*/
+	
+   public function add(){
+   	//Configure::write('debug', 2);		
+	//debug($this->data);
+   	if ($this->request->is('post')) {
+		
+		$saveArray->data=null;
+		$this->FeedbackQuestion->create();
+		$saveArray->data['FeedbackQuestion']['question']=$this->data['FeedbackQuestion']['question'];
+		$saveArray->data['FeedbackQuestion']['active']='Y';
+		if($this->FeedbackQuestion->save($saveArray->data)){ 
+		       $this->Session->setFlash(__('The feedback question has been saved'));
+			   $this->redirect(array('controller'=>'feedback_questions','action' => 'index'));
+		} 
+		else{   
+			   $this->Session->setFlash('<h2>Warning Message : </h2><span>The Feedback Question cannot be saved.</span>','default',array('class' => 'visioncarma_Alerts_acl vc_warning_msg'));
+	    }
+	}	
+   }
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	/*
+	public function edit($id = null) {
+			$this->FeedbackQuestion->id = $id;
+			if (!$this->FeedbackQuestion->exists()) {
+				throw new NotFoundException(__('Invalid feedback question'));
+			}
+			if ($this->request->is('post') || $this->request->is('put')) {
+				if ($this->FeedbackQuestion->save($this->request->data)) {
+					$this->Session->setFlash(__('The feedback question has been saved'));
+					$this->redirect(array('action' => 'index'));
+				} else {
+					$this->Session->setFlash(__('The feedback question could not be saved. Please, try again.'));
+				}
+			} else {
+				$this->request->data = $this->FeedbackQuestion->read(null, $id);
+			}
+		}*/
+	
+   public function edit($id = null) {
+   	
+	 if(!empty($this->data)){
+	 	
+		$edit->data = null;
+		$edit->data['FeedbackQuestion']['id'] = $id; 
+		$edit->data['FeedbackQuestion']['question']=$this->data['FeedbackQuestion']['question'];
+		$edit->data['FeedbackQuestion']['active']='Y';
+		if($this->FeedbackQuestion->save($edit->data)){
+		    $this->Session->setFlash(__('The feedback question has been edited'));
+		    $this->redirect(array('action' => 'index'));		
+	   }
+   	   else{   
+			  $this->Session->setFlash(__('The feedback question cannot be edited'));
+		   }
+   }
+  }	 
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->FeedbackQuestion->id = $id;
+		if (!$this->FeedbackQuestion->exists()) {
+			throw new NotFoundException(__('Invalid feedback question'));
+		}
+		if ($this->FeedbackQuestion->delete()) {
+			$this->Session->setFlash(__('Feedback question deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Feedback question was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

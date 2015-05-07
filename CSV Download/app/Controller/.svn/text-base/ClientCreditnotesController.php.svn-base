@@ -1,0 +1,497 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * ClientCreditnotes Controller
+ *
+ * @property ClientCreditnote $ClientCreditnote
+ */
+class ClientCreditnotesController extends AppController {
+
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->ClientCreditnote->recursive = 0;
+		$this->set('clientCreditnotes', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->ClientCreditnote->id = $id;
+		if (!$this->ClientCreditnote->exists()) {
+			throw new NotFoundException(__('Invalid client creditnote'));
+		}
+		$this->set('clientCreditnote', $this->ClientCreditnote->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add($id=null) {
+		$this->loadModel('Client');
+		$this->loadModel('AccountsClientpaymentdetail');
+		$this->loadModel('Currency');
+		$this->loadModel('AccountsLedger');
+		$this->loadModel('AccountsAccount');
+		$this->loadModel('AccountType');
+		$this->loadModel('AccountsGoldenrule');
+		if ($this->request->is('post')) {
+			if($this->data['ClientCreditnote']['amount'] <= $this->data['ClientCreditnote']['maxRebate'])	
+				{
+					if($this->data['ClientCreditnote']['note_type']!='NA')
+						{
+							if($this->data['ClientCreditnote']['note_type']!='NA')
+								{
+									$creditNoteInfo=$this->ClientCreditnote->find('first',array('conditions'=>array('ClientCreditnote.client_id'=>$this->data['ClientCreditnote']['client'])));
+									if($creditNoteInfo)
+										{
+											
+											$savearray->data=null;
+											$savearray->data['ClientCreditnote']['id'] = $creditNoteInfo['ClientCreditnote']['id'];
+											$savearray->data['ClientCreditnote']['client_id'] = $this->data['ClientCreditnote']['client'];
+											$savearray->data['ClientCreditnote']['notetype'] = $this->data['ClientCreditnote']['note_type'];
+											$savearray->data['ClientCreditnote']['amount'] = $creditNoteInfo['ClientCreditnote']['amount'] + $this->data['ClientCreditnote']['amount'];
+											$savearray->data['ClientCreditnote']['currency_id'] = $this->data['ClientCreditnote']['currencyid'];
+											$savearray->data['ClientCreditnote']['date_created'] =date('Y-m-d',strtotime($this->data['ClientCreditnote']['date']));
+											$savearray->data['ClientCreditnote']['details'] = $this->data['ClientCreditnote']['description'];
+											if($this->ClientCreditnote->save($savearray->data))
+												{
+													
+													/**
+													 ***********************************Spot Conversion Logic ****************************************************** 
+													 ***************************************************************************************************************
+												   */
+														 	$billingcurrency=$this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+														 	
+														 	if(($billingcurrency['Currency']['id']!=$this->data['ClientCreditnote']['currencyid']) && (($this->data['ClientCreditnote']['currencyid']!=null)))
+																{
+																	$fromcur=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$this->data['ClientCreditnote']['currencyid']),'fields'=>array('Currency.name','Currency.symbol')));
+																	$from=$fromcur['Currency']['name'];
+																	$to=$billingcurrency['Currency']['name'];
+																	
+																	$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+																	$handle = @fopen($url, 'r');
+								 									
+																	if ($handle) 
+																		{
+								    											$result = fgets($handle, 4096);
+								    											fclose($handle);
+																		}
+																	
+																	$allData = explode(',',$result);  //Get all the contents to an array 
+																	if($allData['1']==0)
+																		{
+																			$allData['1']=1;
+																		}
+																	$converted_amount=$this->data['ClientCreditnote']['amount']*$allData['1'];
+																	$symbol=$fromcur['Currency']['symbol'];
+																	$this->set(compact('symbol'));
+																	
+																	
+																}
+																else
+																{
+																	$converted_amount=$this->data['ClientCreditnote']['amount'];
+																}
+														 	
+														 	/**************************************************************************************************************
+														 	 **********************************Spot Conversion Logic ****************************************************** 
+														 	***************************************************************************************************************
+														 	*/
+													
+													
+													$last1=$this->ClientCreditnote->getLastInsertID();
+													$this->AccountsLedger->create();
+													$ledgerincome->data=null;
+													$ledgerincome->data['AccountsLedger']['transaction_id']=$last1;
+													$accounts_accounts_income=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Sales')));
+													$accounttype_income=$this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accounts_accounts_income['AccountsAccount']['account_type_id'])));
+													$goldenrule_income=$this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accounttype_income['AccountType']['accounts_goldenrule_id'])));
+													$accountbal_income=$this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accounts_accounts_income['AccountsAccount']['id']),'fields'=>array('AccountsLedger.balance'),'order'=>array('AccountsLedger.id DESC')));
+													if(!empty($accountbal_income)){
+														$bbaalance_income = $accountbal_income['AccountsLedger']['balance'];
+													}else{
+														$bbaalance_income = $accounts_accounts_income['AccountsAccount']['opening_balance'];
+													}
+													$ledgerincome->data['AccountsLedger']['accounts_account_id']=$accounts_accounts_income['AccountsAccount']['id'];
+													$ledgerincome->data['AccountsLedger']['date']=date('Y-m-d',strtotime($this->data['ClientCreditnote']['date']));
+													$ledgerincome->data['AccountsLedger']['payment_description']='Against CreditNote # '.$last1;
+													$ledgerincome->data['AccountsLedger']['cheque_no']='Against CreditNote # '.$last1;
+													$ledger->data['AccountsLedger']['is_neutral']='Y';
+													if($goldenrule_income['AccountsGoldenrule']['increase']=='Debit')
+													{
+														$ledgerincome->data['AccountsLedger']['credit']=$converted_amount;
+														$ledgerincome->data['AccountsLedger']['debit']=0;
+													}
+													else
+													{
+														$ledgerincome->data['AccountsLedger']['debit']=$converted_amount;
+														$ledgerincome->data['AccountsLedger']['credit']=0;
+													}
+													$ledgerincome->data['AccountsLedger']['balance']=$bbaalance_income+$converted_amount;
+													if($this->AccountsLedger->save($ledgerincome->data))
+														{
+															$last1=$this->ClientCreditnote->getLastInsertID();
+															$this->AccountsLedger->create();
+															$ledger->data=null;
+															$ledger->data['AccountsLedger']['transaction_id']=$last1;
+															$accounts_accounts=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Payable')));
+															$accounttype=$this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accounts_accounts['AccountsAccount']['account_type_id'])));
+															$goldenrule=$this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accounttype['AccountType']['accounts_goldenrule_id'])));
+															$accountbal=$this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accounts_accounts['AccountsAccount']['id']),'fields'=>array('AccountsLedger.balance'),'order'=>array('AccountsLedger.id DESC')));
+															if(!empty($accountbal)){
+																	$bbaalance = $accountbal['AccountsLedger']['balance'];
+															}else{
+																	$bbaalance = $accounts_accounts['AccountsAccount']['opening_balance'];
+															}
+															$ledger->data['AccountsLedger']['accounts_account_id']=$accounts_accounts['AccountsAccount']['id'];
+															$ledger->data['AccountsLedger']['date']=date('Y-m-d',strtotime($this->data['ClientCreditnote']['date']));
+															$ledger->data['AccountsLedger']['payment_description']='Against CreditNote # '.$last1;
+															$ledger->data['AccountsLedger']['cheque_no']='Against CreditNote # '.$last1;
+															if($goldenrule['AccountsGoldenrule']['increase']=='Debit')
+															{
+																$ledger->data['AccountsLedger']['credit']=$converted_amount;
+																$ledger->data['AccountsLedger']['debit']=0;
+															}
+															else
+															{
+																$ledger->data['AccountsLedger']['debit']=$converted_amount;
+																$ledger->data['AccountsLedger']['credit']=0;
+															}
+															$ledger->data['AccountsLedger']['is_neutral']='Y';
+															$ledger->data['AccountsLedger']['balance']=$bbaalance+$converted_amount;
+															if($this->AccountsLedger->save($ledger->data))
+																{
+																	$this->Session->setFlash(__('<div class="flashMessageSuccess">Refund Note Against '.$this->data['ClientCreditnote']['clientName'].' Added</div>',true));
+																	$this->redirect(array('controller'=>'clients','action' => 'view',$this->data['ClientCreditnote']['client']));
+																}
+															
+														}
+												}
+											
+										}
+									else
+										{
+											$this->ClientCreditnote->create();
+											$savearray->data=null;
+											$savearray->data['ClientCreditnote']['client_id'] = $this->data['ClientCreditnote']['client'];
+											$savearray->data['ClientCreditnote']['notetype'] = $this->data['ClientCreditnote']['note_type'];
+											$savearray->data['ClientCreditnote']['amount'] = $this->data['ClientCreditnote']['amount'];
+											$savearray->data['ClientCreditnote']['currency_id'] = $this->data['ClientCreditnote']['currencyid'];
+											$savearray->data['ClientCreditnote']['date_created'] =date('Y-m-d',strtotime($this->data['ClientCreditnote']['date']));
+											$savearray->data['ClientCreditnote']['details'] = $this->data['ClientCreditnote']['description'];
+											if($this->ClientCreditnote->save($savearray->data))
+												{
+													
+													/**
+													 ***********************************Spot Conversion Logic ****************************************************** 
+													 ***************************************************************************************************************
+												   */
+														 	$billingcurrency=$this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+														 	
+														 	if(($billingcurrency['Currency']['id']!=$this->data['ClientCreditnote']['currencyid']) && (($this->data['ClientCreditnote']['currencyid']!=null)))
+																{
+																	$fromcur=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$this->data['ClientCreditnote']['currencyid']),'fields'=>array('Currency.name','Currency.symbol')));
+																	$from=$fromcur['Currency']['name'];
+																	$to=$billingcurrency['Currency']['name'];
+																	
+																	$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+																	$handle = @fopen($url, 'r');
+								 									
+																	if ($handle) 
+																		{
+								    											$result = fgets($handle, 4096);
+								    											fclose($handle);
+																		}
+																	
+																	$allData = explode(',',$result);  //Get all the contents to an array 
+																	if($allData['1']==0)
+																		{
+																			$allData['1']=1;
+																		}
+																	$converted_amount=$this->data['ClientCreditnote']['amount']*$allData['1'];
+																	$symbol=$fromcur['Currency']['symbol'];
+																	$this->set(compact('symbol'));
+																	
+																	
+																}
+																else
+																{
+																	$converted_amount=$this->data['ClientCreditnote']['amount'];
+																}
+														 	
+														 	/**************************************************************************************************************
+														 	 **********************************Spot Conversion Logic ****************************************************** 
+														 	***************************************************************************************************************
+														 	*/
+													
+													
+													$last1=$this->ClientCreditnote->getLastInsertID();
+													$this->AccountsLedger->create();
+													$ledgerincome->data=null;
+													$ledgerincome->data['AccountsLedger']['transaction_id']=$last1;
+													$accounts_accounts_income=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Sales')));
+													$accounttype_income=$this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accounts_accounts_income['AccountsAccount']['account_type_id'])));
+													$goldenrule_income=$this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accounttype_income['AccountType']['accounts_goldenrule_id'])));
+													$accountbal_income=$this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accounts_accounts_income['AccountsAccount']['id']),'fields'=>array('AccountsLedger.balance'),'order'=>array('AccountsLedger.id DESC')));
+													if(!empty($accountbal_income)){
+														$bbaalance_income = $accountbal_income['AccountsLedger']['balance'];
+													}else{
+														$bbaalance_income = $accounts_accounts_income['AccountsAccount']['opening_balance'];
+													}
+													$ledgerincome->data['AccountsLedger']['accounts_account_id']=$accounts_accounts_income['AccountsAccount']['id'];
+													$ledgerincome->data['AccountsLedger']['date']=date('Y-m-d',strtotime($this->data['ClientCreditnote']['date']));
+													$ledgerincome->data['AccountsLedger']['payment_description']='Against CreditNote # '.$last1;
+													$ledgerincome->data['AccountsLedger']['cheque_no']='Against CreditNote # '.$last1;
+													$ledger->data['AccountsLedger']['is_neutral']='Y';
+													if($goldenrule_income['AccountsGoldenrule']['increase']=='Debit')
+													{
+														$ledgerincome->data['AccountsLedger']['credit']=$converted_amount;
+														$ledgerincome->data['AccountsLedger']['debit']=0;
+													}
+													else
+													{
+														$ledgerincome->data['AccountsLedger']['debit']=$converted_amount;
+														$ledgerincome->data['AccountsLedger']['credit']=0;
+													}
+													$ledgerincome->data['AccountsLedger']['balance']=$bbaalance_income+$converted_amount;
+													if($this->AccountsLedger->save($ledgerincome->data))
+														{
+															$last1=$this->ClientCreditnote->getLastInsertID();
+															$this->AccountsLedger->create();
+															$ledger->data=null;
+															$ledger->data['AccountsLedger']['transaction_id']=$last1;
+															$accounts_accounts=$this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name'=>'Accounts Payable')));
+															$accounttype=$this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$accounts_accounts['AccountsAccount']['account_type_id'])));
+															$goldenrule=$this->AccountsGoldenrule->find('first',array('conditions'=>array('AccountsGoldenrule.id'=>$accounttype['AccountType']['accounts_goldenrule_id'])));
+															$accountbal=$this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$accounts_accounts['AccountsAccount']['id']),'fields'=>array('AccountsLedger.balance'),'order'=>array('AccountsLedger.id DESC')));
+															if(!empty($accountbal)){
+																	$bbaalance = $accountbal['AccountsLedger']['balance'];
+															}else{
+																	$bbaalance = $accounts_accounts['AccountsAccount']['opening_balance'];
+															}
+															$ledger->data['AccountsLedger']['accounts_account_id']=$accounts_accounts['AccountsAccount']['id'];
+															$ledger->data['AccountsLedger']['date']=date('Y-m-d',strtotime($this->data['ClientCreditnote']['date']));
+															$ledger->data['AccountsLedger']['payment_description']='Against CreditNote # '.$last1;
+															$ledger->data['AccountsLedger']['cheque_no']='Against CreditNote # '.$last1;
+															if($goldenrule['AccountsGoldenrule']['increase']=='Debit')
+															{
+																$ledger->data['AccountsLedger']['credit']=$converted_amount;
+																$ledger->data['AccountsLedger']['debit']=0;
+															}
+															else
+															{
+																$ledger->data['AccountsLedger']['debit']=$converted_amount;
+																$ledger->data['AccountsLedger']['credit']=0;
+															}
+															$ledger->data['AccountsLedger']['is_neutral']='Y';
+															$ledger->data['AccountsLedger']['balance']=$bbaalance+$converted_amount;
+															if($this->AccountsLedger->save($ledger->data))
+																{
+																	$this->Session->setFlash(__('<div class="flashMessageSuccess">Refund Note Against '.$this->data['ClientCreditnote']['clientName'].' Added</div>',true));
+																	$this->redirect(array('controller'=>'clients','action' => 'view',$this->data['ClientCreditnote']['client']));
+																}
+															
+														}
+												}
+										}
+									
+								}
+							else
+								{
+									$clients = $this->Client->find('first',array('conditions'=>array('Client.id'=>$this->data['ClientCreditnote']['client'])));
+									$clientName = $clients['Client']['client_companyname'];
+									$currency=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$clients['Client']['currency_id'])));
+									$symbol=$currency['Currency']['symbol'];
+									$currency_id=$currency['Currency']['id'];
+									$earlyRefund=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$id)));
+									foreach($earlyRefund as $er=>$ver)
+										{
+											$refundBefore=$refundBefore+$ver['ClientCreditnote']['amount'];
+										}	
+									$paydetails=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$id)));
+									foreach($paydetails as $kp=>$vp)
+										{
+											$totalAmount=$totalAmount+$vp['AccountsClientpaymentdetail']['invoiced_amount'];
+											$totalPay=$totalPay+$vp['AccountsClientpaymentdetail']['paid_amount'];
+										}
+									$bal=$totalAmount-$totalPay-$refundBefore;
+									if($bal>0)
+										{
+											$outstandingPay=$bal;
+										}
+									elseif($bal<0)
+										{
+											$unusedAmount=(-1)*$bal;
+										}
+									else
+										{
+											$due=1;
+										}
+									$this->set(compact('clients','id','outstandingPay','unusedAmount','due','clientName','symbol','currency_id'));
+									$this->Session->setFlash(__('<div class="flashMessageError">No Amount To Be Refunded.</div>',true));
+									return;
+								}
+						}
+					else
+						{
+							$clients = $this->Client->find('first',array('conditions'=>array('Client.id'=>$this->data['ClientCreditnote']['client'])));
+							$clientName = $clients['Client']['client_companyname'];
+							$currency=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$clients['Client']['currency_id'])));
+							$symbol=$currency['Currency']['symbol'];
+							$currency_id=$currency['Currency']['id'];
+							$earlyRefund=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$id)));
+							foreach($earlyRefund as $er=>$ver)
+								{
+									$refundBefore=$refundBefore+$ver['ClientCreditnote']['amount'];
+								}	
+							$paydetails=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$id)));
+							foreach($paydetails as $kp=>$vp)
+								{
+									$totalAmount=$totalAmount+$vp['AccountsClientpaymentdetail']['invoiced_amount'];
+									$totalPay=$totalPay+$vp['AccountsClientpaymentdetail']['paid_amount'];
+								}
+							$bal=$totalAmount-$totalPay-$refundBefore;
+							if($bal>0)
+								{
+									$outstandingPay=$bal;
+								}
+							elseif($bal<0)
+								{
+									$unusedAmount=(-1)*$bal;
+								}
+							else
+								{
+									$due=1;
+								}
+							$this->set(compact('clients','id','outstandingPay','unusedAmount','due','clientName','symbol','currency_id'));
+							$this->Session->setFlash(__('<div class="flashMessageError">Refund Is Not Allowed.</div>',true));
+							return;
+						}
+				}
+			else
+				{
+					$clients = $this->Client->find('first',array('conditions'=>array('Client.id'=>$this->data['ClientCreditnote']['client'])));
+					$clientName = $clients['Client']['client_companyname'];
+					$currency=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$clients['Client']['currency_id'])));
+					$symbol=$currency['Currency']['symbol'];
+					$currency_id=$currency['Currency']['id'];
+					$earlyRefund=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$this->data['ClientCreditnote']['client'])));
+					foreach($earlyRefund as $er=>$ver)
+						{
+							$refundBefore=$refundBefore+$ver['ClientCreditnote']['amount'];
+						}	
+					$paydetails=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$this->data['ClientCreditnote']['client'])));
+					foreach($paydetails as $kp=>$vp)
+						{
+							$totalAmount=$totalAmount+$vp['AccountsClientpaymentdetail']['invoiced_amount'];
+							$totalPay=$totalPay+$vp['AccountsClientpaymentdetail']['paid_amount'];
+						}
+					$bal=$totalAmount-$totalPay-$refundBefore;
+					if($bal>0)
+						{
+							$outstandingPay=$bal;
+						}
+					elseif($bal<0)
+						{
+							$unusedAmount=(-1)*$bal;
+						}
+					else
+						{
+							$due=1;
+						}
+					$this->set(compact('clients','id','outstandingPay','unusedAmount','due','clientName','symbol','currency_id'));
+					$this->Session->setFlash(__('<div class="flashMessageError">Unused Credit entered is more than maximum limit</div>',true));
+					return;
+				}
+			
+		}
+		$clients = $this->Client->find('first',array('conditions'=>array('Client.id'=>$id)));
+		$clientName = $clients['Client']['client_companyname'];
+		$currency=$this->Currency->find('first',array('conditions'=>array('Currency.id'=>$clients['Client']['currency_id'])));
+		$symbol=$currency['Currency']['symbol'];
+		$currency_id=$currency['Currency']['id'];
+		$earlyRefund=$this->ClientCreditnote->find('all',array('conditions'=>array('ClientCreditnote.client_id'=>$id)));
+		foreach($earlyRefund as $er=>$ver)
+			{
+				$refundBefore=$refundBefore+$ver['ClientCreditnote']['amount'];
+			}	
+		$paydetails=$this->AccountsClientpaymentdetail->find('all',array('conditions'=>array('AccountsClientpaymentdetail.client_id'=>$id)));
+		foreach($paydetails as $kp=>$vp)
+			{
+				$totalAmount=$totalAmount+$vp['AccountsClientpaymentdetail']['invoiced_amount'];
+				$totalPay=$totalPay+$vp['AccountsClientpaymentdetail']['paid_amount'];
+			}
+		$bal=$totalAmount-$totalPay-$refundBefore;
+		if($bal>0)
+			{
+				$outstandingPay=$bal;
+			}
+		elseif($bal<0)
+			{
+				$unusedAmount=(-1)*$bal;
+			}
+		else
+			{
+				$due=1;
+			}
+		$this->set(compact('clients','id','outstandingPay','unusedAmount','due','clientName','symbol','currency_id'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->ClientCreditnote->id = $id;
+		if (!$this->ClientCreditnote->exists()) {
+			throw new NotFoundException(__('Invalid client creditnote'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->ClientCreditnote->save($this->request->data)) {
+				$this->Session->setFlash(__('The client creditnote has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The client creditnote could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->ClientCreditnote->read(null, $id);
+		}
+		$clients = $this->ClientCreditnote->Client->find('list');
+		$this->set(compact('clients'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->ClientCreditnote->id = $id;
+		if (!$this->ClientCreditnote->exists()) {
+			throw new NotFoundException(__('Invalid client creditnote'));
+		}
+		if ($this->ClientCreditnote->delete()) {
+			$this->Session->setFlash(__('Client creditnote deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Client creditnote was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

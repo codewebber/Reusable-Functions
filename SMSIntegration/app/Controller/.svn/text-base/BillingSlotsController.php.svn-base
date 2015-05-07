@@ -1,0 +1,142 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * BillingSlots Controller
+ *
+ * @property BillingSlot $BillingSlot
+ */
+class BillingSlotsController extends AppController {
+  
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	var $helpers = array('Ajax', 'Javascript');
+	
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('RequestHandler');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+				
+	     //Configure::write('debug',2);
+		 //debug($this->data);		
+		$this->data['Search']['slot_name'] = null;
+		$this->BillingSlot->recursive = 0;
+		 $plimit = $this->paginate['limit'];
+		 $this->set(compact('plimit'));
+		if(($this->data['Search']['slot_name']) && ($this->data['Search']['slot_name'] != "- Search -"))
+		{		
+			if(!$billingSlots = Cache::read('billingSlots')){	
+			$billingSlots = $this->BillingSlot->find('all');
+			$this->paginate =array('conditions'=>array('AND'=>array('BillingSlot.slot_name LIKE'=>'%'.$this->data['Search']['slot_name'].'%')));
+			$this->set('billingSlots', $this->paginate());
+			Cache::write('billingSlots', $billingSlots, 86400);
+			}
+		}
+		else
+		{
+			if(!$billingSlots = Cache::read('billingSlots'))
+			{	
+				//$this->paginate =array('order' => array('BillingSlot.id' => 'ASC'));
+				$this->set('billingSlots', $this->paginate());				
+				Cache::write('billingSlots', $billingSlots, 86400);				
+			}
+		}
+		
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		
+		$this->BillingSlot->id = $id;
+		if (!$this->BillingSlot->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid billing slot</div>'));
+		}
+		$this->set('billingSlot', $this->BillingSlot->read(null, $id));
+		
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		//$yes = null;
+		if ($this->request->is('post')) {
+			$this->BillingSlot->create();
+			if ($this->BillingSlot->save($this->request->data)) {
+				//$yes = 1;
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The billing slot has been saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The billing slot could not be saved. Please, try again.</div>'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		//$yes = null;
+		$this->set(compact('id'));
+		$this->BillingSlot->id = $id;
+		if (!$this->BillingSlot->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid billing slot</div>'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->BillingSlot->save($this->request->data)) {
+				//$yes = 1;
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The billing slot has been saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The billing slot could not be saved. Please, try again.</div>'));
+			}
+		} else {
+			$this->request->data = $this->BillingSlot->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		/*if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}*/
+		$this->BillingSlot->id = $id;
+		if (!$this->BillingSlot->exists()) {
+			throw new NotFoundException(__('Invalid billing slot'));
+		}
+		if ($this->BillingSlot->delete()) {
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Billing slot deleted</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		else {
+		$this->Session->setFlash(__('<div class="flashMessageError">Billing slot was not deleted</div>'));
+		$this->redirect(array('action' => 'index'));
+		}
+	}
+}

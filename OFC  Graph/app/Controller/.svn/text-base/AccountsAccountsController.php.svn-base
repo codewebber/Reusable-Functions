@@ -1,0 +1,780 @@
+<?php
+
+App::uses('AppController', 'Controller','CakeNumber', 'Utility');
+//App::uses('XmlHelper', 'View/Helper');
+/**
+ * Module:Accounts
+ * 
+ * Pages: index,Add,Edit
+ * 
+ * @Ganesh
+ * 
+ * @Carmatec Accounts
+ * 
+ * @Copyright©2012-2013 carmatec.com
+ * 
+ */
+
+/**
+ * AccountsAccounts Controller
+ *
+ * @property AccountsAccount $AccountsAccount
+ */
+ 
+class AccountsAccountsController extends AppController {
+	
+	public $components = array('RequestHandler');
+	
+	public function beforeFilter(){
+		parent::beforeFilter();
+	//	Configure::write('debug',2);
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+		if($controller == 'accounts_accounts'){
+			$module_name = 'Account Tree';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    }
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+    }
+	
+/**
+ * index method
+ *
+ * @return void
+ */
+	function index() {
+		$this->AccountsAccount->recursive = 0;
+		$this->set('accountsAccounts', $this->paginate());
+		if(!empty($this->data)){
+			$nopagination = 1;
+			$this->set(compact('accountsAccounts','nopagination'));
+		}
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	function view($id = null,$search_field=NULL,$search_data=NULL) {
+		//$this->AccountsAccount->recursive = 0;
+		if (!empty($search_field)) {
+			$acc_id = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name LIKE'=>$search_data.'%')));
+			debug($acc_id);
+			$this->set('accountsAccount', $acc_id);
+		} else {
+			$this->AccountsAccount->id = $id;
+			if (!$this->AccountsAccount->exists()) {
+				throw new NotFoundException(__('Invalid accounts account'));
+			}
+			$this->set('accountsAccount', $this->AccountsAccount->read(null, $id));
+		}
+		
+		
+		
+		
+		
+	}
+
+/**
+ * add method
+ *
+ * @return void 
+ * 
+ * @Ganesh
+ */
+	function add($parent_id = null,$account_type_id = null) {
+	//	Configure::write('debug',2);
+		$this->loadModel('Company');
+		$accounts_company = $this->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+		$this->loadModel('AccountType');
+		$account_type = $this->AccountType->find('list',array('fields'=>array('AccountType.id','AccountType.type_name')));
+		$account_type_name = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$account_type_id),'fields'=>array('AccountType.type_name')));
+		
+		$this->AccountsAccount->recursive=-1;
+		$accounts = $this->AccountsAccount->find('all',array('fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.level','AccountsAccount.parent_id')));
+		
+		$i=$j=$k=$l=0;
+		/**
+		 * Foreach to seperate accounts in levelwise.
+		 * */
+		foreach($accounts as $account){
+			switch($account['AccountsAccount']['level']){
+				case 1:
+					$level1[$i]=$account;
+					$i++;
+					break;
+					
+				case 2:
+					$level2[$j]=$account;
+					$j++;
+					break;
+					
+				case 3:
+					$level3[$k]=$account;
+					$k++;
+					break;
+				case 4:
+					$level4[$l]=$account;
+					$l++;
+					break;
+			}
+		}
+		if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+		if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+		if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+		if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+
+		/**
+		 * To get all accounts in a tree structure.
+		 * It is used to set parent_id for a new account.
+		 * */
+		 $a=0;
+		foreach($level1 as $level11){
+			$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'" class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+			$a++; 
+			if($level2){
+				foreach($level2 as $level22){
+					if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+						$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'" class="stepTwo">'.'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'.$level22['AccountsAccount']['account_name'].'</option>';
+						if($level3){$w=1;
+							foreach($level3 as $level33){
+								if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+									$final_account/*[$level33['AccountsAccount']['id']]*/.= '<option value="'.$level33['AccountsAccount']['id'].'" class="stepThree">'.'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'.$level33['AccountsAccount']['account_name'].'</option>';
+									if($level4){
+										foreach($level4 as $level44){
+											if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+												$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		$this->set(compact('account_type_name','account_type','final_account','account_level','accounts_company','parent_id','account_type_id'/*,'accounts_budget'*/));
+		
+		if ($this->request->is('post')) 
+		{
+			/***********validation Part******/
+			
+			if(strlen($this->data['AccountsAccount']['account_name'])>50){
+				$this->Session->SetFlash('<div class="flashMessageError">Account Name exceeded its character limit.</div>',true);
+				return;
+			}
+			
+			//Commented because to enter negative amount (overdue amount)
+			/*
+			if($this->data['AccountsAccount']['opening_balance'] <0 ){
+							$this->Session->SetFlash('<div class="flashMessageError">Invalid opening balance</div>',true);
+							return;
+						}*/
+			//Comment ends
+						
+			/**
+			 * Finding the level of selected parent account
+			 * */
+			 debug($this->data);
+			if($parent_id){
+				$this->request->data['AccountsAccount']['parent_id'] = $parent_id;
+				$account_level = $this->AccountsAccount->findById($parent_id); 
+			}else{
+				$this->request->data['AccountsAccount']['parent_id'] = $this->data['selectParentAcct'];
+				$account_level = $this->AccountsAccount->findById($this->data['selectParentAcct']);	
+			}
+			
+			if($account_type_id){
+				$this->request->data['AccountsAccount']['account_type_id'] = $account_type_id;
+			}else{
+				$this->request->data['AccountsAccount']['account_type_id'] = $this->request->data['AccountsAccount']['account_type_id'];
+			}
+			$finalaccount_level=null;
+			/**
+			 * Setting the level for the NEW account, Nothing more than that.
+			 * */
+			
+			$this->request->data['AccountsAccount']['level'] = $account_level['AccountsAccount']['level']+1;
+			$this->request->data['AccountsAccount']['closing_balance'] = $this->data['AccountsAccount']['opening_balance'];
+	//		$this->request->data['AccountsAccount']['accounts_budget_category_id'] = $this->data['selectBudgetCategory'];
+			
+			$this->AccountsAccount->create();
+			if($this->AccountsAccount->save($this->data)){
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The account has been saved</div>'));
+				$this->redirect(array('controller'=>'accounts_accounts','action' => 'home'));
+			}else{
+				$this->Session->setFlash(__('<div class="flashMessageError">The account could not be saved. Please, try again.</div>'));
+			}
+		}
+		$accountTypes = $this->AccountsAccount->AccountType->find('list');
+		$this->set(compact('accountTypes', 'accountsCompanies', 'parentAccountsAccounts', 'accountsBudgetcategories'));
+	}
+	
+	function add_type(){
+		$id = $this->data['AccountsAccount']['account_type_id'];
+		$this->loadModel('AccountType');
+		$account_type_name = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$id),'fields'=>array('AccountType.type_name')));
+		$this->set(compact('account_type_name'));
+	}
+	
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ * 
+ * @Ganesh
+ */
+	function edit($id = null) {
+	//	Configure::write('debug',2);
+		$this->loadModel('AccountsLedger');
+		$this->AccountsAccount->id = $id;
+		$this->set(compact('id'));
+		$this->AccountsAccount->unbindModel(array('hasMany'=>array('AccountsRegularvendor','AccountsCompanyloandetail','AccountsBill','AccountsBillalert','AccountsSalaryregister')));
+		$account = $this->AccountsAccount->findById($id);
+		if($account['AccountsAccount']['level'] == 1){
+			$parenntaccount = "parentAccount";
+		}
+		
+		//Disabled due to they wants to edit the opening balance
+		/*
+		$ledger_entry = $this->AccountsLedger->find('first',array('conditions'=>array('AccountsLedger.accounts_account_id'=>$id),'fields'=>array('AccountsLedger.id')));
+				if(!empty($ledger_entry)){
+					$opening_balance_flag = 'true';
+				}else{
+					$opening_balance_flag = 'false';
+				}*/
+		
+		
+		$this->loadModel('Company');
+		$this->loadModel('AccountsLedger');
+		$accounts_company = $this->Company->find('list',array('fields'=>array('Company.id','Company.companyname')));
+		
+		$this->loadModel('AccountType');
+		$account_type = $this->AccountType->find('list',array('fields'=>array('AccountType.id','AccountType.type_name')));
+		$account_type_name = $this->AccountType->find('first',array('conditions'=>array('AccountType.id'=>$account['AccountsAccount']['account_type_id']),'fields'=>array('AccountType.type_name')));
+		
+		/**
+		 * Finding active accounts 
+		 * */
+		$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.active'=>'Y')));
+		$i=$j=$k=$l=0;
+		/**
+		 * Foreach to seperate accounts in levelwise.
+		 * */
+		foreach($accounts as $accounts){
+			switch($accounts['AccountsAccount']['level']){
+				case 1:
+					$level1[$i]=$accounts;
+					$i++;
+					break;
+					
+				case 2:
+					$level2[$j]=$accounts;
+					$j++;
+					break;
+					
+				case 3:
+					$level3[$k]=$accounts;
+					$k++;
+					break;
+					
+				case 4:
+					$level4[$l]=$accounts;
+					$l++;
+					break;
+			}
+		}
+		if($level1)  $level1= Set::sort($level1, '{n}.AccountsAccount.account_name', 'asc');
+		if($level2)  $level2= Set::sort($level2, '{n}.AccountsAccount.account_name', 'asc');
+		if($level3)  $level3= Set::sort($level3, '{n}.AccountsAccount.account_name', 'asc');
+		if($level4)  $level4= Set::sort($level4, '{n}.AccountsAccount.account_name', 'asc');
+		/**
+		 * To get all accounts in a tree structure.
+		 * It is used to set parent_id for a new account.
+		 * */
+		$selected='';
+		foreach($level1 as $level11){
+			if($level11['AccountsAccount']['id'] == $account['AccountsAccount']['parent_id']){
+				$selected='selected';
+				$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'"' .$selected." ". 'class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+			}else{
+				$final_account.= '<option value="'.$level11['AccountsAccount']['id'].'" class="stepOne">'.$level11['AccountsAccount']['account_name'].'</option>';
+			}
+			if($level2){
+				foreach($level2 as $level22){
+					if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+						if($level22['AccountsAccount']['id'] == $account['AccountsAccount']['parent_id']){
+							$selected='selected';
+							$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'"'.$selected." ".' class="stepTwo">'.$level22['AccountsAccount']['account_name'].'</option>';
+						}else{
+							$final_account.= '<option value="'.$level22['AccountsAccount']['id'].'" class="stepTwo">'.'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'.$level22['AccountsAccount']['account_name'].'</option>';
+						}
+						if($level3){
+							foreach($level3 as $level33){
+								if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+									if($level33['AccountsAccount']['id'] == $account['AccountsAccount']['parent_id']){
+										$selected='selected';
+										$final_account.= '<option value="'.$level33['AccountsAccount']['id'].'"'.$selected." ". 'class="stepThree">'.$level33['AccountsAccount']['account_name'].'</option>';
+									}else{
+										$final_account.= '<option value="'.$level33['AccountsAccount']['id'].'" class="stepThree">'.'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'.$level33['AccountsAccount']['account_name'].'</option>';
+									}
+									
+									if($level4){
+										foreach($level4 as $level44){
+											if($level44['AccountsAccount']['parent_id']==$level33['AccountsAccount']['id']){
+												$final_account[$level44['AccountsAccount']['id']] = '|------------'.$level44['AccountsAccount']['account_name'];
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		$this->set(compact('account_type_name','account','accounts_company','account_type','final_account','accounts_budgetcategory','parenntaccount','opening_balance_flag'));
+		
+		if (!$this->AccountsAccount->exists()) {
+			throw new NotFoundException(__('Invalid accounts account'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			
+			if (!is_numeric($this->data['AccountsAccount']['opening_balance'])) {
+				$this->Session->setFlash(__('<div class="flashMessageError">Please enter the valid opening balance</div>'));
+				return;
+			}
+			
+			if(!empty($this->data['selectParentAcct'])){
+				$this->AccountsAccount->unbindModel(array('belongsTo'=>array('AccountType','Company'),'hasMany'=>array('AccountsLedger','AccountsRegularvendor','AccountsSalaryregister')));
+				$acc_name_validation  = $this->AccountsAccount->find('all',array(
+					'conditions'=>
+						array('AccountsAccount.parent_id' => $this->data['selectParentAcct'],'AccountsAccount.id !='=>$this->data['AccountsAccount']['id'],'AccountsAccount.active' => 'Y'),
+					'fields'=>
+						array('AccountsAccount.account_name')
+					)
+				);
+				foreach($acc_name_validation as $val){
+					if($val['AccountsAccount']['account_name'] == $this->data['AccountsAccount']['account_name']){
+						$error_name = 'error';
+					}
+				}
+				
+				if(isset($error_name)){
+					$this->Session->setFlash(__('<div class="flashMessageError">Account name is already exist, please try another account name.</div>'));
+					return;
+				}
+			}
+			
+			if(strlen($this->data['AccountsAccount']['account_name'])>50){
+				$this->Session->SetFlash('<div class="flashMessageError">Account Name exceeded its character limit.</div>',true);
+				return;
+			}
+			
+			if(isset($this->data['asset_type'])){
+				if(empty($this->data['asset_type'])){
+					$this->Session->setFlash(__('<div class="flashMessageError">The asset type couldn\'t be empty. Please, try again.</div>'));
+					return;
+				}
+			}
+			if(isset($this->data['asset_type'])){
+				if(empty($this->data['asset_type'])){
+					$this->Session->setFlash(__('<div class="flashMessageError">The asset type couldn\'t be empty. Please, try again.</div>'));
+					return;
+				}
+			}
+			if(isset($this->data['asset_type'])){
+				if(empty($this->data['asset_type'])){
+					$this->Session->setFlash(__('<div class="flashMessageError">The asset type couldn\'t be empty. Please, try again.</div>'));
+					return;
+				}
+			}
+			
+			
+			if(!empty($this->data['liability_type'])){
+				$this->request->data['AccountsAccount']['liability_type'] = $this->data['AccountsAccount']['liability_type'];
+				$this->request->data['AccountsAccount']['expense_type'] = null;
+				$this->request->data['AccountsAccount']['expensedirect_type'] = null;
+				$this->request->data['AccountsAccount']['asset_type'] = null;
+			}elseif(!empty($this->data['asset_type'])){
+				$this->request->data['AccountsAccount']['asset_type'] = $this->data['AccountsAccount']['asset_type'];
+				$this->request->data['AccountsAccount']['liability_type'] = null;
+				$this->request->data['AccountsAccount']['expense_type'] = null;
+				$this->request->data['AccountsAccount']['expensedirect_type'] = null;
+			}elseif(!empty($this->data['expense_type'])){
+				$this->request->data['AccountsAccount']['asset_type'] = null;
+				$this->request->data['AccountsAccount']['liability_type'] = null;
+				$this->request->data['AccountsAccount']['expense_type'] = $this->data['AccountsAccount']['expense_type'];
+				$this->request->data['AccountsAccount']['expensedirect_type'] = $this->data['AccountsAccount']['expensedirect_type'];
+			}
+			
+			$this->request->data['AccountsAccount']['parent_id'] = $this->data['selectParentAcct'];
+			$account_level = $this->AccountsAccount->findById($this->data['AccountsAccount']['parent_id']);
+			$this->request->data['AccountsAccount']['level']=$account_level['AccountsAccount']['level']+1;
+			
+			if ($this->AccountsAccount->save($this->request->data)) {
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The account has been saved</div>'));
+				$this->redirect(array('controller'=>'accounts_accounts','action' => 'home'));
+			} else {
+				$this->Session->setFlash(__('<div class="flashMessageError">The account could not be saved. Please, try again.</div>'));
+			}
+		} else {
+			$this->request->data = $this->AccountsAccount->read(null, $id);
+		}
+		$accountTypes = $this->AccountsAccount->AccountType->find('list');
+		$this->set(compact('accountTypes', 'accountsCompanies', 'parentAccountsAccounts', 'accountsBudgetcategories'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ * 
+ * @Ganesh
+ */
+	function delete($id = null) {
+	//	configure::write('debug',2);
+		debug($this->data);
+		$account_details = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.id'=>$id),'fields'=>array('AccountsAccount.account_name')));
+		$this->set(compact('id','account_details'));
+	/**
+	 * The delete function works for level1 to level3 Accounts
+	 **/
+		//$this->layout=null;
+		$this->AccountsAccount->id = $id;
+		if (!$this->AccountsAccount->exists()) {
+			$this->Session->setFlash(__('<div class="flashMessageError">Sorry! the account is not present!</div>'));
+			$this->redirect(array('controller'=>'accounts_accounts','action'=>'home'));
+		}
+		elseif(!empty($id)){
+			$flag1 = 1;
+			$this->set(compact('flag1'));
+			if(!empty($this->data)){
+				if($this->request->is('post')|| $this->request->is('put')){
+					$this->AccountsAccount->id = $id;
+					$account = $this->AccountsAccount->findById($id);
+					/**
+					 * If they don't want to delete the sub accounts then it enters here
+					 * It displays the accounts only related to its account type!
+					 **/
+					if($this->data['AccountsAccount1']['No']){
+						$flag = 1; $flag1 = 0;
+						$this->recursive = -1;
+						$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.account_type_id'=>$account['AccountsAccount']['account_type_id'])));
+						$i=$j=$k=0;
+						foreach($accounts as $accounts){
+							switch($accounts['AccountsAccount']['level']){
+								case 1:
+									$level1[$i]=$accounts;
+									$i++;
+								break;
+						
+								case 2:
+									$level2[$j]=$accounts;
+									$j++;
+								break;
+						
+								case 3:
+									$level3[$k]=$accounts;
+									$k++;
+								break;
+							}
+						}
+				
+						foreach($level1 as $level11){
+							$final_account[$level11['AccountsAccount']['id']] = $level11['AccountsAccount']['account_name'];
+							if($level2){
+								foreach($level2 as $level22){
+									if($level22['AccountsAccount']['parent_id']==$level11['AccountsAccount']['id']){
+										$final_account[$level22['AccountsAccount']['id']] = '|----'.$level22['AccountsAccount']['account_name'];
+										if($level3){
+											foreach($level3 as $level33){
+												if($level33['AccountsAccount']['parent_id']==$level22['AccountsAccount']['id']){
+													$final_account[$level33['AccountsAccount']['id']] = '|--------'.$level33['AccountsAccount']['account_name'];
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						$this->set(compact('final_account','flag','flag1'));
+					}
+					/**
+					 * If the user wants to delete all the sub accounts, the control comes here.
+					 * It finds all the child,grand child accounts if any and deletes
+					 **/
+					elseif($this->data['AccountsAccount']['Yes']){
+						$flag = 0; $flag1 = 1;
+						$this->set(compact('flag','flag1'));
+						$delete_account[$account['AccountsAccount']['id']] = $account['AccountsAccount']['id'];
+						$childacc = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.parent_id'=>$account['AccountsAccount']['id'])));
+						foreach($childacc as $key => $value){
+							$delete_account[$value] = $value;
+							$grandchild = $this->AccountsAccount->find('list',array('conditions'=>array('AccountsAccount.parent_id'=>$value)));
+							foreach($grandchild as $key1 => $value1){
+								$delete_account[$value1] = $value1;
+							}
+						}
+						debug($delete_account);
+						foreach($delete_account as $key => $val){
+							$save_inactive['AccountsAccount']['id'] = $key;
+							$save_inactive['AccountsAccount']['active'] = 'N';
+							$this->AccountsAccount->save($save_inactive);
+						}
+						$this->Session->setFlash(__('<div class="flashMessageSuccess">The '.$account_details['AccountsAccount']['account_name'].' and its sub accounts has been made inactive</div>'));
+						$this->redirect(array('controller'=>'accounts_accounts','action'=>'home'));
+					}
+					/**
+					 * The accounts gets moved to another selected account or if they don't select any parent account then it get change to parent account. 
+					 **/
+					if($this->data['AccountsAccount2']['parent_id']){
+						if(!empty($this->data['AccountsAccount2']['parent_id'])){
+							if($this->data['AccountsAccount2']['parent_id'] == $id){
+								$this->Session->setFlash(__('<div class="flashMessageError">Sorry! The '.$account_details['AccountsAccount']['account_name'].' is about to make inactive, so please try to move to some other account!</div>'));
+							}else{
+								$newparent = $this->AccountsAccount->findById($this->data['AccountsAccount2']['parent_id']);
+								$account = $this->AccountsAccount->findById($id);
+								$child = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.parent_id'=>$id)));
+								if($child){
+									/**
+									 * Changing the account level and its parent_id
+									 **/
+									foreach($child as $child){
+										$save_data[$child['AccountsAccount']['id']]['AccountsAccount']['id'] = $child['AccountsAccount']['id'];
+										$save_data[$child['AccountsAccount']['id']]['AccountsAccount']['level'] = $newparent['AccountsAccount']['level']+1;
+										$save_data[$child['AccountsAccount']['id']]['AccountsAccount']['parent_id'] = $newparent['AccountsAccount']['id'];
+										$grandchild = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.parent_id'=>$child['AccountsAccount']['id'])));
+										foreach($grandchild as $grandchild){
+											$save_data[$grandchild['AccountsAccount']['id']]['AccountsAccount']['id'] = $grandchild['AccountsAccount']['id'];
+											$save_data[$grandchild['AccountsAccount']['id']]['AccountsAccount']['level'] = $save_data[$child['AccountsAccount']['id']]['AccountsAccount']['level']+1;
+											$save_data[$grandchild['AccountsAccount']['id']]['AccountsAccount']['parent_id'] = $grandchild['AccountsAccount']['parent_id'];
+										}
+									}
+								}
+								else{
+									$this->Session->setFlash(__('<div class="flashMessageError">Sorry! there are no child accounts for '.$account_details['AccountsAccount']['account_name'].'. The selected account has been made inactive!</div>'));
+								}			
+								foreach($save_data as $save_data){
+									if($this->AccountsAccount->save($save_data)){
+					 					$this->Session->setFlash(__('<div class="flashMessageSuccess">Your sub accounts has been moved! and '.$account_details['AccountsAccount']['account_name'].' has been made inactive!</div>'));
+						 			}
+								}
+								$inactive['AccountsAccount']['id'] = $id;
+								$inactive['AccountsAccount']['active'] = 'N';
+								$this->AccountsAccount->save($inactive);
+								$this->redirect(array('controller'=>'accounts_accounts','action'=>'home'));
+							}
+						}elseif(empty($this->data['AccountsAccount2']['parent_id'])){
+							$this->Session->setFlash(__('<div class="flashMessageError">Accounts cannot be moved.Please try again!</div>'));
+							$this->redirect(array('controller'=>'accounts_accounts','action'=>'home'));	
+						}
+					}	
+				}
+			}
+		} 
+		else {
+			$this->Session->setFlash(__('<div class="flashMessageError">Sorry! Invalid Account!</div>'));
+			$this->redirect(array('controller'=>'accounts_accounts','action'=>'home'));
+		}
+		
+		/*if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->AccountsAccount->id = $id;
+		if (!$this->AccountsAccount->exists()) {
+			throw new NotFoundException(__('Invalid accounts account'));
+		}
+		if ($this->AccountsAccount->delete()) {
+			$this->Session->setFlash(__('Accounts account deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Accounts account was not deleted'));
+		$this->redirect(array('action' => 'index'));*/
+	}
+	
+	/**
+	 * Function to get all Accounts in Levelwise 
+	 * 
+	 * @Ganesh
+	 **/	
+	function tree(){
+	//	configure::write('debug',2);
+		/**
+		 * Want to show few more levels in the accounts tree?? 
+		 * Just follow switch case.
+		 * Add cases as much the levels u want..
+		 * View file for this method is in "/accountssvn/lib/Cake/View/Elements/account_menutree.ctp" 
+		 **/
+		$accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.active'=>'Y'),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.parent_id','AccountsAccount.level')));                       
+		//debug($accounts);
+		$i=$j=$k=0;
+		foreach($accounts as $accounts){
+			switch($accounts['AccountsAccount']['level']){
+				
+				case 1:
+					$level1[$i]=$accounts;
+					$i++;
+					break;
+				
+				case 2:
+					$level2[$j]=$accounts;
+					$j++;
+					break;
+					
+				case 3:
+					$level3[$k]=$accounts;
+					$k++;
+					break;
+			}
+		}
+		if(isset($this->params['requested'])) { 	
+			$final['level1']=$level1;
+			$final['level2']=$level2;
+			$final['level3']=$level3;
+			return $final;
+		}
+	}
+	
+	function home($flag=null){
+	//	Configure::write('debug',2);
+	//	debug($this->Session->read('Auth.User.company_id'));
+		$this->AccountsAccount->recursive = -1;
+		if($flag){
+			$this->loadModel('AccountType');
+			$account_type = $this->AccountType->find('first',array('conditions'=>array('AccountType.type_name'=>'Assets'),'fields'=>array('AccountType.id')));
+			$this->AccountsAccount->unbindModel(array('hasMany'=>array('ChildAccountsAccount','AccountsBill','AccountsCompanyloandetail','AccountsRegularvendor','AccountsSalaryregister')));
+			$top_accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.account_type_id'=>$account_type['AccountType']['id'],'AccountsAccount.asset_type'=>$flag,'AccountsAccount.company_id'=>$this->Session->read('Auth.company_id')),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.opening_balance','AccountsAccount.closing_balance')));
+			$toplevel_accounts = $top_accounts;
+			//$i=0;
+			/*foreach($top_accounts as $key => $top_account){
+		//		$toplevel_accounts[$key] = $top_account;
+				$this->AccountsAccount->unbindModel(array('hasMany'=>array('ChildAccountsAccount','AccountsBill','AccountsCompanyloandetail','AccountsRegularvendor','AccountsSalaryregister')));
+				$child_accounts = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.parent_id'=>$top_account['AccountsAccount']['id'],'AccountsAccount.account_type_id'=>$account_type['AccountType']['id'],'AccountsAccount.asset_type'=>$flag,'AccountsAccount.company_id'=>$this->Session->read('Auth.User.company_id')),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.opening_balance')));
+				$i = $key;
+				foreach($child_accounts as $child_account){
+					$toplevel_accounts[$i] = $child_account;
+					$i++;
+					$grandchilds = $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.parent_id'=>$child_account['AccountsAccount']['id'],'AccountsAccount.account_type_id'=>$account_type['AccountType']['id'],'AccountsAccount.asset_type'=>$flag,'AccountsAccount.company_id'=>$this->Session->read('Auth.User.company_id')),'fields'=>array('AccountsAccount.id','AccountsAccount.account_name','AccountsAccount.opening_balance')));
+					$j = $i;
+					foreach($grandchilds as $grandchild){
+						$toplevel_accounts[$j] = $grandchild;
+						$j++;
+					}
+				}
+			}*/
+			debug($toplevel_accounts);
+		}else{
+			$this->AccountsAccount->unbindModel(array('hasMany'=>array('ChildAccountsAccount','AccountsBill','AccountsCompanyloandetail','AccountsRegularvendor','AccountsSalaryregister')));
+			$toplevel_accounts= $this->AccountsAccount->find('all',array('conditions'=>array('AccountsAccount.level'=>'1'),'fields'=>array('AccountsAccount.account_name','AccountsAccount.opening_balance','AccountsAccount.closing_balance')));
+			debug($toplevel_accounts);
+		}
+		$this->set('toplevel_Accounts',$toplevel_accounts);
+	}
+	
+	
+	function rest(){
+		//Configure::write('debug',2);    
+		
+		$this->layout=false;
+		
+		$check=null;
+		$check['root'][0]['id']=1;
+		$check['root'][0]['name']='abc';
+		$check['root'][1]['id']=2;
+		$check['root'][1]['name']='def';
+		
+		//$xmlObject=new ArrayToXML($check);
+		$xmlString = ArrayToXML::toXml($check,'checking');
+		debug($xmlString);
+		
+		$this->set(compact('xmlString'));
+		
+	}
+	
+}
+
+
+    class ArrayToXML
+    {
+    /**
+    * The main function for converting to an XML document.
+    * Pass in a multi dimensional array and this recrusively loops through and builds up an XML document.
+    *
+    * @param array $data
+    * @param string $rootNodeName - what you want the root node to be - defaultsto data.
+    * @param SimpleXMLElement $xml - should only be used recursively
+    * @return string XML
+    */
+    public static function toXml($data, $rootNodeName = 'data', $xml=null)
+    {
+    // turn off compatibility mode as simple xml throws a wobbly if you don't.
+    if (ini_get('zend.ze1_compatibility_mode') == 1)
+    {
+    ini_set ('zend.ze1_compatibility_mode', 0);
+    }
+     
+    if ($xml == null)
+    {
+    /*$xml = simplexml_load_string("<?xml version='1.0' encoding='utf-8'?><$rootNodeName />");*/
+    $xml = simplexml_load_string("<$rootNodeName />");
+    }
+     
+    // loop through the data passed in.
+    foreach($data as $key => $value)
+    {
+    // no numeric keys in our xml please!
+    if (is_numeric($key))
+    {
+    // make string key...
+    $key = "unknownNode_". (string) $key;
+    }
+     
+    // replace anything not alpha numeric
+    $key = preg_replace('/[^a-z]/i', '', $key);
+     
+    // if there is another array found recrusively call this function
+    if (is_array($value))
+    {
+    $node = $xml->addChild($key);
+    // recrusive call.
+    ArrayToXML::toXml($value, $rootNodeName, $node);
+    }
+    else
+    {
+    // add single node.
+    $value = htmlentities($value);
+    $xml->addChild($key,$value);
+    }
+     
+    }
+    // pass back as string. or simple xml object if you want!
+    return $xml->asXML();
+    }
+    }

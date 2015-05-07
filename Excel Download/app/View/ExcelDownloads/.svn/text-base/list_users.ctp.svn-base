@@ -1,0 +1,614 @@
+<script>
+$(function() {
+	$( "#closing_date" ).datepicker({
+		dateFormat: "yy-mm-dd",
+		changeMonth: true,
+		changeYear: true,
+		//numberOfMonths: 3,
+	});
+});
+</script>
+<div class="imported-resume-main minheightnew" >
+			<div style="width: 100%; clear:both;height:36px">
+			<div class="breadcrumbs">
+						<ul class="breadcrumbsUlsit" >
+									<li>
+												<?php 
+							            		if($this->Session->read('Auth.User.Role.role_name')=='HR'){
+													echo $this->Html->link(_(''),array('controller'=> 'job_descriptions', 'action'=>'index'),array('class'=>'viewhome_new','title'=>'Home'));	
+												}
+										 		elseif($this->Session->read('Auth.User.Role.role_name')=='HR Assistant'){
+										 			echo $this->Html->link(_(''),array('controller'=> 'job_descriptions', 'action'=>'assistant_home'),array('class'=>'viewhome_new','title'=>'Home'));
+										 		}
+										 		elseif($this->Session->read('Auth.User.Role.role_name')=='Employee'){
+													echo $this->Html->link(_(''),array('controller'=> 'job_descriptions', 'action'=>'interviewer_landing'),array('class'=>'viewhome_new','title'=>'Home'));	
+												}
+										 		elseif($this->Session->read('Auth.User.Role.role_name')=='Candidate'){
+										 			echo $this->Html->link(_(''),array('controller'=> 'candidates', 'action'=>'profile_view'),array('class'=>'viewhome_new','title'=>'Home'));
+										 		}
+							            	 
+							           		 ?> 
+												<span class="sep_bread" ></span>
+									</li>
+									<!--<li>
+												<?php echo $this->Html->link('Job Description',array('controller'=>'job_descriptions','action'=>'index'));?>
+												<span class="sep_bread" ></span>
+									</li>-->
+									<li>
+												<a class="currentPage" href="#">Users</a>
+									</li>
+						</ul>
+			</div>
+			</div>
+			<div class="flashmessagebox" style="display:block;">
+            	<?php echo $this->Session->flash();?>
+            </div>
+			 
+			
+			
+			<div class="resumeList" >
+			
+						<div class="resume-logs">
+									<div class="resume-logs-top" >
+												<h3> Total Users : <?php echo $count; ?></h3>
+									</div>
+									<div class="addcand">
+									
+									<ul>
+									 
+									 	<li class="view_inactive" style="display:inline;">  
+											<?php  echo $this->Html->link('Waiting For Approval',array('controller'=>'users','action'=>'waiting_approval'));?>
+										</li>
+									</ul> 
+									
+									</div>
+									
+									<div class="filterMain" >
+												<div class="filterMainLeft" >
+															Filter  by :
+												</div>
+												<div class="filterMainrRight" >
+													
+													<?php echo $this->Form->create('User',array('url'=>'list_users'));  ?>
+													<div class="filterMainRightRow" >
+																		<div class="filterDate_left" >
+																					<label class="filterlabel">Name / Email</label>
+																					<div class="completedtdSmall" >
+																								<?php echo $this->Form->input('user_name',array('div'=>false,'type'=>'text','label'=>false));?>
+																					</div>
+																		</div>
+																		<?php echo $this->Form->submit('Go',array('url'=>'users/list_users','class'=>'greenButton roundbutton','div' => false)); ?>
+																		
+															</div>
+															<?php echo $this->Form->end();  ?>
+															
+															<?php echo $this->Html->image('loading.gif', array('id'=>'loading','style'=>'margin-top:-28px;float:right;display:none;')); ?>
+												
+												</div>
+												
+									</div>
+									
+									<div class="clear" >
+									
+									
+									<!--<div id="pls_submit_by_jquery"> 
+									<?php 
+									   	echo $this->Form->submit('Make Inactive',array('url'=>'job_descriptions/make_inactive','id'=>'for_inactive_recordsss','hidden'=>'hidden','div' => false));
+									   ?>
+									</div>-->   
+									<div class="imported-table" id="logsResume"  >
+												<div class="imported-head">
+															<!--<?php if(!$view_inactive){ ?>
+															<div class="URes-chk" >
+																		<?php  echo $this->Form->checkbox('make_inactive_all', array('label'=>false,'class'=>'checkbox checkall','value' =>'Y')); ?>
+																		
+															</div>
+															<?php } ?>-->
+															<div class="URes-id heading_class" >
+																		Id
+															</div>
+															<div class="URes-name heading_class" >
+																		First Name
+															</div>
+															<div class="URes-contact heading_class" >
+																		Last Name
+															</div>
+															
+															<div class="URes-contact heading_class" style="width: 16%;">
+																		Email
+															</div>
+															
+															<div class="URes-contact heading_class" style="width: 16%;">
+																		Username
+															</div>
+															
+															<div class="URes-contact heading_class">
+																		Role
+															</div>
+															
+															<div class="URes-actions heading_class" >
+																		Actions
+															</div>
+												</div>
+												<?php $i=1;  foreach($all_users as $final){ ?>
+												<div class="imported-tr" >
+															<!--<?php if(!$view_inactive){ ?>
+															<div class="URes-chk" >
+																		<?php  echo $this->Form->checkbox('make_inactive.'.$final['id'].']', array('label'=>false,'class'=>'select_unselect','value' =>$final['id'])); ?>
+																		
+																		
+															</div>
+															<?php } ?>-->
+															<div class="URes-id" >
+																		<?php echo $i; ?>
+															</div>
+															<div class="URes-name" >
+																		<?php echo $final['User']['first_name']; ?>
+															</div>
+															
+															<div class="URes-contact" >
+																		<?php echo $final['User']['last_name']; ?>
+															</div>
+															
+															<div class="URes-contact" style="width: 16%;">
+																		<?php echo $final['User']['email'];  ?>
+															</div>
+															
+															<div class="URes-contact" style="width: 16%;" >
+																		<?php echo $final['User']['username'];  ?>
+															</div>
+															
+															<div id="update-for<?php echo $final['User']['id'];?>">
+															
+																<div class="URes-contact">
+																			<?php echo $roles[$final['User']['role_id']];  ?>
+																</div>
+																
+																<div id="for-<?php echo $final['User']['id'];?>" class="URes-actions fortogettheid" style="width: 10%;">
+																			
+																		<?php $usr_id=$final['User']['id'];
+																			echo $this->Js->link('Change Role',array('controller'=>'users','action'=>'change_role',$final['User']['id']), array('style'=>'cursor: pointer;','div'=>false,'escape' => false,'update'=>'#update-for'.$usr_id));
+																		?>
+																</div>
+															</div>
+															<div class="URes-actions" style="width: 8%;">
+																<?php $name_user=$final['User']['first_name'].' '.$final['User']['last_name'];
+																	echo $this->Html->link(_('Delete User'),array('action' => 'delete_user',$final['User']['id']),array('title'=>'Delete'),__('Are you sure you want to delete %s?', $name_user));
+																?>
+															</div>
+												</div>
+													<!--<?php if(count($final['applicants'])){ ?>
+														<div  id="display_toggle-<?php echo $i;?>" class="pls_remove_pls" style="display: none;">
+															<div class="imported-head" style="background: none repeat scroll 0 0 #f2f2d8; ">
+																<div style="margin-left: 3.5%;" >
+																		<?php if(!$view_inactive){ ?>
+																		<div class="URes-chk">
+																					<?php  echo $this->Form->checkbox('send_mail_to_all', array('label'=>false,'class'=>'checkbox checkall_formail','value' =>'Y')); ?>
+																		</div>
+																		<?php } ?>
+																		<div class="URes-id" >
+																					Id
+																		</div>
+																		<div class="URes-name" >
+																					Name
+																		</div>
+																		<div class="URes-contact" >
+																					Status
+																		</div>
+																		<div class="URes-contact" >
+																					Applied On
+																		</div>
+																		
+																		<div class="URes-actions" >
+																					Actions
+																		</div>
+																		
+																		<div class="URes-actions" >
+																					<li class="sent_mail_toall"> 
+																					   <?php echo $this->Form->submit('Sent Mail To All',array('url'=>array('action'=>'make_inactive'),'id'=>'send_mail_to_all','style'=>'border:none; color:#FFFFFF; cursor:pointer; background:none repeat scroll 0 0 #666666;','div' => false)); ?>
+																					</li>
+																		</div>
+																</div>
+															</div>
+															<?php foreach ($final['applicants'] as $applicants) { ?>
+																<div class="imported-tr" style="background: none repeat scroll 0 0 #f2f2d8; ">
+																		<div style="margin-left: 3.5%;" >	
+																			<?php if(!$view_inactive){ ?>
+																			<div class="URes-chk" >
+																						<?php  echo $this->Form->checkbox('semd_mail.'.$applicants['CandidateJobdescriptionmapping']['id'].']', array('label'=>false,'class'=>'select_unselect_formail','value' =>$applicants['CandidateJobdescriptionmapping']['id'])); ?>
+																						
+																						
+																			</div>
+																			<?php } ?>
+																			<div class="URes-id" >
+																						<?php echo $applicants['CandidateJobdescriptionmapping']['id']; ?>
+																			</div>
+																			<div class="URes-name" >
+																						<?php echo $applicants['Candidate']['first_name'].' '.$applicants['Candidate']['last_name']; ?>
+																			</div>
+																			
+																			<div class="URes-contact" >
+																						<?php echo $applicants['JobStatus']['status']; ?>
+																			</div>
+																			
+																			<div class="URes-contact" >
+																						<?php echo $applicants['CandidateJobdescriptionmapping']['applied_on']; ?>
+																			</div>
+																			
+																			
+																			<div class="URes-actions" >
+																						<ul class="actionUlsit" >
+																									<li>
+																												<?php echo $this->Html->link(_(''),array('action' => 'edit',$final['id']),array('class'=>'viweIco','title'=>'Edit')); ?>
+																												
+																									</li>
+																									
+																						</ul>
+																						
+																			</div>
+																			
+																</div>
+															  </div>	
+															<?php } ?>
+														</div>
+													<?php } ?>-->
+												<?php $i++; } ?>
+									</div>
+									<?php echo $this->Form->input('from_page',array('type'=>'text','hidden'=>'hidden','id'=>'from_page','label'=>false,'div'=>false));?>
+									<div class="pagination">
+	
+												 
+		
+												<?php if($count>$limit){
+														//Pagination Code
+														$tpages = ceil($count/$limit);
+														$adjacents  = 1;
+														if($page<=0)  $page  = 1;
+														if($adjacents<=0) $adjacents = 4;
+														$firstlabel = " ";
+														$lastlabel  = " ";
+														$prevlabel="";
+														
+														
+														$out = '<ul class="paginationUlist">';
+														
+														if($page>($adjacents+1)) {
+															$out.= '<li>'.$this->Js->link(__('First'),"/".$this->params['controller']."/".$this->params['action']."/1/".$limit."/".$count."/",array('update' => '#pageContent' , 'async'=>true, 'dataExpression'=>true, 'method'=>'post'))."  ".'</li>' ;
+														}
+														else {
+															$out.= "<li>" . $firstlabel . "</li>"."   ";
+														}
+											
+														//previous
+														if($page==1) {
+															$out.= "<li><b>" . $prevlabel . "</b></li>";
+														}
+														elseif($page==2) {
+															$out.= "<li><b>" .$this->Js->link(__('Previous'), "/".$this->params['controller']."/".$this->params['action']."/".'1'."/".$limit."/".$count."/",  array('escape' => false,'update' => '#pageContent'  , 'async'=>true, 'dataExpression'=>true, 'method'=>'post'))."</b></li>";
+														}
+														else {
+															$pages=$page-1;
+															$out.= "<li><b>" .$this->Js->link(__('Previous'),"/".$this->params['controller']."/".$this->params['action']."/".$pages."/".$limit."/".$count."/",array( 'escape'=>false,'class'=>'prev', 'update' => '#pageContent' , 'async'=>true, 'dataExpression'=>true, 'method'=>'post'))."</b></li>";
+														}
+														// 1 2 3 4 etc
+														$pmin = ($page>$adjacents) ? ($page-$adjacents) : 1;
+														$pmax = ($page<($tpages-$adjacents)) ? ($page+$adjacents) : $tpages;
+														for($i=$pmin; $i<=$pmax; $i++) {
+															if($i==$page) {
+																$out.= "<li class='paginationSel'><a href='#'>" . $i . "</a></li>";
+															}
+															elseif($i==1) {
+																$out.= "<li>".$this->Js->link($i,"/".$this->params['controller']."/".$this->params['action']."/".$i."/".$limit."/".$count."/", array( 'escape'=>false,'update' => '#pageContent', 'async'=>true, 'dataExpression'=>true, 'method'=>'post'))."</li>\n";
+															}
+															else {
+																$out.= "<li>".$this->Js->link($i,"/".$this->params['controller']."/".$this->params['action']."/".$i."/".$limit."/".$count."/",array( 'escape'=>false,'update' => '#pageContent'  , 'async'=>true, 'dataExpression'=>true, 'method'=>'post'))."</li>\n";
+															}
+														}
+														//next
+														if($page < $tpages) {
+															$page1=$page+1;
+															$out.= "<li><b>".$this->Js->link(__('Next'), "/".$this->params['controller']."/".$this->params['action']."/".$page1."/".$limit."/".$count."/", array('escape'=>false,'class'=>'next', 'update' => '#pageContent' , 'async'=>true, 'dataExpression'=>true, 'method'=>'post')) ."</b></li>\n" ;
+														}
+														else {
+															$out.= "<li><b>" . $nextlabel . "</b></li>\n";
+														}
+											
+														// last
+														if($page<($tpages-$adjacents)) {
+															$out.= "<li>" .$this->Js->link(_('Last'),"/".$this->params['controller']."/".$this->params['action']."/".$tpages."/".$limit."/".$count."/",array( 'class' =>'last', 'update' => '#pageContent', 'async'=>true, 'dataExpression'=>true, 'method'=>'post'))."</li>\n";
+														}	
+														else {
+															$out.= "<li>" . $lastlabel . "</li>";
+														}
+											
+														echo $out;
+														echo '</ul>';?>
+														 <div class="pageDrop" >
+																	<div class="filter_drop" >
+																				<div class="completedtdSmall" >
+																					
+																					<?php /*$totalpage=null; 
+																						for($i=1;$i<=$tpages;$i++){
+																						
+																						$totalpage[$i]=$i;
+																					}
+																							echo $this->Form->input('page_value',array('class'=>"custom_select",'id' => 'team','label'=>false,'options'=>$totalpage)); 		
+																							$this->Js->get('#team')->event('change',$this->Js->request(array('controller'=>'candidates','action' => 'index'), array( 'update'=>'#pageContent', 'async'=>true, 'dataExpression'=>true, 'method'=>'post', 'data'=>$this->Js->serializeForm(array('isForm'=>false,'inline'=>true))))); 
+																							 
+																							*/?>
+																							
+																				</div>
+																	</div>
+																	
+														</div>
+														<?php 
+														echo'</div>';
+														
+													}
+												?>
+												
+											</div>
+						</div>
+			</div>
+			
+
+			
+</div>
+<div class="clear" >
+</div>
+
+<!--<div style="float: left; padding: 2%; cursor: pointer; text-decoration: underline;">
+	<?php echo $this->Html->link('Export to CSV',array('controller'=>'job_descriptions','action'=>'export_jobs_csv',$company_id,$brand_id,$start_date,$end_date,$active,$between_start,$limit,$offset,$page),array('class'=>'report-button'));?>
+</div>-->
+
+
+<style>
+	.for_appicant_count {
+	    background-color: green;
+	    cursor: pointer;
+	    margin-left: 33%;
+	    padding: 6px;
+	    text-align: center;
+	    width: 21%;
+	}
+	
+	.URes-id {
+	    width: 2%;
+	}
+	.URes-name {
+	    width: 11%;
+	}
+	.URes-contact {
+	    width: 11%;
+	}
+	
+	.filterDate_left {
+	    width: 44%;
+	}
+	.filterlabel {
+	    width: 30%;
+	}
+	.greenButton{
+		float: left;
+	}
+	.URes-actions:hover{
+		color: #669900;
+	}
+</style>
+
+<script type="text/javascript">
+$(document).ready(function(){
+	// Commenting the toogle part
+	//$('.for_appicant_count').click(function(){	 
+	 	 //var disp_val=$('#display_toggle'+this.id).css("display");
+	 	 //if(disp_val == "block"){
+	 	 	//$('.pls_remove_pls').css("display","none");
+	 	 	//$('#display_toggle'+this.id).css("display","none");
+	 	 //}else{
+	 	 	//$('.pls_remove_pls').css("display","none");
+	 	 	//$('#display_toggle'+this.id).css("display","block");
+	 	 //}
+    //});
+	$('#for_inactive_records').click(function(){	 
+	 	$('#from_page').val('make_inactive');
+    });
+    
+    $('#send_mail_to_all').click(function(){	 
+	 	$('#from_page').val('send_mail');
+	 	 
+    });
+	
+	$('#make_innactive_click').click(function(){	 
+	 	$('#for_inactive_recordsss').click();
+	 	 
+    });
+    $('#for_inactive_recordsss').click(function(){	 
+	 	$('#from_page').val('make_inactive');
+	 	 
+    });
+    
+	 $('.roundbutton').click(function(){	 
+	 	
+	 	 $('#loading').css("display","block");
+    });
+    
+    $('.viweIco').click(function(){	 
+	 	
+	 	 $('#loading1').css("display","block");
+    });
+    
+    $('.viewresu').click(function(){	 
+	 	
+	 	 $('#loading1').css("display","block");
+    });
+    $('.givefeed').click(function(){	 
+	 	
+	 	 $('#loading1').css("display","block");
+    });
+    $('.viewfeed').click(function(){	 
+	 	
+	 	 $('#loading1').css("display","block");
+    });
+    
+});
+
+
+$(document).ready(function(){
+	countChecked();
+	countChecked_formail();
+	$(".radio").dgStyle();
+
+				
+});
+
+
+$(function () {
+		$(".custom_select").selectbox();
+	});
+	 $(document).click(function(event) {
+		if ( !$(event.target).hasClass('sbHolder') && !$(event.target).parents().hasClass('sbHolder')) {
+			   $(".custom_select").selectbox('close'); 
+		    }
+	});
+	
+	
+</script>
+<script>
+	$(function() {
+		$( "#datepicker" ).datepicker({
+			showOn: "button",
+			buttonImage: "common/images/icon_date.jpg",
+			buttonImageOnly: true
+		});
+		$( "#datepickerExp" ).datepicker({
+			showOn: "button",
+			buttonImage: "common/images/icon_date.jpg",
+			buttonImageOnly: true
+		});
+		$( ".datepickerInp" ).datepicker({
+			showOn: "button",
+			buttonImage: "common/images/icon_date.jpg",
+			buttonImageOnly: true
+		});
+	});
+	</script>
+<script type="text/javascript">
+		
+		// call jRespond and add breakpoints
+		var jRes = jRespond([
+			{
+				label: 'handheld',
+				enter: 0,
+				exit: 480
+			},{
+				label: 'tablet',
+				enter: 480,
+				exit: 768
+			},{
+				label: 'desktop',
+				enter: 1200,
+				exit: 10000
+			}
+		]);
+		
+		// usage
+		
+		
+		jRes.addFunc({
+			breakpoint: 'desktop',
+			enter: function() {
+			
+				
+			},
+			exit: function() {
+				
+			}
+		});
+		
+
+		jRes.addFunc({
+			breakpoint: 'tablet',
+			enter: function() {
+				enterTablet();
+			},
+			exit: function(){
+				leftTablet();
+				}
+		});
+		
+		jRes.addFunc({
+			breakpoint: 'handheld',
+			enter: function() {
+				enterHandled();
+				
+			},
+			exit: function() {
+				leftHandled();
+				
+			}
+		});
+		
+		
+	</script>
+<script type="text/javascript">
+	
+		var countChecked = function() {
+		  var n = $( "input.select_unselect:checked" ).length ;
+			// alert(n);
+		    //$('.countcheck').val(n);
+			if(n >='1')
+			{
+				  $('li.make_inactive').css("visibility","visible");
+				  //$('li.view_inactive').css("visibility","visible");
+			}
+			else
+			{
+				 $('li.make_inactive').css("visibility","hidden");
+				 // $('li.view_inactive').css("visibility","hidden");
+			}
+		};
+		
+		 
+		
+		$( "input[type=checkbox]" ).on( "click", countChecked );
+		
+	   $('.checkall').click(function () {		   
+		     $('body').on("click",".checkall",function(){			  	 
+				   $(".select_unselect").prop('checked', $(this).prop('checked'));
+				   countChecked();
+			 });
+		   		  
+		});
+		
+		$('.checkall_formail').click(function () {		   
+		     $('body').on("click",".checkall_formail",function(){			  	 
+				   $(".select_unselect_formail").prop('checked', $(this).prop('checked'));
+				   countChecked_formail();
+			 });
+		   		  
+		});
+		
+		$('body').on("click",".select_unselect_formail",function(){			  	 
+			   
+			   countChecked_formail();
+		 });
+		
+		var countChecked_formail = function() {
+		  var n = $( "input.select_unselect_formail:checked" ).length ;
+			// alert(n);
+		    //$('.countcheck').val(n);
+			if(n >='1')
+			{
+				  $('li.sent_mail_toall').css("visibility","visible");
+				  //$('li.view_inactive').css("visibility","visible");
+			}
+			else
+			{
+				 $('li.sent_mail_toall').css("visibility","hidden");
+				 // $('li.view_inactive').css("visibility","hidden");
+			}
+		};
+</script>
+
+<?php echo $this->Js->writeBuffer(); ?>
+ 

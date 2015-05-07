@@ -1,0 +1,199 @@
+<style type="text/css">
+.alt_row1
+{
+	width:100%;
+	height:25px;
+	padding:0px 0px;
+	background-color:#f7f7f7;
+}
+.alt_row3
+{
+	width:100%;
+	height:25px;
+	padding:0px 0px;
+	background-color:#ededed;
+}
+.alt_col1{
+	background-color:#f0f0f0;
+}
+.alt_col3{
+	background-color:#E7E7E7;
+}
+</style>
+
+
+
+
+
+
+
+
+<div id="t1">
+
+	<div class="accountsRegularvendors form">
+
+	<?php echo $this->Form->create('Search');?>
+		<div class="grey_header" >
+			<div class="breadcrums_main" >
+	
+	
+				<div class="bread_crums_links">
+					<span class="breadcrums_text">
+						<?// echo $this->Html->link('ACCOUNTS',array('controller'=>'accounts_accounts','action'=>'index'));
+						 ?>
+						<?	echo $this->Html->link('ACCOUNTS','/accounts_accounts/home', array( 'update' => 't1'));?> >
+						MANAGE USERS				
+					</span>
+	
+	
+				</div>
+				<div class="search_main_new">
+					<?php echo $this->Form->create('Search');?>
+					<? //echo $this->Form->input('search_by', array('div'=>false,'style'=>'font-size:10px', 'label' => false, 'class'=>"search_new_sel",'options' => array(''=>'-Search By-', 'Vendor'=>'Vendor','Bill'=>'Bill','Invoice'=>'Invoice','Voucher'=>'Voucher','Amount'=>'Amount' )));?>
+					<? 	echo $this->Form->input('user', array('value' => '-User Name-','type'=>'text','style'=>'font-size:12px','div'=>false, 'label' => false, 'class'=>"search_new_inp", 'onblur' => "if(this.value==''){this.value='- Search -';}", 'onfocus' => "if(this.value=='- Search -'){ this.value='';}"));?> 
+					<?php
+					    $options = array(
+					    'type' => 'image',
+					    'src' => '/accounts/img/search.png',
+					    'div' => array(
+			  		  'class' => 'search_button_main',
+			  		  )
+			  		  );
+			  		  echo $this->Form->end($options);
+					?> 
+				</div>
+			</div>
+				
+
+			
+
+			
+	<!--</div>-->
+			<div class="seperation_line" >
+				<div class="seperation_line_left" ></div>
+				<div class="seperation_line_right" ></div>
+			</div><!--seperation_lineEndss-->
+			<div class="clear" ></div>
+	
+			<div class="tab_main" >
+			
+				<div class="tab_main_right" >
+				<div class="add_button_main" >	
+					<span style = "width:auto;height:auto;float:left;padding-right:6px"><?php echo $this->Js->link($this->Html->image('Add_icon.png',array( 'border' => '0')),'/users/add' ,array('escape' => false, 'update' => 't1', 'before' => "loadingshow();" ,'complete' =>"loadinghide();"));?></span>
+					<span style = "width:auto;height:auto;float:left;padding-right:10px"> <? echo $this->Js->link('Add User',array('controller'=>'users','action'=>'add'), array( 'escape' => false,'update' => 't1', 'before' => "loadingshow();" ,'complete' =>"loadinghide();"));?>  </span>
+				</div>
+            </div>
+			<div class="tab_links_main acc_bal_width">
+				<div class="clear" ></div>
+			</div>
+			
+			
+			
+				
+				
+		
+			</div><!--tab_mainendss-->	
+		</div><!--grey_headerEnds-->
+		<div class="main_content">
+		       
+			<div class="right_section_main2">
+ 				<div class="right_section_inner" >
+
+
+					<h2><?php /*echo __('Users');*/?></h2>
+	
+	
+	
+	
+	<table cellpadding="0" cellspacing="0" style="float:left;width:100%; font-size : 12px">
+		<tr class="alt_row_new_123" style = "height: 30px;">
+			
+			<th  style="text-align:left;width:25%;padding-left:5px;" ><?php echo $this->Paginator->sort('username');?></th>
+			<th  style="text-align:left;width:25%;padding-left:5px;" ><?php echo $this->Paginator->sort('staffname');?></th>
+			<th  style="text-align:left;width:15%;padding-left:5px;" ><?php echo $this->Paginator->sort('Created On');?></th>
+			<th  style="text-align:left;width:10%;padding-left:5px;" ><?php echo $this->Paginator->sort('usergroup');?></th>
+			<th  style="text-align:left;width:15%;padding-left:5px;" ><?php echo $this->Paginator->sort('email');?></th>
+			<th  style="text-align:left;width:10%;padding-left:5px;" ><?php echo __('Actions');?></th>
+			
+			
+			
+	</tr>
+	<?php
+	$i = 0;$sl=0;
+	foreach ($users as $user): 
+	$class = null;$col=null;
+		if ($i++ % 2 == 0) 
+			{
+				$class = ' class="alt_row"';
+				$col = 'class="alt_col"';
+			}
+			else 
+			{
+				$class = ' class="alt_row2"';
+				$col = 'class="alt_col2"';
+			}
+			++$sl;?>
+	<tr<?php echo $class;?> style = "width:100%;padding-left:5px;float: none !important">
+		<td style="text-align: left;padding-left:5px;"<?php echo $col;?>><?php echo h($user['User']['username']); ?>&nbsp;</td>
+		
+		<td style="text-align: left;padding-left:5px;">
+			<?php /*echo $this->Html->link($user['Staff']['title'].$user['Staff']['first_name'].$user['Staff']['last_name'], array('controller' => 'staffs', 'action' => 'view', $user['Staff']['id'])); */
+			echo $user['Staff']['title'].$user['Staff']['first_name'].$user['Staff']['last_name'];?>
+		</td>
+		<td style = "text-align: left;padding-left:5px;text-decoration:underline" <?php echo $col;?>><?php $x=explode(' ',$user['User']['created_on']); 
+		$y=explode('-',$x[0]);
+		if($y[1]=='01'){$month="JANUARY";}
+		if($y[1]=='02'){$month="FEBRUARY";}
+		if($y[1]=='03'){$month="MARCH";}
+		if($y[1]=='04'){$month="APRIL";}
+		if($y[1]=='05'){$month="MAY";}
+		if($y[1]=='06'){$month="JUNE";}
+		if($y[1]=='07'){$month="JULY";}
+		if($y[1]=='08'){$month="AUGUST";}
+		if($y[1]=='09'){$month="SEPTEMBER";}
+		if($y[1]=='10'){$month="OCTOBER";}
+		if($y[1]=='11'){$month="NOVEMBER";}
+		if($y[1]=='12'){$month="DECEMBER";}
+		
+		
+		
+		
+		echo $month.' ',$y[2].','.$y[0];?></td>
+		<td style = "text-align: left;padding-left:5px;color:#74B50F;text-decoration:underline">
+			<?php /*echo $this->Html->link($user['Usergroup']['group_name'], array('controller' => 'usergroups', 'action' => 'view', $user['Usergroup']['id'])); */
+			echo $user['Usergroup']['group_name'];?>
+		</td>
+		<td style = "text-align: left;padding-left:5px;color:#74B50F;text-decoration:underline"<?php echo $col;?>>
+			<?php /*echo $this->Html->link($user['Staff']['email1'], array('controller' => 'staffs', 'action' => 'view', $user['Staff']['id']));*/
+			echo $user['Staff']['email1']; ?>
+		</td>
+		<td class = "actions" style = "text-align: left;padding-left:5px;width : 65px !important">
+			
+					<?php echo $this->Html->link($this->Html->image('view2.png',array( 'border' => '0')),'/users/view/'.$user['User']['id'] ,array('escape' => false));?> 
+			<?php echo $this->Html->link($this->Html->image('edit2.png',array( 'border' => '0')),'/users/edit/'.$user['User']['id'] ,array('escape' => false));?> 
+			<?php echo $this->Html->link($this->Html->image('delete2.png',array( 'border' => '0')),'/users/delete/'.$user['User']['id'] ,array('escape' => false));?> 
+		
+				
+		</td>
+	</tr>
+<?php endforeach; ?>
+	</table>
+	<p>
+	<?php
+	echo $this->Paginator->counter(array(
+	'format' => __('Page {:page} of {:pages}, showing {:current} records out of {:count} total, starting on record {:start}, ending on {:end}')
+	));
+	?>	</p>
+
+	<div class="paging" align="right">
+	<?php
+		echo $this->Paginator->prev('< ' . __('previous'), array(), null, array('class' => 'prev disabled'));
+		echo $this->Paginator->numbers(array('separator' => ''));
+		echo $this->Paginator->next(__('next') . ' >', array(), null, array('class' => 'next disabled'));
+	?>
+	</div>
+</div>
+</div>	
+</div>
+</div>
+</div>

@@ -1,0 +1,614 @@
+$(document).ready(function() {
+  // third example
+    if($("#red").size() > 0)
+        {
+    	$("#red").treeview({
+    		animated: "medium",
+    		collapsed: true,
+    		control: "#treecontrol"
+    	});
+    	}
+});
+
+
+
+$(document).ready(function(){
+	
+	//alert(imageweroot);
+	
+	//Hover image change for view,edit,delete,pay.
+		$('img.viewHover').hover(function () {
+	        this.src = imageweroot + 'view01a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'view01.png';
+	    });
+		
+		$('img.editHover').hover(function () {
+	        this.src = imageweroot + 'edit01a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'edit01.png';
+	    });
+	    $('img.cloneHover').hover(function () {
+	        this.src = imageweroot + 'clone_invoice_01a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'clone_invoice_01b.png';
+	    });
+		
+		$('img.deleteHover').hover(function () {
+	        this.src = imageweroot + 'close01a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'close01.png';
+	    });
+	    $('img.addDynamicHover').hover(function () {
+	        this.src = imageweroot + 'add_invoice_01a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'add_invoice_01b.png';
+	    });
+		
+		
+		
+		
+		$('img.swapHover').hover(function () {
+	        this.src = imageweroot + 'swap01a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'swap01.png';
+	    });
+		
+		$('img.download1Hover').hover(function () {
+	        this.src = imageweroot + 'download101a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'download101.png';
+	    });
+		
+		$('img.mailHover').hover(function () {
+	        this.src = imageweroot + 'mail01a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'mail01.png';
+	    });
+		
+		$('img.markHover').hover(function () {
+	        this.src = imageweroot + 'mark01a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'mark01.png';
+	    });
+		
+		$('img.payHover').hover(function () {
+	        this.src = imageweroot + 'paybill_hover.png';
+	    }, function () {
+	    	this.src = imageweroot + 'pay_bill.png';
+	    });
+	    $('img.payHoverPaid').hover(function () {
+	        this.src = imageweroot + 'doller_red.png';
+	    }, function () {
+	    	this.src = imageweroot + 'pay_bill.png';
+	    });
+		
+		$('img.downloadHover').hover(function () {
+	        this.src = imageweroot + 'downloadHover.png';
+	    }, function () {
+	    	this.src = imageweroot + 'download.png';
+	    });		
+		
+		$('img.payBillHover').hover(function () {
+	        this.src = imageweroot + 'paybill_hover1.png';
+	    }, function () {
+	    	this.src = imageweroot + 'pay_bill1.png';
+	    });
+	    
+	    $('img.hikedueHover').hover(function () {
+	        this.src = imageweroot + 'hikeduea.png';
+	    }, function () {
+	    	this.src = imageweroot + 'hikedue.png';
+	    });
+	    
+	    $('img.sendmail').hover(function () {
+	        this.src = imageweroot + 'icons02a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'icons02.png';
+	    });
+	     $('img.reminderHover').hover(function () {
+	        this.src = imageweroot + 'icons08a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'icons08.png';
+	    });
+	    
+	     $('img.refresh').hover(function () {
+		        this.src = imageweroot + 'refresh.png';
+		    }, function () {
+		    	this.src = imageweroot + 'refreshH.png';
+		    });
+	     
+	     $('img.changerecurssiveHover').hover(function () {
+	        this.src = imageweroot + 'icons09a.png';
+	    }, function () {
+	    	this.src = imageweroot + 'icons09.png';
+	    });
+		
+	//Manage salary Hover tooltip
+
+		jQuery(".empDetail").hover(
+					  function () {
+						jQuery('.toolTipEmpDetail').hide();
+					    jQuery(this).siblings('.toolTipEmpDetail').show();
+					    //var ih = jQuery(window).height();
+						//var scrolltop = 0;
+						//var eh = 190;
+						//if((jQuery(this).siblings().hasClass('deductEarnings'))){
+						//	eh=130;
+						//}
+						//else {
+						//	eh=190;
+						//};
+						//console.log(eh);
+						//var scrolltop = jQuery(window).scrollTop();
+						//var offsettop  = jQuery(this).offset();
+					    //jQuery('.toolTipEmpDetail').css("top", (ih/2 -eh) - ( (offsettop.top) - scrolltop)  + "px"); 
+					  },
+					  function () {
+					    jQuery(this).siblings('.toolTipEmpDetail').hide();
+					  }
+					);
+	
+		$('.closeTooltip').live('click',function(){
+			$(this).parents('.toolTipEmpDetail').hide();
+		});
+
+		//Megamenu Active Pointer
+		   var arrowspan = "<span class='megamenuPointer'>&nbsp;&nbsp;&nbsp;</span>";
+		   $('.menu_main_Ulist li').each(function(){
+				
+				if($(this).hasClass("active"))
+				{
+					$(this).append(arrowspan);
+				}
+			})	
+			
+			
+	//logged in details..
+			$(".login_name_main").live('click',function(){
+				$(this).siblings('.logOutPop').toggle();
+				//alert('in');
+			});
+
+});
+
+$(document).keydown(function(e) {
+    // ESCAPE key pressed
+    if (e.keyCode == 27) {
+        $('.toolTipEmpDetail').hide();
+    }
+});
+
+ $(document).live('click',function(event) {
+	 if ( !$(event.target).hasClass('empDetailNew') && !$(event.target).parents().hasClass('toolTipEmpDetail')) {
+		$(".toolTipEmpDetail").hide();    
+		}
+});
+ $(document).live('click',function(event) {
+	 if ( !$(event.target).hasClass('logOutPop')&& !$(event.target).hasClass('login_name_mainLink')&&!$(event.target).parents().hasClass('logOutPop') ) {
+		$(".logOutPop").hide();    
+		}
+});
+
+$(document).ready(function(){
+	$('.moveUP').live('click',function(){
+		var curr = $(this).parents('.sortable li').attr('id');
+        var prev = $("#"+curr).prev().attr('id');
+        // swap
+        $("#"+prev).insertAfter("#"+curr);
+	});
+	
+	$('.moveDown').live('click',function(){
+		var curr = $(this).parents('.sortable li').attr('id');
+        var next = $("#"+curr).next().attr('id');
+        // Swap
+        $("#"+next).insertBefore("#"+curr);
+	});
+	
+	$('.deleteRow').live('click',function(){
+		$(this).parents('.sortable li').remove();
+	});
+	
+});
+
+
+$(document).ready(function(){
+	$('.default1234').dropkick();
+	
+	$( ".dateFormat" ).datepicker({
+		showOn: "button",
+		dateFormat: "dd-M-yy",
+		buttonImage: imageweroot + "date1.png",
+		buttonImageOnly: true
+	});
+	
+	$( ".dateFormat1" ).datepicker({
+		showOn: "button",
+		dateFormat: "dd-M-yy",
+		buttonImage: imageweroot + "date_ac.jpg",
+		buttonImageOnly: true
+	});
+	
+	$('.manageSalary .empDetailNew').live('click',function(){
+		$('.toolTipEmpDetail').hide();
+		$(this).siblings('.toolTipEmpDetail').toggle();
+	});
+	$('.salaryLog .empDetailNew').live('click',function(){
+		$('.toolTipEmpDetail').hide();
+		$(this).siblings('.toolTipEmpDetail').toggle();
+	});
+	
+	$('.salaryLogDetail .empDetailNew').live('click',function(){
+		$('.toolTipEmpDetail').hide();
+		$(this).siblings('.toolTipEmpDetail').toggle();
+	});
+	
+	$('.expencetableDiv .empDetailNew').live('click',function(){ 
+		$('.toolTipEmpDetail').hide();
+	 	$(this).siblings('.toolTipEmpDetail ').toggle(); 	
+	});
+	
+	$('.add_comment').live('click',function(){ 	
+		$('.addnotesOverlay').hide();
+	 	$(this).siblings('.addnotesOverlay ').toggle(); 	
+	});
+	
+});
+
+
+/*--------------------vendorlistingDelete----------------*/
+$(document).ready(function(){
+      
+	
+
+	 $('.deleteCheck:checked').parents("tr").find("td").addClass("selected_rowTodel");  
+	$('.emplDBTable').find("td").removeClass('selected_rowTodel');
+	 var lenghtOFCheckedVL1 = $(".deleteCheck:checked").length;
+	 openDelete(lenghtOFCheckedVL1);
+	 
+$(".deleteCheck").live('change',function(){
+   
+     $("td").removeClass("selected_rowTodel");
+     $('.deleteCheck:checked').parents("tr").find("td").addClass("selected_rowTodel");  
+	$('.emplDBTable').find("td").removeClass('selected_rowTodel');
+     var lenghtOFChecked = $(".deleteCheck:checked").length;
+     openDelete(lenghtOFChecked);  
+});	
+	
+function openDelete(lenghtOFCheckedval)
+     {
+			if(lenghtOFCheckedval > 0)
+	     {
+		     
+		    $(".delete_button_main").slideDown();
+	     }
+	     else
+	     {
+		    $(".delete_button_main").slideUp();
+	     }
+     }
+
+	
+});
+
+/*--------------------vendorlistingDelete----------------*/
+
+
+
+
+$(document).ready(function(){
+		// Toggle Td in AddUserGroup page.
+		
+		$("input.toggleTableContent").change(function(){
+		     $(this).parents('tr').next('.innerTableCntTR').children('.innerTableCntTD').toggle();
+		});
+		
+		$('.toggleTableContent').live('click',function(){
+			
+				$(this).parents('tr').next('.innerTableCntTR').children('.innerTableCntTD').toggle();
+		});
+		
+		$('.moduleInnertoggle').live('click',function(){
+			
+				$(this).parents('tr').next('.innerTableCntTR').children('.moduleInnertoggleTD').toggle();
+		});
+		
+});
+
+
+/*----------------notepopup--------------*/
+
+$(document).ready(function(){
+	$(".pop_tooltip").hover(function(){
+		$(this).parent().find(".tooltip_Viewpat_rec").show();
+		},
+		function(){
+			$(this).parent().find(".tooltip_Viewpat_rec").hide();
+		})
+});
+/*----------------notepopup--------------*/
+/*-----Loading Div-----*/
+function loadingshow()
+	{
+        var fadelayer = '<div class="fade_layer"></div>';
+        var loadingimg = '<div class="laoding_image_onfade"></div>';
+        
+        $('body').append(fadelayer);
+        $('.fade_layer').append(loadingimg);
+        $(".fade_layer").fadeIn();
+
+	}
+	
+	function loadinghide()
+	{
+		$('body').find(".fade_layer").fadeOut();
+		$('body').find(".fade_layer").remove();
+	}
+
+
+
+/*-----Loading Div-----*/
+
+
+/*-----Loading Div-----*/
+
+
+$(document).ready(function()
+	{
+		$("#delete_rec").live('click' , function()
+			{
+
+				var r=confirm("Do you want to delete");
+				if (r==true)
+			  		{
+			  
+			  
+			 		   var fadelayer = '<div class="fade_layer"></div>';
+		        	   var loadingimg = '<div class="laoding_image_onfade"></div>';
+		        
+		      		   $('body').append(fadelayer);
+		        	   $('.fade_layer').append(loadingimg);
+		        	   $(".fade_layer").fadeIn();
+		        
+		        
+		        
+		        
+		               $.ajax({
+		       
+		                       complete:function (XMLHttpRequest, textStatus) {loadingDelhide();},
+		        			   data:$("#delete_rec").closest("form").serialize(), 
+		        			   dataType:"html", 
+		        			   success:function (data, textStatus) {$("#pageContent").html(data); loadingDelhide()}, 
+		        			   type:"post", url:"../index/1"
+		                });
+                
+		        
+		        
+		        
+		        return false;
+			  
+              
+			  }
+			else
+			  {
+			    
+			    return false;
+			  } 
+
+});
+
+});
+
+/*recurssive invoice delete */
+
+
+$(document).ready(function()
+	{
+		$("#delete_recurssive").live('click' , function()
+			{
+
+				var r=confirm("Do you want to delete");
+				if (r==true)
+			  		{
+			  
+			 		   var fadelayer = '<div class="fade_layer"></div>';
+		        	   var loadingimg = '<div class="laoding_image_onfade"></div>';
+		        
+		      		   $('body').append(fadelayer);
+		        	   $('.fade_layer').append(loadingimg);
+		        	   $(".fade_layer").fadeIn();
+		        
+		        
+		        
+		        
+		               $.ajax({
+		       
+		                       complete:function (XMLHttpRequest, textStatus) {loadingDelhide();},
+		        			   data:$("#delete_recurssive").closest("form").serialize(), 
+		        			   dataType:"html", 
+		        			   success:function (data, textStatus) {$("#pageContent").html(data); loadingDelhide()}, 
+		        			   type:"post", url:"../delete_recurring_invoice"
+		                });
+                
+		        
+		        
+		        
+		        return false;
+			  
+              
+			  }
+			else
+			  {
+			    
+			    return false;
+			  } 
+
+});
+
+});
+
+/* end of recursive invoice delete */
+
+
+
+
+
+$(document).ready(function()
+	{
+		$("#delete_inactive").live('click' , function()
+			{
+
+				var r=confirm("Do you want to change the status");
+				if (r==true)
+			  		{
+			  
+			  
+			 		   var fadelayer = '<div class="fade_layer"></div>';
+		        	   var loadingimg = '<div class="laoding_image_onfade"></div>';
+		        
+		      		   $('body').append(fadelayer);
+		        	   $('.fade_layer').append(loadingimg);
+		        	   $(".fade_layer").fadeIn();
+		        
+		        
+		        
+		        
+		               $.ajax({
+		       
+		                       complete:function (XMLHttpRequest, textStatus) {loadingDelhide();},
+		        			   data:$("#DeleteInvoiceData").serialize(), 
+		        			   dataType:"html", 
+		        			   success:function (data, textStatus) {$("#pageContent").html(data); loadingDelhide()}, 
+		        			   type:"post", url:"../index/2"
+		                });
+                
+		        
+		        
+		        
+		        return false;
+			  
+              
+			  }
+			else
+			  {
+			    
+			    return false;
+			  } 
+
+});
+
+});
+/* inactive recurssion */
+
+$(document).ready(function()
+	{
+		$("#delete_inactive_recur").live('click' , function()
+			{
+
+				var r=confirm("Do you want to change the status");
+				if (r==true)
+			  		{
+			  
+			  
+			 		   var fadelayer = '<div class="fade_layer"></div>';
+		        	   var loadingimg = '<div class="laoding_image_onfade"></div>';
+		        
+		      		   $('body').append(fadelayer);
+		        	   $('.fade_layer').append(loadingimg);
+		        	   $(".fade_layer").fadeIn();
+		        
+		        
+		        
+		        
+		               $.ajax({
+		       
+		                       complete:function (XMLHttpRequest, textStatus) {loadingDelhide();},
+		        			   data:$("#DeleteInvoiceData").serialize(), 
+		        			   dataType:"html", 
+		        			   success:function (data, textStatus) {$("#pageContent").html(data); loadingDelhide()}, 
+		        			   type:"post", url:"../index/2"
+		                });
+                
+		        
+		        
+		        
+		        return false;
+			  
+              
+			  }
+			else
+			  {
+			    
+			    return false;
+			  } 
+
+});
+
+});
+
+
+/*ends inactive recurssion */
+
+
+	function loadingDelhide()
+	{
+		$('body').find(".fade_layer").fadeOut();
+		$('body').remove(".fade_layer");
+	}
+
+
+
+/*-----Loading Div-----*/
+
+/*Estimate Delete Pop up*/
+
+$(document).ready(function()
+	{
+		$("#delete_rec_estimate").live('click' , function()
+			{
+
+				var r=confirm("Do you want to delete");
+				if (r==true)
+			  		{
+			  
+			  
+			 		   var fadelayer = '<div class="fade_layer"></div>';
+		        	   var loadingimg = '<div class="laoding_image_onfade"></div>';
+		        
+		      		   $('body').append(fadelayer);
+		        	   $('.fade_layer').append(loadingimg);
+		        	   $(".fade_layer").fadeIn();
+		        
+		        
+		        
+		        
+		               $.ajax({
+		       
+		                       complete:function (XMLHttpRequest, textStatus) {loadingDelhide();},
+		        			   data:$("#delete_rec_estimate").closest("form").serialize(), 
+		        			   dataType:"html", 
+		        			   success:function (data, textStatus) {$("#pageContent").html(data); loadingDelhide()}, 
+		        			   type:"post", url:"../brands_estimates/delete"
+		                });
+                
+		        
+		        
+		        
+		        return false;
+			  
+              
+			  }
+			else
+			  {
+			    
+			    return false;
+			  } 
+
+});
+
+});
+
+/* End Of Pop up for Estimate bulk delete */
+
+
+

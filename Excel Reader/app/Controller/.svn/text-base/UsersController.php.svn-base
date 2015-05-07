@@ -1,0 +1,2074 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * Users Controller
+ *
+ * @property User $User
+ */
+class UsersController extends AppController {
+
+	public $components = array('Session','Cookie', 'RequestHandler',
+        'Auth'/* => array(
+            'loginRedirect' => array('controller' => 'users', 'action' => 'index'),
+            'logoutRedirect' => array('controller' => 'users', 'action' => 'logout')
+        )*/);
+
+	public function beforeFilter() {
+		parent::beforeFilter();
+		$this->Auth->allow('login','add','forgotpassword','password_edit','login_api','email_already_exits','user_active','user_already_exits','check_post','approve_user','login_job_apply_api','candidate_edit_api','register_user_api','education_api','certification_api','experience_api','project_api','profile_pic_api','check_post_skills','jobs_by_skills_api','applied_jobs_api','education_lists_api','career_login','forgotpassword_api');
+		$action = $this->params['action'];
+		if($action=='list_users'){
+			$active_class_user = 'for_active_class';
+			$this->set(compact('active_class_user'));
+		}
+		
+	}
+
+
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		if($this->Session->read('Auth.User.Role.role_name') !='HR'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}
+		$this->User->recursive = -1;
+		$this->set('users', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->User->id = $id;
+		if (!$this->User->exists()) {
+			throw new NotFoundException(__('Invalid user'));
+		}
+		$this->set('user', $this->User->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add($from=null) {
+		$this->layout = 'hr_loginlayout';
+		$this->loadmodel('User');
+		$this->loadmodel('Role');
+		$this->loadmodel('Candidate');
+		
+		//$user_id= $this->Session->read('Auth.User.id');
+	    $role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'Employee'),'fields'=>array('Role.id')));
+		$from=$this->params['pass']['0'];
+		$this->set(compact('from'));
+		
+		if(!empty($this->data)) {
+			
+			$err=null;
+			if($this->data['User']['password'] != $this->data['User']['confirm_password']){
+				$err="Passwords doesnt match.";
+			}
+			$validateusername=$this->User->find('first',array('conditions'=>array('User.username'=>trim($this->data['User']['username']))));
+			if($validateusername){
+				$err='Username that you have entered matches with an existing user. Please try with different username. ';
+			}
+			$validate_email=$this->User->find('first',array('conditions'=>array('User.email'=>$this->data['User']['email'])));
+			if($validate_email){
+				$err=$err.'Email that you have entered matches with an existing user. Please try with different email.';
+			}
+			if($err){
+				//$this->Session->setFlash(__($err));
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>'.$err.'</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp','style'=>'height: 48px !important;'));
+				$this->redirect(array('controller'=>'users','action' => 'add'));
+			}
+			$role_id=$role['Role']['id'];
+			$save->data=null;
+			$this->User->create();	
+			$save->data['User']['first_name']=$this->data['User']['first_name'];
+			$save->data['User']['last_name']=$this->data['User']['last_name'];
+			$save->data['User']['email']=$this->data['User']['email'];
+			$save->data['User']['username']=$this->data['User']['username'];
+			$save->data['User']['password']=$this->data['User']['password'];
+			$save->data['User']['active']='N';
+			$save->data['User']['role_id']=$role_id;
+			
+			if($this->User->save($save->data)){ 
+				//$this->Session->setFlash(__('Your details have been saved.'));
+				$this->User->cacheQueries=false;
+				$user_id=$this->User->getLastInsertId();
+				
+				$this->user_registerd($user_id);
+				$this->Session->setFlash('<h4>Success Message : </h4><p>Your details have been saved. Please wait for aproval.</span>','default',array('class' => 'flashmessagebox flashsuccess hrwidthimp')); 
+				$this->redirect(array('controller'=>'users','action' => 'login'));
+				
+				
+				
+			}else{ 
+			    //$this->Session->setFlash(__('Your details could not be saved. Please try again '));
+			    $this->Session->setFlash('<h4>Warning Message : </h4><p>Your details could not be saved. Please try again</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+				$this->redirect(array('controller'=>'users','action' => 'login'));
+			} 
+			
+			
+		}
+        $this->set(compact('user_id'));
+	}
+	
+	public function noaccess(){
+		$this->layout=false;
+	}
+	
+	public function list_users($page=null,$limit=null,$count=null) {
+		if($this->Session->read('Auth.User.Role.role_name') !='HR'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}
+		$this->loadmodel('User');
+		$this->loadmodel('Role');
+		if(!$page) $page = 1;
+		if(!$limit) $limit= $this->paginate['limit'];
+		$offset = AppModel::countPages($count,$limit,$page);
+		if(!$offset) $offset = 0;	
+		$roles=$this->Role->find('list',array('conditions'=>array('Role.active'=>'Y'),'fields'=>array('Role.id','Role.role_name')));
+		$this->User->recursive=-1;
+		if($this->data){
+			$for_email=explode("@",$this->data['User']['user_name']);
+			if($for_email[1]){
+				$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.email'=>trim($this->data['User']['user_name']),'User.active'=>'Y','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.email'=>trim($this->data['User']['user_name']),'User.active'=>'Y','User.deleted'=>'N')));
+			}else{
+				$name=explode(" ",$this->data['User']['user_name']);
+				$f_name=$name[0];$l_name=$name[1];
+				if($f_name && $l_name){
+					$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.first_name LIKE'=>$name[0]."%",'User.last_name LIKE'=>$name[1]."%",'User.active'=>'Y','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.first_name LIKE'=>$name[0]."%",'User.last_name LIKE'=>$name[1]."%",'User.active'=>'Y','User.deleted'=>'N')));	
+				}else{
+					$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.first_name LIKE'=>$name[0]."%",'User.active'=>'Y','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.first_name LIKE'=>$name[0]."%",'User.active'=>'Y','User.deleted'=>'N')));	
+					if(!$all_users){
+						$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.last_name LIKE'=>$name[0]."%",'User.active'=>'Y','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+						$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.last_name LIKE'=>$name[0]."%",'User.active'=>'Y','User.deleted'=>'N')));	
+					}
+				}
+			}	
+			
+		}else{
+			$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.active'=>'Y','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+			$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.active'=>'Y','User.deleted'=>'N')));
+		}
+		
+		
+		$this->set(compact('all_users','roles','page','limit','count'));
+	}
+
+	public function change_role($id=null) {
+		$this->loadmodel('User');
+		$this->loadmodel('Role');
+		
+		$roles=$this->Role->find('list',array('conditions'=>array('Role.active'=>'Y'),'fields'=>array('Role.id','Role.role_name')));
+		$this->User->recursive=-1;
+		$one=$this->User->find('first',array('conditions'=>array('User.id'=>$id)));
+		if($this->data){
+			$save_array=null;
+			$save_array['User']['id']=$id;
+			$save_array['User']['role_id']=$this->data['User']['role_id'];
+			if($this->User->save($save_array)){
+				$this->Session->setFlash('<h4>Success Message : </h4><p>Role has been changed.</span>','default',array('class' => 'flashmessagebox flashsuccess hrwidthimp')); 
+				$this->redirect(array('controller'=>'users','action' => 'list_users'));
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Role could not be changed.</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+				$this->redirect(array('controller'=>'users','action' => 'list_users'));
+			}
+		}
+		$this->set(compact('id','one','roles'));
+	}
+
+	public function waiting_approval($page=null,$limit=null,$count=null) {
+		if($this->Session->read('Auth.User.Role.role_name') !='HR'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}
+		$this->loadmodel('User');
+		$this->loadmodel('Role');
+		if(!$page) $page = 1;
+		if(!$limit) $limit= $this->paginate['limit'];
+		$offset = AppModel::countPages($count,$limit,$page);
+		if(!$offset) $offset = 0;
+		$roles=$this->Role->find('list',array('conditions'=>array('Role.active'=>'Y'),'fields'=>array('Role.id','Role.role_name')));
+		$this->User->recursive=-1;
+		if($this->data){
+			$for_email=explode("@",$this->data['User']['user_name']);
+			if($for_email[1]){
+				$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.email'=>trim($this->data['User']['user_name']),'User.active'=>'N','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.email'=>trim($this->data['User']['user_name']),'User.active'=>'N','User.deleted'=>'N')));
+			}else{
+				$name=explode(" ",$this->data['User']['user_name']);
+				$f_name=$name[0];$l_name=$name[1];
+				if($f_name && $l_name){
+					$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.first_name LIKE'=>$name[0]."%",'User.last_name LIKE'=>$name[1]."%",'User.active'=>'N','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.first_name LIKE'=>$name[0]."%",'User.last_name LIKE'=>$name[1]."%",'User.active'=>'N','User.deleted'=>'N')));
+				}else{
+					$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.first_name LIKE'=>$name[0]."%",'User.active'=>'N','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.first_name LIKE'=>$name[0]."%",'User.active'=>'N','User.deleted'=>'N')));	
+					if(!$all_users){
+						$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.last_name LIKE'=>$name[0]."%",'User.active'=>'N','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+						$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.last_name LIKE'=>$name[0]."%",'User.active'=>'N','User.deleted'=>'N')));	
+					}
+				}
+			}
+			
+		}else{
+			$all_users=$this->User->find('all',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.active'=>'N','User.deleted'=>'N'),'limit'=>$limit,'offset'=>$offset));
+			$count=$this->User->find('count',array('conditions'=>array('User.id <>'=> $this->Session->read('Auth.User.id'),'User.active'=>'N','User.deleted'=>'N')));
+		}
+		
+		
+		$this->set(compact('all_users','roles','page','limit','count'));
+	}
+	
+	public function approve_user($id=null) {
+		$this->autoRender=FALSE;
+		$this->loadmodel('User');
+		$this->loadmodel('Role');
+		
+		$roles=$this->Role->find('list',array('conditions'=>array('Role.active'=>'Y'),'fields'=>array('Role.id','Role.role_name')));
+		$this->User->recursive=-1;
+		$one=$this->User->find('first',array('conditions'=>array('User.id'=>$id)));
+		if($one){
+			$save_array=null;
+			$save_array['User']['id']=$id;
+			$save_array['User']['active']='Y';
+			if($this->User->save($save_array)){
+				$this->send_approved_mail($id);
+				$this->Session->setFlash('<h4>Success Message : </h4><p>User has been activated.</span>','default',array('class' => 'flashmessagebox flashsuccess hrwidthimp'));
+				$this->redirect(array('controller'=>'users','action' => 'waiting_approval'));
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>User could not be make active, please try again.</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+				$this->redirect(array('controller'=>'users','action' => 'waiting_approval'));
+			}
+		}
+	}
+	
+	public function delete_user($id=null) {
+		$this->autoRender=FALSE;
+		$this->loadmodel('User');
+		$this->loadmodel('Role');
+		
+		$roles=$this->Role->find('list',array('conditions'=>array('Role.active'=>'Y'),'fields'=>array('Role.id','Role.role_name')));
+		$this->User->recursive=-1;
+		$one=$this->User->find('first',array('conditions'=>array('User.id'=>$id)));
+		if($one){
+			$save_array=null;
+			$save_array['User']['id']=$id;
+			$save_array['User']['active']='N';
+			$save_array['User']['deleted']='Y';
+			if($this->User->save($save_array)){
+				$this->Session->setFlash('<h4>Success Message : </h4><p>User has been deleted.</span>','default',array('class' => 'flashmessagebox flashsuccess hrwidthimp'));
+				$this->redirect(array('controller'=>'users','action' => 'list_users'));
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>User could not be deleted, please try again.</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+				$this->redirect(array('controller'=>'users','action' => 'list_users'));
+			}
+		}
+	}
+	
+    function signupmail($user_id=null){
+    	
+		$this->loadmodel('User');
+		
+		$user=$this->User->find('first',array('conditions'=>array('User.id'=>$user_id),'fields'=>array('User.first_name','User.last_name','User.username','User.password','User.email')));
+	    $fullname=$user['User']['first_name'].' '.$user['User']['last_name'];
+		
+		$username=$user['User']['username'];
+		$password=$user['User']['password'];
+		$email=$user['User']['email'];
+		$id=$user['User']['id'];
+		$this->set(compact('fullname','username','password','id'));
+		
+		$this->Email->to = $email;
+		//$this->Email->cc = 'venugopal@carmatec.com';
+		$this->Email->subject = 'HR Management : Sign Up';
+		$this->Email->replyTo = 'hradmin@visioncarma.com';
+	    $this->Email->from = 'hradmin@visioncarma.com';
+	    $this->Email->template = 'sign_up';
+	    $this->Email->sendAs = 'html';
+		$this->Email->send();
+		
+	}
+
+	 function user_registerd($user_id=null){
+			
+    	$hr_id=$this->Session->read('Auth.User.id');
+		
+		$this->loadmodel('User');
+		
+		$user=$this->User->find('first',array('conditions'=>array('User.id'=>$user_id),'fields'=>array('User.first_name','User.last_name','User.username','User.password','User.email')));
+	    $fullname=$user['User']['first_name'].' '.$user['User']['last_name'];
+		
+		$username=$user['User']['username'];
+		$password=$user['User']['password'];
+		$email=$user['User']['email'];
+		$id=$user['User']['id'];
+		
+		$hr_user=$this->User->find('first',array('conditions'=>array('User.id'=>$hr_id),'fields'=>array('User.first_name','User.last_name','User.username','User.password','User.email')));
+	    $fullname_hr=$hr_user['User']['first_name'].' '.$hr_user['User']['last_name'];
+		
+		$email_hr=$user['User']['email'];
+		
+		$this->set(compact('fullname','username','password','id','fullname_hr'));
+		
+		//$this->Email->to = $email_hr;
+		$this->Email->to = 'hameed@carmatec.com';
+		//$this->Email->cc = 'venugopal@carmatec.com';
+		$this->Email->subject = 'New User Notification';
+		$this->Email->replyTo = 'hradmin@visioncarma.com';
+	    $this->Email->from = 'hradmin@visioncarma.com';
+	    $this->Email->template = 'new_user_notification';
+	    $this->Email->sendAs = 'html';
+		$this->Email->send();
+		
+	}
+	
+	 function send_approved_mail($user_id=null){
+    	
+		$this->loadmodel('User');
+		
+		$user=$this->User->find('first',array('conditions'=>array('User.id'=>$user_id),'fields'=>array('User.first_name','User.last_name','User.username','User.password','User.email')));
+	    $fullname=$user['User']['first_name'].' '.$user['User']['last_name'];
+		
+		$username=$user['User']['username'];
+		$password=$user['User']['password'];
+		$email=$user['User']['email'];
+		$id=$user['User']['id'];
+		$this->set(compact('fullname','username','password','id'));
+		
+		//$this->Email->to = $email;
+		$this->Email->to = 'hameed@carmatec.com';
+		//$this->Email->cc = 'venugopal@carmatec.com';
+		$this->Email->subject = 'Account Activated Notification';
+		$this->Email->replyTo = 'hradmin@visioncarma.com';
+	    $this->Email->from = 'hradmin@visioncarma.com';
+	    $this->Email->template = 'approved_notifications';
+	    $this->Email->sendAs = 'html';
+		$this->Email->send();
+		
+	}
+	
+	
+	public function user_active($id = null) {
+		$this->autoRender=false;
+		$edit_user=false;
+		$edit_user['User']['id']=$id;
+		$edit_user['User']['active']='Y';
+		if($this->User->save($edit_user)){
+			$this->Session->setFlash(__('Your account has been activated'));
+			$this->redirect(array('action' => 'login'));
+		}else{
+			$this->Session->setFlash(__('Your account could not be activated, Please try again'));
+			$this->redirect(array('action' => 'login'));
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->User->id = $id;
+		if (!$this->User->exists()) {
+			throw new NotFoundException(__('Invalid user'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->User->save($this->request->data)) {
+				$this->Session->setFlash(__('The user has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The user could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->User->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->User->id = $id;
+		if (!$this->User->exists()) {
+			throw new NotFoundException(__('Invalid user'));
+		}
+		if ($this->User->delete()) {
+			$this->Session->setFlash(__('User deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('User was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	function login($error_msg =null,$jd_id=null){
+		//configure::write('debug',2);	
+		$this->layout='login_layout';
+		$this->set(compact('error_msg','jd_id'));
+		
+		 $cookieValues = $this->Cookie->read('rememberMe');
+		 $this->set(compact('cookieValues'));
+		 
+		 if ($this->request->is('post')) {
+		 	if ($this->Auth->login()) {
+		 		
+		           //Remember Me
+				   if ($this->request->data['User']['rememberMe'] == 1) { 
+						 // Time Frame to expire cookie
+				         $cookieTime = "1 week"; 
+				       
+					    // write into the cookie
+					    $this->Cookie->write('rememberMe', $this->request->data['User'], true, $cookieTime);
+				   }else { 
+						$checkCookie = $this->Cookie->read('rememberMe');
+						//debug($checkCookie);
+						if($checkCookie['username'] == trim($this->request->data['User']['username'])) {
+							$this->Cookie->delete('rememberMe');
+						}
+					}
+				  //Ends
+		 		
+		 		
+		 			
+		 		$this->loadModel('Candidate');
+		 		$candidate=$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>$this->Session->read('Auth.User.email'))));
+		 		$candidateid=$candidate['Candidate']['id'];
+		 		$this->Session->write('Auth.Candidate.id',$candidateid);
+		 		
+		 		if($jd_id && $candidateid){
+					$this->loadModel('JobStatus');
+					$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));	
+					$this->loadModel('CandidateJobdescriptionmapping');
+					$job_map->data=null;
+					$this->CandidateJobdescriptionmapping->create();
+					$job_map->data['CandidateJobdescriptionmapping']['job_description_id']=$jd_id;
+					$job_map->data['CandidateJobdescriptionmapping']['candidate_id']=$candidateid;
+					$job_map->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+					$job_map->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+					if($this->CandidateJobdescriptionmapping->save($job_map->data)){
+						$this->Session->setFlash('<h4>Success Message : </h4><p>Thank you for your interest in job.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+						$this->redirect(array('controller'=> 'candidates', 'action'=>'candidate_profile'));
+					}else{
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Sorry we are unable to apply the job, Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('controller'=> 'candidates', 'action'=>'candidate_profile'));
+					}
+					
+				}
+		 		
+		 		if($this->Session->read('Auth.User.Role.role_name')=='HR'){
+					$this->Session->setFlash('<h4>Success Message : </h4><p>Welcome '.$this->Session->read('Auth.User.first_name').' '.$this->Session->read('Auth.User.last_name').'</p>','default',array('class' => 'flashmessagebox flashsuccess'));	
+					$this->redirect(array('controller'=> 'job_descriptions', 'action'=>'index'));
+		 		}
+		 		elseif($this->Session->read('Auth.User.Role.role_name')=='HR Assistant'){
+		 			$this->Session->setFlash('<h4>Success Message : </h4><p>Welcome '.$this->Session->read('Auth.User.first_name').' '.$this->Session->read('Auth.User.last_name').'</p>','default',array('class' => 'flashmessagebox flashsuccess'));	
+		 			$this->redirect(array('controller'=> 'job_descriptions', 'action'=>'assistant_home'));
+		 		}
+		 		elseif($this->Session->read('Auth.User.Role.role_name')=='Employee'){
+					$this->Session->setFlash('<h4>Success Message : </h4><p>Welcome '.$this->Session->read('Auth.User.first_name').' '.$this->Session->read('Auth.User.last_name').'</p>','default',array('class' => 'flashmessagebox flashsuccess'));	
+					$this->redirect(array('controller'=> 'job_descriptions', 'action'=>'interviewer_landing'));
+		 		}
+		 		elseif($this->Session->read('Auth.User.Role.role_name')=='Candidate'){
+		 			$this->Session->setFlash('<h4>Success Message : </h4><p>Welcome '.$this->Session->read('Auth.User.first_name').' '.$this->Session->read('Auth.User.last_name').'</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+		 			$this->redirect(array('controller'=> 'candidates', 'action'=>'profile_view'));
+		 		}
+		 		
+	        	//return $this->redirect($this->Auth->redirect());
+	            //return $this->redirect($this->Auth->redirectUrl());
+	            // Prior to 2.3 use `return $this->redirect($this->Auth->redirect());`
+	        } else {
+	        	/*$err=null;
+	        	$err='Username and password is incorrect.';
+	        	$this->Session->setFlash('<h4>Warning Message : </h4><p>'.$err.'</p>','default',array('class' => 'flashmessagebox flashwarning','style'=>'height: 48px !important;'));*/
+	        	$this->redirect(array('controller'=> 'users', 'action'=>'login',1));
+	        	//$this->Session->setFlash(__('Username or password is incorrect'), 'default', array(), 'auth');
+	        }
+    	 }elseif($this->Session->read('Auth')){
+    	 	if($this->Session->read('Auth.User.Role.role_name')=='HR'){
+				$this->Session->setFlash('<h4>Success Message : </h4><p>Welcome '.$this->Session->read('Auth.User.first_name').' '.$this->Session->read('Auth.User.last_name').'</p>','default',array('class' => 'flashmessagebox flashsuccess'));	
+				$this->redirect(array('controller'=> 'job_descriptions', 'action'=>'index'));
+	 		}
+	 		elseif($this->Session->read('Auth.User.Role.role_name')=='HR Assistant'){
+	 			$this->Session->setFlash('<h4>Success Message : </h4><p>Welcome '.$this->Session->read('Auth.User.first_name').' '.$this->Session->read('Auth.User.last_name').'</p>','default',array('class' => 'flashmessagebox flashsuccess'));	
+	 			$this->redirect(array('controller'=> 'job_descriptions', 'action'=>'assistant_home'));
+	 		}
+	 		elseif($this->Session->read('Auth.User.Role.role_name')=='Employee'){
+				$this->Session->setFlash('<h4>Success Message : </h4><p>Welcome '.$this->Session->read('Auth.User.first_name').' '.$this->Session->read('Auth.User.last_name').'</p>','default',array('class' => 'flashmessagebox flashsuccess'));	
+				$this->redirect(array('controller'=> 'job_descriptions', 'action'=>'interviewer_landing'));
+	 		}
+	 		elseif($this->Session->read('Auth.User.Role.role_name')=='Candidate'){
+	 			$this->Session->setFlash('<h4>Success Message : </h4><p>Welcome '.$this->Session->read('Auth.User.first_name').' '.$this->Session->read('Auth.User.last_name').'</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+	 			$this->redirect(array('controller'=> 'candidates', 'action'=>'profile_view'));
+	 		}
+    	 }
+	}
+
+	function login_bckp ($error_msg =null,$jd_id=null){
+		$this->layout = 'hr_loginlayout';
+		$this->set(compact('error_msg','jd_id'));
+		
+		 if ($this->request->is('post')) {
+		 	if ($this->Auth->login()) {
+		 			
+		 		$this->loadModel('Candidate');
+		 		$candidate=$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>$this->Session->read('Auth.User.email'))));
+		 		$candidateid=$candidate['Candidate']['id'];
+		 		$this->Session->write('Auth.Candidate.id',$candidateid);
+		 		
+		 		if($jd_id && $candidateid){
+					$this->loadModel('JobStatus');
+					$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));	
+					$this->loadModel('CandidateJobdescriptionmapping');
+					$job_map->data=null;
+					$this->CandidateJobdescriptionmapping->create();
+					$job_map->data['CandidateJobdescriptionmapping']['job_description_id']=$jd_id;
+					$job_map->data['CandidateJobdescriptionmapping']['candidate_id']=$candidateid;
+					$job_map->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+					$job_map->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+					if($this->CandidateJobdescriptionmapping->save($job_map->data)){
+						$this->Session->setFlash('<h4>Success Message : </h4><p>Thank you for your interest in job.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+						$this->redirect(array('controller'=> 'candidates', 'action'=>'candidate_profile'));
+					}else{
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Sorry we are unable to apply the job, Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('controller'=> 'candidates', 'action'=>'candidate_profile'));
+					}
+					
+				}
+		 		
+		 		if($this->Session->read('Auth.User.Role.role_name')=='HR'){
+					$this->redirect(array('controller'=> 'job_descriptions', 'action'=>'index'));
+		 		}
+		 		elseif($this->Session->read('Auth.User.Role.role_name')=='HR Assistant'){
+		 			$this->redirect(array('controller'=> 'job_descriptions', 'action'=>'assistant_home'));
+		 		}
+		 		elseif($this->Session->read('Auth.User.Role.role_name')=='Employee'){
+					$this->redirect(array('controller'=> 'job_descriptions', 'action'=>'interviewer_landing'));
+		 		}
+		 		elseif($this->Session->read('Auth.User.Role.role_name')=='Candidate'){
+		 			$this->redirect(array('controller'=> 'candidates', 'action'=>'candidate_profile'));
+		 		}
+		 		
+	        	//return $this->redirect($this->Auth->redirect());
+	            //return $this->redirect($this->Auth->redirectUrl());
+	            // Prior to 2.3 use `return $this->redirect($this->Auth->redirect());`
+	        } else {
+	        	/*$err=null;
+	        	$err='Username and password is incorrect.';
+	        	$this->Session->setFlash('<h4>Warning Message : </h4><p>'.$err.'</p>','default',array('class' => 'flashmessagebox flashwarning','style'=>'height: 48px !important;'));*/
+	        	$this->redirect(array('controller'=> 'users', 'action'=>'login',1));
+	        	//$this->Session->setFlash(__('Username or password is incorrect'), 'default', array(), 'auth');
+	        }
+    	 }
+	}
+	
+	
+	function check_post(){
+		Configure::write('debug',2);
+		
+		//User login
+		/*
+		$apiUrl='http://careers.carmatec.com/users/login_api.json';
+				$post_data=array('username'=>'abu','password'=>'abu');
+						
+				$post_data = http_build_query($post_data, '', '&');
+						  $curl = curl_init($apiUrl);
+				curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+				curl_setopt($curl, CURLOPT_POST, true);
+				curl_setopt($curl, CURLOPT_URL, $apiUrl);
+				curl_setopt($curl, CURLOPT_HEADER, false);
+				curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($curl, CURLOPT_POSTFIELDS, $post_data);
+									  $response = curl_exec($curl);
+				debug($response);
+				curl_close($curl);
+						
+				exit;*/
+		
+		
+		// Login
+		
+		$auth_url='http://192.168.0.116/HRManagement/users/login_api.json?';
+		//$auth_url='http://careers.carmatec.com/users/login_api.json?';
+		/*
+		$auth_query = array(
+				'candidate_id'=>'13',
+				);*/
+		
+		
+		/*
+		$auth_query = array(     
+					'action'=>'edit',
+					'candidate_id' => '13',
+					'user_id' => '25',
+					'address_line1' => 'pppp',
+					'address_line2' => 'aaa',
+					'city' => 'asdas',
+					'zip' => '12323',
+					'email_id' => 'test@test.com',
+					'alt_email_id' => 'test@test.com',
+					'phone_no' => '1233456456',
+					'alt_phone_no' => '1233456456',
+					'img_name' => 'decoded_ballu1.jpeg',
+					'base_64' => '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'
+				);*/
+		
+			
+        
+       
+        $auth_query = array(     
+                           'username' => 'rajan@carmatec.com',
+                           'password' => 'Rajan123'
+                       );
+              
+        
+        
+    
+    
+    /*
+    $auth_url='http://192.168.0.116/HRManagement/users/candidate_edit_api.json?';
+           
+                $auth_query = array(
+                           'action'=>'edit',
+                           'candidate_id' => '46',
+                           'user_id' => '71',
+                           'first_name' => 'Rajan',
+                           'last_name' => 'Peter',
+                           'gender' => 'M',
+                           'address_line1' => 'fortest',
+                           'address_line2' => 'bnglr',
+                           'city' => 'asdas',
+                           'zip' => '12323',
+                           'email_id' => 'rajan@carmatec.com',
+                           'phone_no' => '1233456456',    
+                           'img_name' => 'decoded_bazzzllu1.jpeg',
+                           'base_64' => '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',
+                           'resume_name' => 'testing_forsave.doc',
+                           'base_64_resume' => '0M8R4KGxGuEAAAAAAAAAAAAAAAAAAAAAOwADAP7/CQAGAAAAAAAAAAAAAAABAAAARgAAAAAAAAAAEAAAAgAAAAEAAAD+////AAAAAAAAAAD////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////9//////////7///9FAAAABQAAAAYAAAAHAAAACAAAAAkAAAAKAAAACwAAAAwAAAANAAAADgAAAA8AAAAQAAAAEQAAAP7///8TAAAAFAAAABUAAAAWAAAAFwAAABgAAAAZAAAAGgAAABsAAAAcAAAAHQAAAB4AAAAfAAAAIAAAACEAAAAiAAAAIwAAACQAAAAlAAAAJgAAACcAAAAoAAAAKQAAACoAAAArAAAALAAAAC0AAAAuAAAALwAAADAAAAAxAAAAMgAAADMAAAA0AAAANQAAADYAAAA3AAAAOAAAADkAAAA6AAAAOwAAADwAAAA9AAAAPgAAAD8AAABAAAAAQQAAAEIAAABDAAAARAAAAP7////+////RwAAAP7//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////1IAbwBvAHQAIABFAG4AdAByAHkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWAAUA////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/v///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP7///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/v///wAAAAAAAAAAAQAAAP7////+////BAAAAAUAAAAGAAAA/v///wgAAAD+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////8BAP7/AwoAAP////8GCQIAAAAAAMAAAAAAAABGGAAAAE1pY3Jvc29mdCBXb3JkLURva3VtZW50AAoAAABNU1dvcmREb2MAEAAAAFdvcmQuRG9jdW1lbnQuOAD0ObJxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+/wAAAQACAAAAAAAAAAAAAAAAAAAAAAABAAAA4IWf8vlPaBCrkQgAKyez2TAAAADIAAAACQAAAAEAAABQAAAABAAAAFgAAAAHAAAAbAAAAAgAAAB8AAAACQAAAIwAAAAKAAAAmAAAAAsAAACkAAAADAAAALAAAAANAAAAvAAAAAIAAADp/QAAHgAAAAwAAABjZWdvbnNvZnQ2MwAeAAAABwAAAE5vcm1hbAAAHgAAAAYAAABzYWRoYQAAAB4AAAACAAAAMwAAAEAAAAAAMn6nAgAAAEAAAAAAwpMqNMnLAUAAAAAAICTpjt/LAUAAAAAAfD28/NvNAQAAAAAAAAAA/v8AAAEAAgAAAAAAAAAAAAAAAAAAAAAAAQAAAALVzdWcLhsQk5cIACss+a4wAAAAGAAAAAEAAAABAAAAEAAAABIAUAAKAAEAWwAPAAIAAAAAAAAAXAAAEPH/AgBcAAAABgBOAG8AcgBtAGEAbAAAAA4AAAAxJAAqJAE3JABBJAAvAEIqAE9KBABRSgQAQ0oYAHNICQRzSAkEUEoAAG5IBAheSgQAYUoYAF9IAQR0SAEEADgAARABAAIAOAAAAAkASABlAGEAZABpAG4AZwAgADEAAAATAAEAQCYACiYAC0YBAAomAAtGAQAAAAA4AAIQAQACADgAAAAJAEgAZQBhAGQAaQBuAGcAIAAyAAAAEwACAEAmAQomAQtGAQAKJgELRgEAAAAAAAAAAAAAAAAAAAAAAABCAEFA8v+hAEIAAAAZAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAAAAAAAAAAAAAAAAALgD+H/L/8QAuAAAACQBXAFcAOABOAHUAbQAyAHoAMAAAAAwAT0oEAFFKBABeSgQALgD+H/L/AQEuAAAACQBXAFcAOABOAHUAbQAzAHoAMAAAAAwAT0oEAFFKBABeSgQALgD+H/L/EQEuAAAACQBXAFcAOABOAHUAbQA0AHoAMAAAAAwAT0oBAFFKAQBeSgEAQgD+H/L/IQFCAAAAGQBBAGIAcwBhAHQAegAtAFMAdABhAG4AZABhAHIAZABzAGMAaAByAGkAZgB0AGEAcgB0AAAAAABIAP4f8v8xAUgAAAAcAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAAAAAAEoA/h/y/0EBSgAAAB0AVwBXAC0AQQBiAHMAYQB0AHoALQBTAHQAYQBuAGQAYQByAGQAcwBjAGgAcgBpAGYAdABhAHIAdAAxAAAAAABMAP4f8v9RAUwAAAAeAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAMQAxAAAAAABOAP4f8v9hAU4AAAAfAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAMQAxADEAAAAAAC4A/h/y/3EBLgAAAAkAVwBXADgATgB1AG0ANQB6ADAAAAAMAE9KAQBRSgEAXkoBAC4A/h/y/4EBLgAAAAkAVwBXADgATgB1AG0ANgB6ADAAAAAMAE9KAQBRSgEAXkoBAFAA/h/y/5EBUAAAACAAVwBXAC0AQQBiAHMAYQB0AHoALQBTAHQAYQBuAGQAYQByAGQAcwBjAGgAcgBpAGYAdABhAHIAdAAxADEAMQAxAAAAAABSAP4f8v+hAVIAAAAhAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAMQAxADEAMQAxAAAAAAA8AP4f8v+xATwAAAAWAEQAZQBmAGEAdQBsAHQAIABQAGEAcgBhAGcAcgBhAHAAaAAgAEYAbwBuAHQAAAAAAFQA/h/y/8EBVAAAACIAVwBXAC0AQQBiAHMAYQB0AHoALQBTAHQAYQBuAGQAYQByAGQAcwBjAGgAcgBpAGYAdABhAHIAdAAxADEAMQAxADEAMQAAAAAAVgD+H/L/0QFWAAAAIwBXAFcALQBBAGIAcwBhAHQAegAtAFMAdABhAG4AZABhAHIAZABzAGMAaAByAGkAZgB0AGEAcgB0ADEAMQAxADEAMQAxADEAAAAAAEIA/h/y/+EBQgAAABkAVwBXAC0ARABlAGYAYQB1AGwAdAAgAFAAYQByAGEAZwByAGEAcABoACAARgBvAG4AdAAAAAAARAD+H/L/8QFEAAAAGgBXAFcALQBEAGUAZgBhAHUAbAB0ACAAUABhAHIAYQBnAHIAYQBwAGgAIABGAG8AbgB0ADEAAAAAAFgA/h/y/wECWAAAACQAVwBXAC0AQQBiAHMAYQB0AHoALQBTAHQAYQBuAGQAYQByAGQAcwBjAGgAcgBpAGYAdABhAHIAdAAxADEAMQAxADEAMQAxADEAAAAAAC4A/h/y/xECLgAAAAkAVwBXADgATgB1AG0ANwB6ADAAAAAMAE9KBABRSgQAXkoEAEYA/h/y/yECRgAAABsAVwBXAC0ARABlAGYAYQB1AGwAdAAgAFAAYQByAGEAZwByAGEAcABoACAARgBvAG4AdAAxADEAAAAAAEgA/h/y/zECSAAAABwAVwBXAC0ARABlAGYAYQB1AGwAdAAgAFAAYQByAGEAZwByAGEAcABoACAARgBvAG4AdAAxADEAMQAAAAAAWgD+H/L/QQJaAAAAJQBXAFcALQBBAGIAcwBhAHQAegAtAFMAdABhAG4AZABhAHIAZABzAGMAaAByAGkAZgB0AGEAcgB0ADEAMQAxADEAMQAxADEAMQAxAAAAAABcAP4f8v9RAlwAAAAmAFcAVwAtAEEAYgBzAGEAdAB6AC0AUwB0AGEAbgBkAGEAcgBkAHMAYwBoAHIAaQBmAHQAYQByAHQAMQAxADEAMQAxADEAMQAxADEA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAvhAAABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANIQAAA0AAAABhEAADQAAAA6EQAAVAAAAAAAAAAAAAAApxUAAJ4CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAjhEAAFYAAADkEQAANAAAABgSAAAcAAAAhBUAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABFGAAAYgIAAKcaAABKAAAAkhUAABUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0EgAAcgAAAPgUAABUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABMFQAAOAAAAAAAAAAAAAAAhhUAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgDZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFIARQBTAFUATQBFAA0ACQAJACAAIAAgACAAIAAgACAAIAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAJAAkACQAJACAAIAAgACAAIAAgAEcAdQByAHUAIABQAHIAYQBzAGEAZAAuAEsALgBWAA0AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAAkAIAAgACAAIAAgACAAIwAyADQAMwAvADIANAA0ACwAIAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABDAC8ATwAgAE0AdQBuAGkAcwB3AGEAbQBhAHAAcABhAC4ATQAsAA0AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAJAAkACQAgACAAIAAgACAAIABCAGUAaABpAG4AZAAgAEsAbwB0AGUAIABUAGUAbQBwAGwAZQAsAA0ACQAJACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAEsALgBSAC4AUAB1AHIAYQBtACwACQANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAEIAYQBuAGcAYQBsAG8AcgBlACAAEyAgADUANgAwADAAMwA2AC4ADQANAEUALQBNAGEAaQBsADoAIAAgAGcAdQByAHUAXwBwAHIAYQBzAGEAZAAyADcAOQBAAHkAYQBoAG8AbwAuAGMAbwBtACAAIAAgACAAIAAgACAAIAAJAAkACQAJACAAIAAgACAAIAAgACAAIAAJACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAADQBNAG8AYgBpAGwAZQA6ACAAOQAwADMANgAyADEAMwAxADQAMQANAA0ATwBiAGoAZQBjAHQAaQB2AGUAOgANAA0AVABvACAAYgBlACAAYQAgAHAAYQByAHQAIABvAGYAIAB0AGgAZQAgAG8AcgBnAGEAbgBpAHoAYQB0AGkAbwBuACAAdABoAGEAdAAgAHYAYQBsAHUAZQBzACAAZQBuAHQAaAB1AHMAaQBhAHMAbQAsACAAcAByAG8AZgBlAHMAcwBpAG8AbgBhAGwAaQBzAG0ALAAgAGMAbwBtAG0AaQB0AG0AZQBuAHQAIAB0AG8AIABwAGUAcgBmAG8AcgBtACwAIABhAG4AZAAgAG8AZgBmAGUAcgBzACAAbwBwAHAAbwByAHQAdQBuAGkAdABpAGUAcwAgAGYAbwByACAAZwByAG8AdwB0AGgAIABhAG4AZAAgAGwAZQBhAHIAbgBpAG4AZwAsACAAdABoAHUAcwAgAHAAcgBvAHYAaQBkAGkAbgBnACAAYwBvAG4AZAB1AGMAdABpAHYAZQAgAGUAbgB2AGkAcgBvAG4AbQBlAG4AdAAgAHcAaABlAHIAZQBpAG4AIABJACAAYwBhAG4AIABjAG8AbgB0AHIAaQBiAHUAdABlACAAbwBwAHQAaQBtAGEAbABsAHkALgANAA0AUAByAG8AZgBlAHMAcwBpAG8AbgBhAGwAIABTAHUAbQBtAGEAcgB5ADoADQANAFQAbwB0AGEAbABsAHkAIAAzAC4AMgAgAHkAZQBhAHIAcwAgAEUAeABwAGUAcgBpAGUAbgBjAGUAIABpAG4AIABDAGEAawBlAFAASABQACAARABlAHYAZQBsAG8AcABlAHIALgAgAA0ARQB4AHAAZQByAHQAaQBzAGUAIABpAG4AIABDAGEAawBlAFAASABQAC4ADQBFAHgAcABlAHIAdABpAHMAZQAgAGkAbgAgAE0AeQBzAHEAbAAuAA0ADQBFAHgAcABlAHIAaQBlAG4AYwBlADoADQANAFAAcgBlAHMAZQBuAHQAbAB5ACAAdwBvAHIAawBpAG4AZwAgAGEAcwAgAFMAbwBmAHQAdwBhAHIAZQAgAEQAZQB2AGUAbABvAHAAZQByACAAaQBuACAAQwBhAHIAbQBhAHQAZQBjACAASQBUACAAUwBvAGwAdQB0AGkAbwBuAHMAIABQAHYAdAAgAEwAdABkACwAIABCAGEAbgBnAGEAbABvAHIAZQAgAFMAaQBuAGMAZQAgAEYAZQBiAHIAYQB1AGEAcgB5ACAAMgAwADEAMAAuAA0ADQANAEUAZAB1AGMAYQB0AGkAbwBuACAAUQB1AGEAbABpAGYAaQBjAGEAdABpAG8AbgA6AA0ADQBCAC4ARQAgACgAQwBTACkAIABmAHIAbwBtACAARQBhAHMAdAAgAFcAZQBzAHQAIABJAG4AcwB0AGkAdAB1AHQAZQAgAE8AZgAgAFQAZQBjAGgAbgBvAGwAbwBnAHkAIAAsACAAdQBuAGQAZQByACAAVgBpAHMAaAB3AGUAcwBoAHcAYQByAGEAaQBhAGgAIABUAGUAYwBoAG4AbwBsAG8AZwBpAGMAYQBsACAAVQBuAGkAdgBlAHIAcwBpAHQAeQAgACwAIAB3AGkAdABoACAANgAwAC4ANwA1ACUAIABwAGEAcwBzAGUAZAAgAG8AdQB0ACAAaQBuACAASgB1AG4AZQAgADIAMAAwADkALgANAFAAVQBDACAAZgByAG8AbQAgAFMAcgBlAGUAIABWAGUAbgBrAGEAdABlAHMAdwBhAHIAYQAgAFAAcgBlACAAVQBuAGkAdgBlAHIAcwBpAHQAeQAgAEMAbwBsAGwAZQBnAGUALAAgAHUAbgBkAGUAcgAgAEsAYQByAG4AYQB0AGEAawBhACAAUwB0AGEAdABlACAAQgBvAGEAcgBkACwAIAB3AGkAdABoACAANwA2AC4AMQA2ACUAIABwAGEAcwBzAGUAZAAgAG8AdQB0ACAAaQBuACAAQQBwAHIAaQBsACAAMgAwADAANQAuAA0AUwBTAEwAQwAgAGYAcgBvAG0AIABTAHIAZQBlACAAVgBlAG4AawBhAHQAZQBzAHcAYQByAGEAIABIAGkAZwBoACAAUwBjAGgAbwBvAGwALAAgAHUAbgBkAGUAcgAgAEsAYQByAG4AYQB0AGEAawBhACAAUwB0AGEAdABlACAAQgBvAGEAcgBkACwAIAB3AGkAdABoACAANwA2AC4ANAA4ACUAIABwAGEAcwBzAGUAZAAgAG8AdQB0ACAAaQBuACAATQBhAHIAYwBoACAAMgAwADAAMwAuAA0ADQANAA0ADQANAA0AUAByAG8AZwByAGEAbQBtAGkAbgBnACAAUwBrAGkAbABsAHMAOgANAA0ATABhAG4AZwB1AGEAZwBlAHMAOgAgAEgAVABNAEwALABDAFMAUwAsACAAUABIAFAAIAA1AC4AMwAuADIALQAxAHUAYgB1AG4AdAB1ADEAMQAsACAATQBZAFMAUQBMACwAIABBAGoAYQB4ACwAIABTAGgAZQBsAGwAIABTAGMAcgBpAHAAdABpAG4AZwAuAA0AUABIAFAAIABGAHIAYQBtAGUAdwBvAHIAawA6ACAAQwBhAGsAZQBQAEgAUAAuAA0ATwBwAGUAcgBhAHQAaQBuAGcAIABTAHkAcwB0AGUAbQA6ACAAIABMAGkAbgB1AHgALgANAEkARABFADoAIABFAGMAbABpAHAAcwBlAC4ADQBXAGUAYgAgAFMAZQByAHYAZQByAHMAOgAgAEEAcABhAGMAaABlAC4ADQBEAEIATQBTACAAdQBzAGUAZAA6ACAATQB5AFMAcQBsAC4ADQANAFAAcgBvAGoAZQBjAHQAcwAgAEUAeABwAGUAcgBpAGUAbgBjAGUAOgANAA0ADQAgACAAMQAuACAAUAByAG8AagBlAGMAdAAgAE4AYQBtAGUAIAAgACAAIAAgACAAIAA6ACAAIAAgAEoAYQBnAHUAYQByAFAAQwANAA0AIAAgACAAVABlAGEAbQAgAFMAaQB6AGUAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgADQADQAgACAAIAAgAFAAbwBzAGkAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAARABlAHYAZQBsAG8AcABlAHIADQAgACAAIAAgAEUAbgB2AGkAcgBvAG4AbQBlAG4AdAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgACAASAB0AG0AbAAgADQALgAwACwAIABDAHMAcwAgADIALgAxACwAIABKAGEAdgBhACAAUwBjAHIAaQBwAHQAIAAxAC4ANgAgAFUAYgB1AG4AdAB1ACAAMQAxAC4AMAAsACAAQwBBAEsARQAgAFAASABQACAAMQAuADMALAAgAAkACQAJACAAIAAgACAAIAAgACAAIAAgACAAIAAgAE0AWQBTAFEATAAgACAANQAuADAALAAgAEEAcABhAGMAaABlACAAMgAuADEALAAgAEsAYQB5AGEAawBvACAAQQBQAEkALABjAFAAYQBuAGUAbAAgAEEAUABJACwAIABFAG4AbwBtACAAQQBQAEkALgAgACAADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAADQAgACAAIAAgAEQAdQByAGEAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgACAAIABKAHUAbgBlACAAMgAwADEAMQAgABMgIABBAHAAcgBpAGwAIAAyADAAMQAzAC4ADQANACAAIAAgACAARABlAHMAYwByAGkAcAB0AGkAbwBuADoADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAASgBQAEMAIABpAHMAIAB3AGUAYgAgAGgAbwBzAHQAaQBuAGcAIABwAHIAbwB2AGkAZABlAHIAIAB0AGgAYQB0ACAAbgBlAGUAZABlAGQAIAB0AGgAZQAgAGEAdQB0AG8AbQBhAHQAaQBvAG4AIABpAG4AIABhAGwAbAAgAHAAcgBvAGMAZQBzAHMAZQBzAC4AIABXAGUAIAAgAGkAbgB0AGUAZwByAGEAdABlAGQAIABiAHIAYQBuAGQAcwAgAGEAdAAgAGQAYQB0AGEAYgBhAHMAZQAgAGEAbgBkACAAYQBwAHAAbABpAGMAYQB0AGkAbwBuACAAbABlAHYAZQBsAC4AIABIAGUAbABwAGQAZQBzAGsAIABtAGEAbgBhAGcAZQBtAGUAbgB0ACAAaQBzACAAZABvAG4AZQAgAHQAaAByAG8AdQBnAGgAIABpAG4AdABlAGcAcgBhAHQAaQBvAG4AIAB3AGkAdABoACAAawBhAHkAYQBrAG8AIAB0AGgAcgBvAHUAZwBoACAAQQBwAGkAJwBzACAAdABvACAAYwByAGUAYQB0AGUAIAB0AGkAYwBrAGUAdABzACAAZgBvAHIAIABlAHYAZQByAHkAIABzAGkAZwBuAGkAZgBpAGMAYQBuAHQAIABzAHQAZQBwACAAbABpAGsAZQAgAGEAYwBjAG8AdQBuAHQAIABjAGEAbgBjAGUAbABsAGEAdABpAG8AbgAsAHMAdQBzAHAAZQBuAHMAaQBvAG4ALAB1AG4AcwB1AHMAcABlAG4AcwBpAG8AbgAuACAAQQAgAHMAdABhAGYAZgAgAGMAcgBlAGEAdABpAG4AZwAgAGEAIAB0AGkAYwBrAGUAdAAsAGMAbABpAGUAbgB0ACAAYwByAGUAYQB0AGkAbgBnACAAYQAgAHQAaQBjAGsAZQB0ACwAIABzAHQAYQBmAGYAIABjAHIAZQBhAHQAaQBuAGcAIABhACAAdABpAGMAawBlAHQAIABvAG4AIABiAGUAaABhAGwAZgAgAG8AZgAgAGEAIABjAGwAaQBlAG4AdAAgAC4AIABUAGgAZQByAGUAIABpAHMAIABhACAAYwBvAG0AcABsAGUAdABlACAAaQBuAHQAZQBnAHIAYQB0AGkAbwBuACAAaQBuACAAdABoAGUAIABhAHAAcABsAGkAYwBhAHQAaQBvAG4AIAB3AGkAdABoACAAawBhAHkAYQBrAG8AIABzAG8AIAB0AGgAYQB0ACAAcwB1AHAAcABvAHIAdAAgAGQAYQB0AGEAIABjAGEAbgAgAGIAZQAgAHYAaQBlAHcAZQBkACAAYgBhAHMAZQBkACAAbwBuACAAYwB1AHMAdABvAG0AZQByAC4AIABEAHUAZQAgAHQAbwAgAGkAbgB0AGUAZwByAGEAdABpAG8AbgAgAHQAaABlACAAZgB1AGwAbAAgAHAAbwB3AGUAcgAgAG8AZgAgAGsAYQB5AGEAawBvACAAYwBhAG4AIABhAGwAcwBvACAAYgBlACAAdQB0AGkAbABpAHMAZQBkACAAdABvACAAcAByAG8AdgBpAGQAZQAgAGQAZQB0AGEAaQBsAGUAZAAgAGEAbgBhAGwAeQB0AGkAYwBzAC4AIABGAGUAYQB0AHUAcgBlACAAcwB1AGMAaAAgAGEAcwAgAGwAbwBnAGkAbgBzAGgAYQByAGUAIAB0AGgAYQB0ACAAZQBuAGEAYgBsAGUAcwAgAHUAcwBlAHIAIAB0AG8AIABsAG8AZwBpAG4AIAB0AG8AIABrAGEAeQBhAGsAbwAgAGgAZQBsAHAAZABlAHMAawAgAHUAcwBpAG4AZwAgAHQAaABpAHMAIABhAHAAcABsAGkAYwBhAGkAbwBuACcAcwAgAHUAcwBlAHIAbgBhAG0AZQAgAGEAbgBkACAAcABhAHMAcwB3AG8AcgBkACAAaABhAHMAIABhAGwAcwBvACAAYgBlAGUAbgAgAHUAcwBlAGQALgAgAEMAcABhAG4AZQBsACAAQQBQAEkAIABoAGEAcwAgAGIAZQBlAG4AIAB1AHMAZQBkACAAZgBvAHIAIABhAGQAZABpAG4AZwAsAGQAZQBsAGUAdABpAG4AZwAgAGEAbgBkACAAYQB1AGQAaQB0AGkAbgBnACAAYwBQAGEAbgBlAGwAIABsAGkAYwBlAG4AcwBlAHMALgAgAEUAbgBvAG0AIABBAFAASQAgAGgAYQBzACAAYgBlAGUAbgAgAHUAcwBlAGQAIAB0AG8AIABjAGgAZQBjAGsAIAB0AGgAZQAgAGQAbwBtAGEAaQBuAHMAIAB3AGgAZQBuACAAYwB1AHMAdABvAG0AZQByACAAaQBzACAAYQBkAGQAaQBuAGcAIABhAG4AIABhAGMAYwBvAHUAbgB0AC4ADQANACAAIAAyAC4AIABQAHIAbwBqAGUAYwB0ACAATgBhAG0AZQAJADoAIAAgACAATwBiAHQAcgBpAHgAIABQAG8AcgB0AGEAbAANAA0AIAAgACAAIABUAGUAYQBtACAAUwBpAHoAZQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgADQADQAgACAAIAAgACAAUABvAHMAaQB0AGkAbwBuAAkAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAARABlAHYAZQBsAG8AcABlAHIADQAgACAAIAAgACAARQBuAHYAaQByAG8AbgBtAGUAbgB0ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAASAB0AG0AbAAgADQALgAwACwAIABDAHMAcwAgADIALgAxACwAIABKAGEAdgBhACAAUwBjAHIAaQBwAHQAIAAoAHAAcgBvAHQAbwB0AHkAcABlAGoAcwApACwAIABVAGIAdQBuAHQAdQAgADEAMAAuADAALAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAANAAkAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAEwAaQBuAHUAeAAgAE8AUwAsACAAQwBBAEsARQBQAEgAUAAgADEALgAyACwAIABNAFkAUwBRAEwAIAA1AC4AMAAsACAAQQBwAGEAYwBoAGUAIAAyAC4AMAAsACAAUwBoAGUAbABsACAAcwBjAHIAaQBwAHQAaQBuAGcALAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAFIAZQBzAHQAQQBQAEkAIAB1AHMAaQBuAGcAIABjAGEAawBlAHAAaABwAC4ADQANACAAIAAgACAAIABEAHUAcgBhAHQAaQBvAG4AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIABTAGUAcAB0AGUAbQBiAGUAcgAgADIAMAAxADAAIAATICAAQQBwAHIAaQBsACAAMgAwADEAMQANAA0AIAAgACAAIABEAGUAcwBjAHIAaQBwAHQAaQBvAG4AOgANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAFQAaABlACAAbQBhAGMAaABpAG4AZQAgAG8AbgAgAHcAaABpAGMAaAAgAE8AUwAgAGgAYQBzACAAdABvACAAYgBlACAAcgBlAGkAbgBzAHQAYQBsAGwAZQBkACAAcwBoAG8AdQBsAGQAIABiAGUAIABiAG8AbwB0AGUAZAAgAGYAcgBvAG0AIABuAGUAdAB3AG8AcgBrAC4ADQAgACAAIAAgAEYAbwByACAAdABoAGkAcwAsACAAbgBlAHQAdwBvAHIAawAgAGIAbwBvAHQAIABoAGEAcwAgAHQAbwAgAGIAZQAgAGUAbgBhAGIAbABlAGQAIABiAHkAIABkAGUAZgBhAHUAbAB0ACAAYQB0ACAAdABoAGUAIABCAEkATwBTACAAbABlAHYAZQBsAC4AIABXAGgAZQBuACAAdABoAGUAIABtAGEAYwBoAGkAbgBlAA0AIAAgACAAIABpAHMAIABiAG8AbwB0AGUAZAAgAGYAcgBvAG0AIABuAGUAdAB3AG8AcgBrACwAIABhACAAZABoAGMAcAAgAHMAZQByAHYAZQByACAAcwBoAG8AdQBsAGQAIABiAGUAIAB0AGgAZQByAGUAIABpAG4AIABwAGwAYQBjAGUAIABmAG8AcgAgAGEAbgAgAEkAUAAgACAAQQBkAGQAcgBlAHMAcwAuACAASQBuACAAdABoAGUADQAgACAAIAAgAEQASABDAFAAIABzAGUAcgB2AGUAcgAgAGMAbwBuAGYAaQBnAHUAcgBhAHQAaQBvAG4AIABmAGkAbABlACwAIAB3AGUAIAB3AGkAbABsACAAYgBlACAAcwBwAGUAYwBpAGYAeQBpAG4AZwAgAHQAbwAgAHUAcwBlACAAdABoAGUAIABwAHgAZQAgAGkAbgBzAHQAYQBsAGwAYQB0AGkAbwBuAC4AIABTAG8ALAAgAGEAZgB0AGUAcgANACAAIAB0AGEAawBpAG4AZwAgAEkAUAAgAGYAcgBvAG0AIABEAEgAQwBQACwAIABzAHQAcgBhAGkAZwBoAHQAIABhAHcAYQB5ACAAdABoAGUAIABwAHIAbwBjAGUAcwBzACAAdwBpAGwAbAAgAGIAZQAgAGQAaQByAGUAYwB0AGUAZAAgAHQAbwAgAFAAWABFAC4AIABUAGgAZQAgAFAAWABFAA0AIAAgAGMAbwBuAGYAaQBnAHUAcgBhAHQAaQBvAG4AIABmAGkAbABlAHMAIABhAG4AZAAgAG4AZQBjAGUAcwBzAGEAcgB5ACAAZgBpAGwAZQBzACAAcgBlAGwAYQB0AGUAZAAgAHcAaQB0AGgAIABkAGkAcwB0AHIAbwBzACAAdwBpAGwAbAAgAGIAZQAgAGEAdAAgAHQAZgB0AHAAGSBzACAAcgBvAG8AdAAgAGQAaQByAGUAYwB0AG8AcgB5AA0AIAAgAGkALABlAC4ALAAgAC8AdABmAHQAYgBvAG8AdAAuACAAUwBvACwAIABhAHMAIABwAGUAcgAgAHQAaABlACAATwBTACAAcwBlAGwAZQBjAHQAZQBkACwAIABpAG4AcwB0AGEAbABsAGEAdABpAG8AbgAgAHcAaQBsAGwAIABzAHQAYQByAHQAIABhAG4AZAAgAGMAbwBuAHQAaQBuAHUAZQAgAHUAcwBpAG4AZwAgAHQAaABlAA0AIAAgAHYAYQByAGkAYQBiAGwAZQBzACAAYQBuAGQAIAB2AGEAbAB1AGUAcwAgAGQAZQBmAGkAbgBlAGQAIABpAG4AIAB0AGgAZQAgAGsAaQBjAGsAIABzAHQAYQByAHQAIABjAG8AbgBmAGkAZwB1AHIAYQB0AGkAbwBuACAAZgBpAGwAZQAgACgAawBzAC4AYwBmAGcAKQAuACAASABlAHIAZQAgAHcAZQAgACAAYQByAGUADQAgACAAYwBhAGwAbABpAG4AZwAgAGsAcwAuAGMAZgBnACAAZgBpAGwAZQAgAHUAcwBpAG4AZwAgAGgAdAB0AHAALgAgAEYAbwByACAAZQBhAGMAaAAgAHIAZQBsAG8AYQBkACAAbwByACAAaQBuAHMAdABhAGwAbABhAHQAaQBvAG4AIABhACAAZgByAGUAcwBoACAAawBzAC4AYwBmAGcAIABmAGkAbABlACAAdwBpAGwAbAAgAGIAZQANACAAIABjAHIAZQBhAHQAZQBkACAAbwBuACAAdABoAGUAIABiAGEAcwBpAHMAIABvAGYAIABlAG4AdAByAGkAZQBzACAAZgByAG8AbQAgAHQAaABlACAAdQBzAGUAcgAuACAASQB0ACAAYQBsAHMAbwAgAGkAbgBjAGwAdQBkAGUAZAAgAGEAZABkAGkAbgBnACAASQBwACAAYgBsAG8AYwBrAHMALABhAGQAZABpAG4AZwAgAGkAcAANACAAIAB0AG8AIABzAGUAcgB2AGUAcgAsAGMAaABhAG4AZwBpAG4AZwAgAHQAaABlACAAbQBhAGkAbgAgAEkAUAAgAG8AZgAgAGEAIABzAGUAcgB2AGUAcgAgACwAIABkAGUAbABlAHQAaQBuAGcAIABpAHAAIABmAHIAbwBtACAAcwBlAHIAdgBlAHIALAAgAHMAdwBpAHQAYwBoACAAcABvAHIAdAANACAAIABkAGkAcwBhAGIAbABlAC8AZQBuAGEAYgBsAGUALAAgACAAdABoAGkAcwAgAHcAYQBzACAAZABvAG4AZQAgAHUAcwBpAG4AZwAgAHMAaABlAGwAbAAgAHMAYwByAGkAcAB0AHMAIAB0AGgAYQB0ACAAYwBvAG4AdABhAGkAbgBlAGQAIAB0AGgAZQAgAGMAbwBtAG0AYQBuAGQAcwAgAGYAbwByACAAdABoAGUADQAgACAAZgBlAGEAdAB1AHIAZQBzAC4AIABBAHAAcABsAGkAYwBhAHQAaQBvAG4AIABoAGEAZAAgAGEAbgAgAGkAbgB0AGUAcgBmAGEAYwBlACAAZgBvAHIAIABBAFAAQwAgAHIAZQBiAG8AbwB0ACwAIABzAG4AbQBwACAAYwBvAG0AbQBhAG4AZAAgAHcAYQBzACAAYgBlAGkAbgBnACAAdQBzAGUAZAAgAA0AIAAgAGYAbwByACAAdABoAGkAcwAgAHAAdQByAHAAbwBzAGUALgAgAFcAZQAgAGgAYQBkACAAYQBsAHMAbwAgAGMAcgBlAGEAdABlAGQAIABSAGUAcwB0AEEAUABJACAAbQBlAHQAaABvAGQAcwAgAGYAbwByACAAYwBlAHIAdABhAGkAbgAgAGYAZQBhAHQAdQByAGUAcwAgAGwAaQBrAGUADQAgACAAYwByAGUAYQB0AGkAbgBnAC8AZABlAGwAZQB0AGkAbgBnACAAdQBzAGUAcgAsACAAYQBkAGQAaQBuAGcALwBkAGUAbABlAHQAaQBuAGcAIABzAGUAcgB2AGUAcgAgAGUAdABjAC4ALAANAA0ADQAgACAAMwAuACAAUAByAG8AagBlAGMAdAAgAE4AYQBtAGUAIAAgACAAOgAgACAAVgBpAHMAaQBvAG4AYwBhAHIAbQBhAA0ADQAgACAAIAAgAFQAZQBhAG0AIABTAGkAegBlACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAANQANACAADQAgACAAIAAgACAAUABvAHMAaQB0AGkAbwBuACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAARABlAHYAZQBsAG8AcABlAHIADQAgACAAIAAgACAARQBuAHYAaQByAG8AbgBtAGUAbgB0ACAAIAAgACAAIAAgACAAIAAgACAAOgAgAEgAdABtAGwAIAA0AC4AMAAgACwAIABDAHMAcwAgADIALgAxACAALABKAGEAdgBhACAAUwBjAHIAaQBwAHQAIAAoAHAAcgBvAHQAbwB0AHkAcABlAGoAcwApACwAIABVAGIAdQBuAHQAdQAgADEAMAAuADAAIAAsAA0AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAATABpAG4AdQB4ACAATwBTACwAIABDAEEASwBFAFAASABQACAAMQAuADIAIAAsACAATQBZAFMAUQBMACAANQAuADAALAAgAEEAcABhAGMAaABlACAAMgAuADAALgANAA0AIAAgACAAIAAgAEQAdQByAGEAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIAAgAE0AYQByAGMAaAAgADIAMAAxADAAIAAtACAAIABTAGUAcAB0AGUAbQBiAGUAcgAgADIAMAAxADAADQANACAAIAAgACAAIABEAGUAcwBjAHIAaQBwAHQAaQBvAG4AOgANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAASQB0ABkgcwAgAGEAbgAgAEUAbgB0AGUAcgBwAHIAaQBzAGUAIABBAHAAcABsAGkAYwBhAHQAaQBvAG4AIABTAG8AZgB0AHcAYQByAGUAIABkAG8AbgBlACAAaQBuACAAYwBhAGsAZQBwAGgAcAAuACAASQBuAGMAbAB1AGQAZQBzACAAZgBlAGEAdAB1AHIAZQBzACAAIAAgACAAIAAgACAAIAAgACAAIAAgAHMAdQBjAGgAIABhAHMAIABDAHUAcwB0AG8AbQBlAHIAIABSAGUAbABhAHQAaQBvAG4AcwBoAGkAcAAgAE0AYQBuAGEAZwBlAG0AZQBuAHQAIAAoAEMAUgBNACkALAAgAEgAUgAgAE0AYQBuAGEAZwBlAG0AZQBuAHQALAAgAFEAdQBhAGwAaQB0AHkAIABBAHMAcwB1AHIAYQBuAGMAZQAsACAAQwBsAGkAZQBuAHQAIABQAG8AcgB0AGEAbAAgAGYAbwByACAAdABoAGUAIABjAGwAaQBlAG4AdABzACAAdABvACAAYwBoAGUAYwBrACAAdABoAGUAIAByAGUAYQBsACAAdABpAG0AZQAgAHMAdABhAHQAdQBzACAAbwBmACAAdABoAGUAIAB3AG8AcgBrACwAIABUAGEAcwBrACAATQBhAG4AYQBnAGUAbQBlAG4AdAAsACAAZQB0AGMALgAgAEkAdAAZIHMAIABhACAAcwBpAG4AZwBsAGUAIABpAG4AdABlAHIAZgBhAGMAZQAgAHQAbwAgAG0AbwBuAGkAdABvAHIAIAB0AGgAZQAgAGUAbQBwAGwAbwB5AGUAZQBzACAAYQBuAGQAIABjAG8AbQBtAHUAbgBpAGMAYQB0AGUAIAB3AGkAdABoACAAYwBsAGkAZQBuAHQAcwAuACAASQAgAHAAbABhAHkAZQBkACAAYQAgAHYAaQB0AGEAbAAgAHIAbwBsAGUAIABpAG4AIAB0AGgAaQBzACAAcAByAG8AagBlAGMAdAAuACAASQAgAHcAYQBzACAAcgBlAHMAcABvAG4AcwBpAGIAbABlACAAZgBvAHIAIAB0AGgAZQAgAFEAdQBhAGwAaQB0AHkAIABBAHMAcwB1AHIAYQBuAGMAZQAsACAASABSACAATQBhAG4AYQBnAGUAbQBlAG4AdAAgAGEAbgBkACAAQwBSAE0AIABtAG8AZAB1AGwAZQBzAC4AIAANACAAIAAgAA0AIAAgACAANAAuACAAUAByAG8AagBlAGMAdAAgAE4AYQBtAGUAIAAgACAAOgAgACAAQwBsAGkAZQBuAHQAZABiACAAIAAgAA0AIAAgACAAIAAgACAAIAAgAFQAZQBhAG0AIABTAGkAegBlACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA6ACAAMQANACAAIAAgACAAIAAgACAAIABQAG8AcwBpAHQAaQBvAG4AIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIABEAGUAdgBlAGwAbwBwAGUAcgANAA0AIAAgACAAIAAgACAAIAAgAEUAbgB2AGkAcgBvAG4AbQBlAG4AdAAgACAAIAAgACAAIAAgACAAIAAgADoAIABIAHQAbQBsACAANAAuADAAIAAsACAAQwBzAHMAIAAyAC4AMQAgACwASgBxAHUAZQByAHkALAAgAFUAYgB1AG4AdAB1ACAAMQAxACAALAAgAEMAQQBLAEUAUABIAFAAIAAyAC4AMQAuADMALAAgAE0AWQBTAFEATAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADUALgAwACwAIABBAHAAYQBjAGgAZQAgADIALgAwACwAIABGAGkAbABlACAAdQBwAGwAbwBhAGQAZQByACAAcABsAHUAZwBpAG4ALAAgAE0AZQBtAGMAYQBjAGgAZQAuAA0AIAAgAA0AIAAgACAAIAAgACAAIAAgAEQAdQByAGEAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIAAxACAAVwBlAGUAawAuAA0ADQAgACAAIAAgACAAIAAgACAARABlAHMAYwByAGkAcAB0AGkAbwBuADoADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAASQB0ABkgcwAgAGEAbgAgAGEAcABwAGwAaQBjAGEAdABpAG8AbgAgAHcAaABlAHIAZQAgAGUAbQBwAGwAbwB5AGUAZQBzACAAYwBhAG4AIABzAGUAZQAgAHQAaABlACAAZABlAHQAYQBpAGwAcwAgAG8AZgAgAGMAbABpAGUAbgB0ACcAcwAgAHMAZQByAHYAZQByAHMALAAgACAAIAAgACAAdQBwAGQAYQB0AGUAcwAgACwAIABwAG8AbABpAGMAaQBlAHMAIABlAHQAYwAuACwAIABhAG4AZAAgAGEAbABzAG8AIABhAGQAZAAgAHQAaABlAG0ALgAgAA0ADQAgACAAIAAgACAANQAuACAAUAByAG8AagBlAGMAdAAgAE4AYQBtAGUAIAAgACAAOgAgACAATwByAGEAbgBnAGUAUwBrAHkAIAAgACAADQAgACAAIAAgACAAIAAgACAAVABlAGEAbQAgAFMAaQB6AGUAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIAAzAA0AIAAgACAAIAAgACAAIAAgAFAAbwBzAGkAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAOgAgAEQAZQB2AGUAbABvAHAAZQByAA0ADQAgACAAIAAgACAAIAAgACAARQBuAHYAaQByAG8AbgBtAGUAbgB0ACAAIAAgACAAIAAgACAAIAAgACAAOgAgAEgAdABtAGwAIAA0AC4AMAAgACwAIABDAHMAcwAgADIALgAxACAALABKAHEAdQBlAHIAeQAsACAAVQBiAHUAbgB0AHUAIAAxADAAIAAsACAAQwBBAEsARQBQAEgAUAAgADEALgAzACwAIABNAFkAUwBRAEwADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAA1AC4AMAAsACAAQQBwAGEAYwBoAGUAIAAyAC4AMAAuAA0AIAAgAA0AIAAgACAAIAAgACAAIAAgAEQAdQByAGEAdABpAG8AbgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgADoAIABNAGEAeQAgADIAMAAxADEALgANACAAIAAgACAAIAAgACAARABlAHMAYwByAGkAcAB0AGkAbwBuADoADQAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAASQB0ABkgcwAgAGEAIABwAG8AcgB0AGEAbAAgAHcAaABlAHIAZQAgAGEAZABtAGkAbgAgAGEAZABkAHMAIABoAGEAcgBkAHcAYQByAGUAcwAgAHMAdQBjAGgAIABhAHMAIABtAG8AdABoAGUAcgBiAG8AYQByAGQAcwAsACAAcgBhAG0AIABlAHQAYwAuACwAIABhAG4AZAAgAHQAaABlAGkAcgAgAHIAYQB0AGUAcwAuACAASABhAHIAZAB3AGEAcgBlAHMAIABjAG8AbQBlACAAYQBzACAAcABhAGMAawBhAGcAZQBzACAAcwB1AGMAaAAgAGEAcwAgAGUAYQBjAGgAIABtAG8AdABoAGUAcgBiAG8AYQByAGQAIAB3AGkAbABsACAAaABhAHYAZQAgAGkAdAAnAHMAIABvAHcAbgAgAHIAYQBtAHMALAAgAHQAaABpAHMAIABjAGgAYQBuAGcAZQBzACAAcwBoAG8AdQBsAGQAIABiAGUAIABoAGEAcABwAGUAbgBpAG4AZwAgAHcAaABlAG4AZQB2AGUAcgAgAHUAcwBlAHIAIABzAGUAbABlAGMAdABzACAAYQBuAHkAIABoAGEAcgBkAHcAYQByAGUALgAgAEYAaQBuAGEAbABsAHkAIABjAG8AbQBwAGwAZQB0AGUAIAByAGEAdABlACAAbwBmACAAdABoAGUAIABzAGUAbABlAGMAdABlAGQAIABoAGEAcgBkAHcAYQByAGUAcwAgAGgAYQB2AGUAIAB0AG8AIABiAGUAIABzAGgAbwB3AG4AIABhAG4AZAAgAGEAIABtAGEAaQBsACAAaABhAHMAIAB0AG8AIABiAGUAIABzAGUAbgB0ACAAYQBzACAAcABkAGYAIAB0AG8AIAB0AGgAZQAgAGMAdQBzAHQAbwBtAGUAcgAuAA0ADQBQAGUAcgBzAG8AbgBhAGwAIABEAGUAdABhAGkAbABzADoADQANAA0ATgBhAG0AZQAgACAAIAAgACAAIAAgACAACQAJAAkAOgAgACAAIAAgACAARwB1AHIAdQAgAFAAcgBhAHMAYQBkAC4ASwAuAFYADQBEAGEAdABlACAAbwBmACAAQgBpAHIAdABoAAkAIAAgACAACQAJADoAIAAgACAAIAAgADIANwAgACAATgBvAHYAZQBtAGIAZQByACAAMQA5ADgANwANAEcAZQBuAGQAZQByAAkAIAAgACAACQAJADoAIAAgACAAIAAgAE0AYQBsAGUALgANAE4AYQB0AGkAbwBuAGEAbABpAHQAeQAJAAkACQA6ACAAIAAgACAAIABJAE4ARABJAEEATgAuAA0ATQBhAHIAaQB0AGEAbAAgAFMAdABhAHQAdQBzAAkACQAJADoAIAAgACAAIAAgAFMAaQBuAGcAbABlAC4ADQBMAGEAbgBnAHUAYQBnAGUAcwAgAEsAbgBvAHcAbgAJAAkAOgAgACAAIAAgAEUAbgBnAGwAaQBzAGgALAAgAEgAaQBuAGQAaQAsACAASwBhAG4AbgBhAGQAYQAsACAAVABlAGwAdQBnAHUAIABhAG4AZAAgACAAIAAgACAAIAAgACAAIAAgACAACQAJAAkACQAJACAAIAAgACAAIAAgAFQAYQBtAGkAbAAuAA0AUABlAHIAbQBhAG4AZQBuAHQAIABBAGQAZAByAGUAcwBzAAkACQA6ACAAIAAgACAAIAAjADIANAAzAC8AMgA0ADQALAAgAEMALwBPACAATQB1AG4AaQBzAHcAYQBtAGEAcABwAGEALgBNACwADQAgACAAIAAgACAAIAAgAAkACQAJAAkAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABCAGUAaABpAG4AZAAgAEsAbwB0AGUAIABUAGUAbQBwAGwAZQAsACAASwAuAFIALgBQAHUAcgBhAG0ALAANACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAQgBhAG4AZwBhAGwAbwByAGUAIAAtADUANgAwADAAMwA2AA0ADQAJAAkACQAgACAAIAANAEQAZQBjAGwAYQByAGEAdABpAG8AbgA6AA0AIAAgAEkAIABoAGUAcgBlAGIAeQAgAGQAZQBjAGwAYQByAGUAIAB0AGgAYQB0ACAAdABoAGUAIABpAG4AZgBvAHIAbQBhAHQAaQBvAG4AIABwAHIAbwB2AGkAZABlAGQAIABhAGIAbwB2AGUAIABpAHMAIAB0AHIAdQBlACAAdABvACAAdABoAGUAIABiAGUAcwB0ACAAbwBmACAAbQB5ACAAawBuAG8AdwBsAGUAZABnAGUALgANAA0AIAAgAEQAYQB0AGUAOgAJAAkACQAJAAkACQAJACAAIAAgACAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFIAbwBvAHQAIABFAG4AdAByAHkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWAAUA//////////8BAAAABgkCAAAAAADAAAAAAAAARgAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAEACAAAAAAAAAQBDAG8AbQBwAE8AYgBqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIAAgACAAAABAAAAP////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAagAAAAAAAAABAE8AbABlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgACAP////8DAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAUAAAAAAAAADEAVABhAGIAbABlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAAIA////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAPEaAAAAAAAABQBTAHUAbQBtAGEAcgB5AEkAbgBmAG8AcgBtAGEAdABpAG8AbgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAgAFAAAABgAAAP////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAA+AAAAAAAAABXAG8AcgBkAEQAbwBjAHUAbQBlAG4AdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgACAP///////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIAAAAyZAAAAAAAAAUARABvAGMAdQBtAGUAbgB0AFMAdQBtAG0AYQByAHkASQBuAGYAbwByAG0AYQB0AGkAbwBuAAAAAAAAAAAAAAA4AAIA////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAEgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+////AAAAAAAAAAA='
+                       );*/
+    
+				   
+           
+        
+    
+     //$auth_url='http://192.168.0.116/HRManagement/users/candidate_edit_api.json?';
+	/*
+			  $auth_query = array(     
+						   'action' => 'view',
+						   'candidate_id' => '46'
+					   );*/
+	
+	
+    
+          //debug($auth_query);
+		$auth_query = http_build_query($auth_query, '', '&');
+		$ch = curl_init("$auth_url");
+		$agent = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)"; 
+		$ref = $_SERVER['PHP_SELF'];
+		/*curl_setopt($ch, CURLOPT_RETURNTRANSFER,1); 
+		curl_setopt($ch, CURLOPT_HEADER, 0);
+		curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);*/
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0); 
+		curl_setopt($ch, CURLOPT_NOPROGRESS, 1); 
+		curl_setopt($ch, CURLOPT_VERBOSE, 1); 
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION,0); 
+		curl_setopt($ch, CURLOPT_POST, 1); 
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $auth_query); 
+		curl_setopt($ch, CURLOPT_TIMEOUT, 120); 
+		curl_setopt($ch, CURLOPT_USERAGENT, $agent); 
+		curl_setopt($ch, CURLOPT_REFERER, $ref);
+		
+		$response = curl_exec($ch); 
+		debug($response);
+		echo $response;
+		curl_close ($ch);
+		$results = explode (",", $response);
+		exit;
+		//debug($results);
+		
+	}
+	
+	
+	function login_api(){
+		//configure::write('debug',2);
+		$user=$this->data['username'];
+		$pass=AuthComponent::password($this->data['password']);
+		$job_id=$this->data['job_id'];
+		$this->User->recursive = -1;
+		$user=$this->User->find('first',array('conditions'=>array('User.username'=>$user,'User.password'=>$pass,'User.active'=>'Y')));
+		$this->loadModel('CandidateJobdescriptionmapping');
+		if($user){
+			
+			$this->loadModel('Role');
+			$this->loadModel('Resume');
+			$this->loadModel('CandidateEducationDetail');
+			$this->loadModel('Certification');
+			$this->loadModel('CandidatePreviousDetail');
+			$this->loadModel('CandidatePreviousProject');
+			
+			
+			$this->Role->recursive = -1;
+			$role=$this->Role->find('first',array('conditions'=>array('Role.id'=>$user['User']['role_id'])));
+			$this->loadModel('Candidate');
+		 	$this->Candidate->recursive=-1;
+			$this->loadModel('CandidateJobdescriptionmapping');
+			$this->CandidateJobdescriptionmapping->recursive=-1;
+		 	$candidatess=$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>$user['User']['email'])));
+		 	$candidateid=$candidatess['Candidate']['id'];
+			
+			$candidate_jobs=$this->CandidateJobdescriptionmapping->find('all',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidateid)));
+			
+			$result['success']=1;
+			$result['user_id']=$user['User']['id'];
+			$result['candidate_id']=$candidateid;
+			if(!$candidatess['Candidate']['address_line1']){
+				$result['personal_details']='false';
+			}else{
+				$result['personal_details']='true';
+			}
+
+			if($candidatess['Candidate']['experience']=='0'){
+				$result['fresher']='true';
+			}else{
+				$result['fresher']='false';
+			}
+			
+			if($candidatess['Candidate']['type']=='I'){
+				$result['fresher']='intern';
+			}
+			
+			
+			if(!$candidate_jobs){
+				$result['applied_jobs']='false';
+			}else{
+				$result['applied_jobs']='true';
+			}
+			
+			/*
+			$file_rel_pathfor_candidate=parent::settings();
+						$for_path=$file_rel_pathfor_candidate.$candidatess['Candidate']['avatar'];
+						$image_for_candidate=file_get_contents($for_path);
+						$image1_base64=base64_encode($image_for_candidate);
+						
+						$this->Resume->recursive=-1;
+						$resume_val= $this->Resume->find('first',array('conditions'=>array('Resume.id'=>$candidatess['Candidate']['resume_id'])));
+						
+						$for_path_resumes=$file_rel_pathfor_candidate.$resume_val['Resume']['resume_path'];
+						$resume_for_candidate=file_get_contents($for_path_resumes);
+						$resume1_base64=base64_encode($resume_for_candidate);*/
+			
+			
+			
+			$this->CandidateEducationDetail->recursive=-1;
+			$candidate_educations=$this->CandidateEducationDetail->find('first',array('conditions'=>array('CandidateEducationDetail.candidate_id'=>$candidateid)));
+			
+			if($candidate_educations){
+				$result['education']='true';
+			}else{
+				$result['education']='false';
+			}
+			
+			$this->Certification->recursive=-1;
+			$candidate_certifications=$this->Certification->find('first',array('conditions'=>array('Certification.candidate_id'=>$candidateid)));
+			
+			if($candidate_certifications){
+				$result['certifications']='true';
+			}else{
+				$result['certifications']='false';
+			}
+			
+			
+			$this->CandidatePreviousDetail->recursive=-1;
+			$candidate_previous_companydetails_main=$this->CandidatePreviousDetail->find('first',array('conditions'=>array('CandidatePreviousDetail.candidate_id'=>$candidateid)));
+			
+			if($candidate_previous_companydetails_main){
+				$result['company']='true';
+			}else{
+				$result['company']='false';
+			}
+			
+			
+			/*
+			$candidate_previous_companydetails=null;
+			$this->CandidatePreviousProject->recursive=-1;
+			foreach($candidate_previous_companydetails_main as $k => $candidate_previous_companydetail){
+				$candidate_previous_projectdetails=$this->CandidatePreviousProject->find('all',array('conditions'=>array('CandidatePreviousProject.candidate_previous_detail_id'=>$candidate_previous_companydetail['CandidatePreviousDetail']['id'])));
+				$candidate_previous_companydetails[$k]=$candidate_previous_companydetail;
+				$candidate_previous_companydetails[$k]['CandidatePreviousProject']=$candidate_previous_projectdetails;
+			}*/
+			
+			
+			
+			
+			
+			// For To Apply job while login
+			
+			if($job_id){
+				$this->loadModel('Candidate');
+		 		$candidate=$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>$user['User']['email'])));
+		 		$candidateid=$candidate['Candidate']['id'];
+				
+				$this->loadModel('JobStatus');
+				$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));
+				
+				$already_applied=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.job_description_id'=>$job_id)));
+				if(!$already_applied){
+					$job_map->data=null;
+					$this->CandidateJobdescriptionmapping->create();
+					$job_map->data['CandidateJobdescriptionmapping']['job_description_id']=$job_id;
+					$job_map->data['CandidateJobdescriptionmapping']['candidate_id']=$candidateid;
+					$job_map->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+					$job_map->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+					$this->CandidateJobdescriptionmapping->save($job_map->data);
+				}else{
+					$result['message']='Already Applied';
+				}	
+			}
+			
+			
+			
+			/*
+			// For Jobs
+						
+						$candidate_jobs=$this->CandidateJobdescriptionmapping->find('all',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidateid)));
+						//debug($candidate_jobs);
+						$job=null; 
+						$i=0;
+						$this->loadModel('Company');
+						$this->Company->recursive=-1;
+						$this->loadModel('Brand');
+						$this->Brand->recursive=-1;
+						$val=null;
+						foreach($candidate_jobs as $candidate_job=>$value){
+							$i++;
+							$company=$this->Company->find('first',array('conditions'=>array('Company.id'=>$value['JobDescription']['company_id'])));
+							//debug($company);
+							$val[$i]['Job Title']=$value['JobDescription']['title'];
+							//debug($value['JobDescription']['company_id']);
+							$val[$i]['Company']=$company['Company']['company_name'];
+							$brand=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$value['JobDescription']['brand_id'])));
+							//debug($value['JobDescription']['brand_id']);
+							$val[$i]['Brand']=$brand['Brand']['brand_name'];
+							$val[$i]['JobStatus']=$value['JobStatus']['status'];
+							//debug($brand);
+							//debug($candidate_job);
+							
+							
+						};*/
+			
+			
+			
+			/*
+			$result['User']['id']=$user['User']['id'];
+						$result['User']['first_name']=$user['User']['first_name'];
+						$result['User']['last_name']=$user['User']['last_name'];
+						$result['User']['email']=$user['User']['email'];
+						$result['User']['role_id']=$user['User']['role_id'];
+						$result['User']['role_name']=$role['Role']['role_name'];
+						$result['User']['apikey']=$user['User']['apikey'];
+						$result['User']['candiadate_id']=$user['User']['candiadate_id'];
+						$result['User']['success']=1;
+						$result['Candidate']=$candidatess['Candidate'];
+						$result['Candidate']['base_64_value']=$image1_base64;
+						$result['Resume']=$resume_val['Resume'];
+						$result['Resume']['base_64_value']=$resume1_base64;
+						
+						$result['CandidateEducations']=$candidate_educations;
+						$result['Certifications']=$candidate_certifications;
+						$result['Company&Projects']=$candidate_previous_companydetails;
+						
+						
+						$result['Jobs']=$val;*/
+			
+			debug($result);
+			$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+		        
+		}else{
+			$result['success']=0;
+			$result['message']='Invalid username and password';
+			$this->set(array(
+			            'result' => $result,
+			            '_serialize' => array('result')
+			        ));
+		}		
+		
+	}
+
+	function forgotpassword_api(){
+		$user_name = $this->data['email'];
+		if(!$user_name){
+			$result['success']=0;	
+			$result['message']='fields cannt be blank';
+			$this->set(array(
+				'result' => $result,
+				'_serialize' => array('result')
+			));
+		}else{
+			$user=$this->User->find('first',array('conditions'=>array('User.email'=>$user_name),'fields'=>array('User.id','User.email')));
+			if($user){
+				$this->forgotpasswordMail($user);
+				$result['success']=1;	
+				$result['message']='Mail has been send';
+				$this->set(array(
+					'result' => $result,
+					'_serialize' => array('result')
+				));
+			}else{
+				$result['success']=0;	
+				$result['message']='Email is not matching';
+				$this->set(array(
+					'result' => $result,
+					'_serialize' => array('result')
+				));
+			}
+		}
+		
+		
+	}
+	
+
+	function login_job_apply_api(){
+				
+			//Configure::write('debug',2);	
+			$candidate_id=$this->data['candidate_id'];
+			$jd_id=$this->data['job_id'];
+			$this->loadModel('JobStatus');
+			$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));	
+			$this->loadModel('CandidateJobdescriptionmapping');
+			$already_applied=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.job_description_id'=>$jd_id,'CandidateJobdescriptionmapping.candidate_id'=>$candidate_id)));	
+			if(!$already_applied){
+				$job_map->data=null;
+				$this->CandidateJobdescriptionmapping->create();
+				$job_map->data['CandidateJobdescriptionmapping']['job_description_id']=$jd_id;
+				$job_map->data['CandidateJobdescriptionmapping']['candidate_id']=$candidate_id;
+				$job_map->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+				$job_map->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+				if($this->CandidateJobdescriptionmapping->save($job_map->data)){
+					$last=$this->CandidateJobdescriptionmapping->getLastInsertId();
+					$this->CandidateJobdescriptionmapping->cacheQueries=false;
+					$candidate_jobs=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.id'=>$last)));
+					//debug($candidate_jobs);
+					$job=null; 
+					$i=0;
+					$this->loadModel('Company');
+					$this->Company->recursive=-1;
+					$this->loadModel('Brand');
+					$this->Brand->recursive=-1;
+					$val=null;
+					$company=$this->Company->find('first',array('conditions'=>array('Company.id'=>$candidate_jobs['JobDescription']['company_id'])));
+					$val['JobTitle']=$candidate_jobs['JobDescription']['title'];
+					$val['Company']=$company['Company']['company_name'];
+					$brand=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$candidate_jobs['JobDescription']['brand_id'])));
+				    $val['Brand']=$brand['Brand']['brand_name'];
+					$val['JobStatus']=$candidate_jobs['JobStatus']['status'];
+						
+						
+					$result['success']=1;	
+					$result['message']='applied';
+					$result['job']=$val;
+					$this->set(array(
+						'result' => $result,
+						'_serialize' => array('result')
+					));
+					
+				}else{
+					$result['success']=0;	
+					$result['message']='Invalid';
+					$this->set(array(
+						'result' => $result,
+						'_serialize' => array('result')
+					));
+				}
+			}else{
+				$result['success']=0;	
+				$result['message']='Already Appied';
+				$this->set(array(
+					'result' => $result,
+					'_serialize' => array('result')
+				));
+			}
+			
+
+			
+	}	
+
+	function applied_jobs_api(){
+		//configure::write('debug',2);
+		if($this->data['action']=='view'){
+			$this->loadModel('CandidateJobdescriptionmapping');
+			$this->loadModel('InterviewSchedule');
+			//$candidateid=13;
+			//$this->InterviewSchedule->recursive=-1;
+			$candidateid=$this->data['candidate_id'];
+			$candidate_jobs=$this->CandidateJobdescriptionmapping->find('all',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidateid)));
+			//debug($candidate_jobs);
+			$job=null; 
+			$i=0;
+			$this->loadModel('Company');
+			$this->Company->recursive=-1;
+			$this->loadModel('Brand');
+			$this->Brand->recursive=-1;
+			$val=null;
+			foreach($candidate_jobs as $candidate_job=>$value){
+				$intervs=$this->InterviewSchedule->find('all',array('conditions'=>array('InterviewSchedule.candidate_jobdescriptionmapping_id'=>$value['CandidateJobdescriptionmapping']['id']),'fields'=>array('JobStatus.status','InterviewSchedule.completed')));	
+				//debug($intervs);
+				$i++;
+				$company=$this->Company->find('first',array('conditions'=>array('Company.id'=>$value['JobDescription']['company_id'])));
+				//debug($company);
+				$val[$i]['JobTitle']=$value['JobDescription']['title'];
+				//debug($value['JobDescription']['company_id']);
+				$val[$i]['Company']=$company['Company']['company_name'];
+				$brand=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$value['JobDescription']['brand_id'])));
+				//debug($value['JobDescription']['brand_id']);
+				$val[$i]['Brand']=$brand['Brand']['brand_name'];
+				$val[$i]['JobStatus']=$value['JobStatus']['status'];
+				if($intervs){
+					$p=0;	
+					$all_int=null;
+					foreach($intervs as $k=>$v){
+						$p++;
+						$all_int[$p][$v['JobStatus']['status']]=$v['InterviewSchedule']['completed'];
+					}
+					$val[$i]['recent_interviews']=$all_int;
+				}else{
+					$val[$i]['recent_interviews']=$intervs;
+				}
+				
+				//debug($brand);
+				//debug($candidate_job);
+			}
+			//debug($val);
+			$result['applied_jobs']=$val;
+			$this->set(array(
+				'result' => $result,
+				'_serialize' => array('result')
+			));
+		}else{
+			$result['message']='please try again';
+			$this->set(array(
+				'result' => $result,
+				'_serialize' => array('result')
+			));	
+		}
+		
+		
+		
+	}	
+	
+	
+	function candidate_edit_api() {
+		if($this->data['action']=='view'){
+			$this->loadModel('Candidate');
+			$this->loadModel('Resume');	
+			$this->Candidate->recursive=-1;
+			$can_name=$this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$this->data['candidate_id']))); 
+			$file_rel_pathfor_candidate=parent::settings();
+			//$for_path=$file_rel_pathfor_candidate.$can_name['Candidate']['avatar'];
+			//$image_for_candidate=file_get_contents($for_path);
+			//$image1_base64=base64_encode($image_for_candidate);
+			
+			$servr_name=$_SERVER['SERVER_NAME'];
+			$this->Resume->recursive=-1;
+			$resume_val= $this->Resume->find('first',array('conditions'=>array('Resume.id'=>$candidatess['Candidate']['resume_id'])));
+			
+			//$for_path_resumes=$file_rel_pathfor_candidate.$resume_val['Resume']['resume_path'];
+			//$resume_for_candidate=file_get_contents($for_path_resumes);
+			//$resume1_base64=base64_encode($resume_for_candidate);
+			$can_name['Candidate']['profile_pic_url']=$servr_name.$this->webroot.$can_name['Candidate']['avatar'];
+		    debug($can_name);
+		    // for testing which is calling 
+		    $candidatedetails=$can_name;
+			
+			//$candidatedetails['Candidate']['image_base64']=$image1_base64;
+			//$candidatedetails['Candidate']['resume_base64']=$resume1_base64;
+				$this->set(array(
+		            'candidatedetails' => $candidatedetails,
+		            '_serialize' => array('candidatedetails')
+		        ));	
+			
+			
+		
+
+		}elseif($this->data['action']=='edit'){
+	    	//configure::write('debug',2);	
+	    	$this->loadModel('Candidate');	
+			$this->loadModel('Resume');	
+			$this->Candidate->recursive=-1;
+	    	$can_name=$this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$this->data['candidate_id'])));   	
+			
+			$name=$this->data['first_name'].' '.$this->data['last_name'];
+			$today = date('Y-m-d');
+			$s = strtotime($today);
+			$file_name=$this->data['first_name']."_".$this->data['first_name']."_".$s;
+			
+			$file_rel_path=parent::settings();
+			
+			$candidatedetails['0']=$file_name;
+			if($this->data['base_64']){
+				
+				$image_name=$this->data['img_name'];   
+				$image_path1='/files/uploads/avatars/';
+				$image_path=$file_rel_path.$image_path1.$image_name;
+				$image=base64_decode($this->data['base_64']);
+				$path_for_save_db=$image_path1.$image_name;
+				$myfile = fopen($image_path, "w");
+			}
+			if($this->data['base_64_resume']){
+				
+			
+				$resume_name=$this->data['resume_name'];
+				$resume_path1='/files/uploads/resumeZipped/'.$file_name.$resume_name;
+				$resume_path=$file_rel_path.$resume_path1;
+				$myfile1 = fopen($resume_path, "w") or die("Unable to open file!");
+				$resume_content=base64_decode($this->data['base_64_resume']);
+				$resume_id=0;
+			}
+			if($resume_name){
+				if(fwrite($myfile1, $resume_content)){
+					fclose($myfile1);
+					$saveArray->data=null;
+					if(!$can_name['Candidate']['resume_id']){
+						$this->Resume->create();	
+					}else{
+						$saveArray->data['Resume']['id']=$can_name['Candidate']['resume_id'];
+					}
+					
+					$saveArray->data['Resume']['resume_username']=$file_name;
+					$saveArray->data['Resume']['resume_useremail']=$this->data['email_id'];
+					$saveArray->data['Resume']['resume_user_contact']=$this->data['phone_no'];
+					$saveArray->data['Resume']['resume_path']=$resume_path;
+					$saveArray->data['Resume']['verified']='Y';
+					if($this->Resume->save($saveArray->data)){
+						if(!$can_name['Candidate']['resume_id']){
+							$resume_id=$this->Resume->getLastInsertID();	
+						}else{
+							$resume_id=$can_name['Candidate']['resume_id'];	
+						}
+					}
+					
+				}
+			}
+			
+			if(!$resume_id){
+				$resume_id=$can_name['Candidate']['resume_id'];	
+			}
+			
+			if(fwrite($myfile, $image)){
+		    	fclose($myfile);
+			}
+			
+			/*
+			$candidatedetails="ok worked";
+																		  $this->set(array(
+							'candidatedetails' => $candidatedetails,
+							'_serialize' => array('candidatedetails')
+						));		*/
+			
+			
+			
+			$saveArray->data=null;
+			$saveArray->data['Candidate']['id']=$this->data['candidate_id'];
+			$saveArray->data['Candidate']['first_name']=$this->data['first_name'];
+			$saveArray->data['Candidate']['last_name']=$this->data['last_name'];
+			$saveArray->data['Candidate']['address_line1']=$this->data['address_line1'];
+			$saveArray->data['Candidate']['address_line2']=$this->data['address_line2'];
+			$saveArray->data['Candidate']['gender']=$this->data['gender'];
+			$saveArray->data['Candidate']['city']=$this->data['city'];
+			$saveArray->data['Candidate']['zip']=$this->data['zip'];
+			$saveArray->data['Candidate']['email']=$this->data['email_id'];
+			$saveArray->data['Candidate']['alt_email']=$this->data['alt_email_id'];
+			$saveArray->data['Candidate']['contact']=$this->data['phone_no'];
+			$saveArray->data['Candidate']['alt_contact']=$this->data['alt_phone_no'];
+			$saveArray->data['Candidate']['relevant_exp']=$this->data['relevant_exp'];
+			$saveArray->data['Candidate']['current_role']=$this->data['current_role'];
+			$saveArray->data['Candidate']['current_ctc']=$this->data['current_ctc'];
+			$saveArray->data['Candidate']['expected_ctc']=$this->data['expected_ctc'];
+			$saveArray->data['Candidate']['notice_period']=$this->data['notice_period'];
+			$saveArray->data['Candidate']['reason_for_change']=$this->data['reason_for_change'];
+			$saveArray->data['Candidate']['resume_id']=$resume_id;
+			$saveArray->data['Candidate']['avatar']=$path_for_save_db;
+			if($this->Candidate->save($saveArray->data)){
+				$this->loadModel('User');
+				$user_one=null;
+				$user_one['User']['id']=$this->data['user_id'];
+				$user_one['User']['email']=trim($this->data['email_id']);	
+				$user_one['User']['username']=$this->data['email_id'];	
+				if($this->User->save($user_one)){
+					$email_to=trim($this->data['email_id']);
+					
+						App::uses('CakeEmail', 'Network/Email');
+						$Email = new CakeEmail();
+						$Email->template('profile')
+								->emailFormat('html')
+								->to($email_to)
+								//->cc('venugopal@carmatec.com')
+								->from('admin@carmatec.com')
+								->subject('Profile')
+								->viewVars(array('name'=>$name))
+								->send();
+						$candidatedetails="Saved.";
+						$this->set(array(
+							'candidatedetails' => $candidatedetails,
+							'_serialize' => array('candidatedetails')
+						));		
+				
+				}else{
+					$candidatedetails="user_not saved.";
+					$this->set(array(
+						'candidatedetails' => $candidatedetails,
+						'_serialize' => array('candidatedetails')
+					));		
+				}
+			}else{
+				$candidatedetails="candidate not saved.";
+				$this->set(array(
+					'candidatedetails' => $candidatedetails,
+					'_serialize' => array('candidatedetails')
+				));		
+			}
+			
+						
+						
+						
+			
+		}else{
+	    	$candidatedetails="Please try again.";
+			$this->set(array(
+	            'candidatedetails' => $candidatedetails,
+	            '_serialize' => array('candidatedetails')
+	        ));	
+	    }
+	}
+	
+	function profile_pic_api() {
+		if($this->data['action']=='profile'){
+			$this->loadModel('Candidate');
+			$this->Candidate->recursive=-1;
+			$can_name=$this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$this->data['candidate_id']))); 
+			$file_rel_pathfor_candidate=parent::settings();
+			$for_path=$file_rel_pathfor_candidate.$can_name['Candidate']['avatar'];
+			$image_for_candidate=file_get_contents($for_path);
+			$image1_base64=base64_encode($image_for_candidate);
+			
+			$candidatedetails['Candidate']['image_base64']=$image1_base64;
+			$this->set(array(
+		           'candidatedetails' => $candidatedetails,
+		            '_serialize' => array('candidatedetails')
+		        ));
+		}else{
+	    	$candidatedetails="Please try again.";
+			$this->set(array(
+	            'candidatedetails' => $candidatedetails,
+	            '_serialize' => array('candidatedetails')
+	        ));	
+	    }
+	}
+	
+	function check_post_skills(){
+		Configure::write('debug',2);
+		
+		//$auth_url='http://192.168.0.116/HRManagement/users/jobs_by_skills_api.json?';
+		$auth_url='http://careers.carmatec.com/users/jobs_by_skills_api.json?';
+		/*
+		$auth_query = array(
+				'candidate_id'=>'13',
+				'job_id' => '3'
+				);*/
+		
+		$array_skills=array('1'=>'r','2'=>'l','3'=>'css','4'=>'jquery');
+		
+        $auth_query = array(    
+        			'action' => 'view', 
+                    'skills' => $array_skills
+                );
+        
+        //debug($auth_query);
+		$auth_query = http_build_query($auth_query, '', '&');
+		$ch = curl_init("$auth_url");
+		$agent = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)"; 
+		$ref = $_SERVER['PHP_SELF'];
+		/*curl_setopt($ch, CURLOPT_RETURNTRANSFER,1); 
+		curl_setopt($ch, CURLOPT_HEADER, 0);
+		curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);*/
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0); 
+		curl_setopt($ch, CURLOPT_NOPROGRESS, 1); 
+		curl_setopt($ch, CURLOPT_VERBOSE, 1); 
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION,0); 
+		curl_setopt($ch, CURLOPT_POST, 1); 
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $auth_query); 
+		curl_setopt($ch, CURLOPT_TIMEOUT, 120); 
+		curl_setopt($ch, CURLOPT_USERAGENT, $agent); 
+		curl_setopt($ch, CURLOPT_REFERER, $ref);
+		
+		$response = curl_exec($ch); 
+		debug($response);
+		echo $response;
+		curl_close ($ch);
+		$results = explode (",", $response);
+		exit;
+		//debug($results);
+		
+	}
+	
+	function jobs_by_skills_api() {
+		//configure::write('debug',2);
+		if($this->data['action']=='view'){
+			$this->loadModel('SkillMaster');
+			$this->loadModel('JobdescriptionSkillmapping');
+			$this->loadModel('Company');
+			$all_skill_ids=$skill_ids=null;
+			foreach($this->data['skills'] as $k=>$v){
+				$skill_ids =$this->SkillMaster->find('list',array('conditions'=>array('SkillMaster.skill_type LIKE'=>$v.'%'),'fields'=>array('SkillMaster.id','SkillMaster.id')));
+				if($skill_ids){
+					if(!$all_skill_ids){
+						$all_skill_ids=	$skill_ids;
+					}else{
+						$all_skill_ids = $all_skill_ids + $skill_ids;
+					}
+				}
+			}
+			$skill_set=$this->SkillMaster->find('list',array('fields'=>array('SkillMaster.id','SkillMaster.skill_type')));
+			$this->JobdescriptionSkillmapping->recursive=-1;
+			$this->JobdescriptionSkillmapping->Behaviors->attach('Containable');
+			$jobs=$this->JobdescriptionSkillmapping->find('all',array('contain'=>array('JobDescription'),'conditions'=>array('JobdescriptionSkillmapping.job_description_id'=>$all_skill_ids)));
+			//debug($jobs);
+			$job_description=null;
+			$this->Company->recursive=-1;
+			foreach($jobs as $job_key=>$job_val){
+				$cmpny=null;	
+				$cmpny=$this->Company->find('first',array('conditions'=>array('Company.id'=>$job_val['JobDescription']['company_id'])));
+				$job_description[$job_val['JobDescription']['id']]['job_id']=$job_val['JobDescription']['id'];
+				$job_description[$job_val['JobDescription']['id']]['job_title']=$job_val['JobDescription']['title'];
+				$job_description[$job_val['JobDescription']['id']]['job_description']=$job_val['JobInvite']['invite_description'];
+				$job_description[$job_val['JobDescription']['id']]['job_startdate']=$job_val['JobDescription']['start_date'];
+				$job_description[$job_val['JobDescription']['id']]['job_end_date']=$job_val['JobDescription']['end_date'];
+				$job_description[$job_val['JobDescription']['id']]['experience']=$job_val['JobDescription']['experience'];
+				$job_description[$job_val['JobDescription']['id']]['company']=$cmpny['Company']['company_name'];
+				$job_description[$job_val['JobDescription']['id']]['job_status']=$job_val['JobDescription']['active'];
+				$skillcount=0;
+				foreach($job_val['JobdescriptionSkillmapping'] as $skill1=>$skill2){
+					//debug($skill2);
+					$job_description[$job_val['JobDescription']['id']]['skill'][++$skillcount]=$skill_set[$skill2['skill_master_id']];
+				}
+			}
+			
+			$candidatedetails=$job_description;
+			if(!$job_description)$candidatedetails='No results found';
+			$this->set(array(
+	            'candidatedetails' => $candidatedetails,
+	            '_serialize' => array('candidatedetails')
+	        ));				
+		}else{
+	    	$candidatedetails="Please try again.";
+			$this->set(array(
+	            'candidatedetails' => $candidatedetails,
+	            '_serialize' => array('candidatedetails')
+	        ));	
+	    }
+	}
+	
+	
+	
+	function register_user_api(){
+			//configure::write('debug',2);	
+			if($this->data['email']){
+				$this->loadmodel('Role');
+				$this->loadmodel('Candidate');
+				$validate_email=null;
+				$validate_email=$this->User->find('first',array('conditions'=>array('User.email'=>$this->data['email'])));
+				debug($validate_email);
+				if(!$validate_email){
+					$role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'Candidate'),'fields'=>array('Role.id')));
+					$role_id=$role['Role']['id'];
+					$password=substr(str_shuffle(md5(time())),0,8);
+					$key=substr(str_shuffle(md5(time())),0,8);
+					
+					$candidate_add=null;
+					$this->Candidate->create();	
+					$candidate_add['Candidate']['first_name'] = $this->data['first_name'];
+					$candidate_add['Candidate']['last_name'] = $this->data['last_name'];
+					$candidate_add['Candidate']['email'] = $this->data['email'];
+					if($this->data['role']=='N'){
+						$candidate_add['Candidate']['experience'] = 0;
+						$candidate_add['Candidate']['type'] = 'F';
+					}elseif($this->data['role']=='I'){
+						$candidate_add['Candidate']['experience'] = 0;
+						$candidate_add['Candidate']['type'] = 'I';
+					}else{
+						$candidate_add['Candidate']['experience'] = $this->data['experience'];
+						$candidate_add['Candidate']['type'] = 'E';
+					}
+					//$experience=($this->data['role']=='N')?0:$this->data['experience'];
+					$candidate_add['Candidate']['experience'] = $experience;
+					if($this->Candidate->save($candidate_add)){
+						$last=$this->Candidate->getLastInsertId();
+						$save->data=null;
+						$this->User->create();	
+						$save->data['User']['first_name']=$this->data['first_name'];
+						$save->data['User']['last_name']=$this->data['last_name'];
+						$save->data['User']['email']=$this->data['email'];
+						$save->data['User']['username']=$this->data['email'];
+						$save->data['User']['password']=$password;
+						$save->data['User']['active']='Y';
+						$save->data['User']['role_id']=$role_id;
+						$save->data['User']['api_key']=$key;
+						$save->data['User']['candiadate_id']=$last;
+						if($this->User->save($save->data)){
+							debug('candidate saved');	
+							$username=$this->data['email'];
+							$name=$this->data['first_name'].' '.$this->data['last_name'];
+							$email_to=$this->data['email'];
+							App::uses('CakeEmail', 'Network/Email');
+							$Email = new CakeEmail();
+							$Email->template('registerd_mail')
+								    ->emailFormat('html')
+								    ->to($email_to)
+									//->cc('venugopal@carmatec.com')
+								    ->from('admin@carmatec.com')
+								    ->subject('Welcome')
+								    ->viewVars(array('name'=>$name,'username'=>$username,'password'=>$password))
+								    ->send();
+							$candidatedetails="You have registerd successfuly. Please check your mail for login details.";
+							$this->set(array(
+					            'candidatedetails' => $candidatedetails,
+					            '_serialize' => array('candidatedetails')
+					        ));
+						}else{
+							debug('Usrs not added');
+							$this->Candidate->id = $last;
+							if($this->Candidate->delete()){
+								$candidatedetails="Registration failed. Please try again.";
+								$this->set(array(
+						            'candidatedetails' => $candidatedetails,
+						            '_serialize' => array('candidatedetails')
+						        ));
+							}else{
+								debug('candidate not deleted');
+								$candidatedetails="Registration failed. Please try again.";
+								$this->set(array(
+						            'candidatedetails' => $candidatedetails,
+						            '_serialize' => array('candidatedetails')
+						        ));
+							}
+						}
+					}else{
+						debug('Cnadidate not added');
+						$candidatedetails="Registration failed. Please try again.";
+						$this->set(array(
+				            'candidatedetails' => $candidatedetails,
+				            '_serialize' => array('candidatedetails')
+				        ));
+					}
+				}else{
+					debug('alreay registerd');
+					$candidatedetails="You are already registerd. Please login";
+					$this->set(array(
+			            'candidatedetails' => $candidatedetails,
+			            '_serialize' => array('candidatedetails')
+			        ));
+				}
+			}else{
+				debug('not enterd');
+				
+				$candidatedetails="Registration failed. Please try again.";
+				$this->set(array(
+		            'candidatedetails' => $candidatedetails,
+		            '_serialize' => array('candidatedetails')
+		        ));
+			}
+	}
+	
+	function education_api(){
+		$this->loadmodel('CandidateEducationDetail');
+		if($this->data['action']=='view'){
+			$this->CandidateEducationDetail->recursive=-1;	
+			$edu_value=$this->CandidateEducationDetail->find('all',array('conditions'=>array('CandidateEducationDetail.candidate_id'=>$this->data['candidate_id'])));
+			$result=$edu_value;	
+			$this->set(array(
+	            'result' => $result,
+	            '_serialize' => array('result')
+	        ));
+		}elseif($this->data['action']=='add'){
+			$edu->data=null;
+			$this->CandidateEducationDetail->create();
+			$edu->data['CandidateEducationDetail']['graduation']=$this->data['basic_graduation'];
+			$edu->data['CandidateEducationDetail']['specialization']=$this->data['specialization'];
+			$edu->data['CandidateEducationDetail']['institute']=$this->data['university'];
+			$edu->data['CandidateEducationDetail']['score']=$this->data['score'];
+			$edu->data['CandidateEducationDetail']['year']=$this->data['year'];
+			$edu->data['CandidateEducationDetail']['updated_on']=date('Y-m-d H:i:s');
+			$edu->data['CandidateEducationDetail']['candidate_id']=$this->data['candidate_id'];
+			if($this->CandidateEducationDetail->save($edu->data)){
+				$last_insertedvalue=$this->CandidateEducationDetail->getLastInsertId();	
+				$this->CandidateEducationDetail->recursive=-1;
+				$edu_value=$this->CandidateEducationDetail->find('first',array('conditions'=>array('CandidateEducationDetail.id'=>$last_insertedvalue)));
+				$result['success']="Record has been saved";
+				$result['CandidateEducationDetail']=$edu_value['CandidateEducationDetail'];
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="Record is not saved";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}elseif($this->data['action']=='edit'){
+			$edu->data=null;
+			$edu->data['CandidateEducationDetail']['id']=$this->data['education_id'];
+			$edu->data['CandidateEducationDetail']['graduation']=$this->data['basic_graduation'];
+			$edu->data['CandidateEducationDetail']['specialization']=$this->data['specialization'];
+			$edu->data['CandidateEducationDetail']['institute']=$this->data['university'];
+			$edu->data['CandidateEducationDetail']['score']=$this->data['score'];
+			$edu->data['CandidateEducationDetail']['year']=$this->data['year'];
+			$edu->data['CandidateEducationDetail']['updated_on']=date('Y-m-d H:i:s');
+			$edu->data['CandidateEducationDetail']['candidate_id']=$this->data['candidate_id'];
+			if($this->CandidateEducationDetail->save($edu->data)){
+				$this->CandidateEducationDetail->recursive=-1;	
+				$edu_value=$this->CandidateEducationDetail->find('first',array('conditions'=>array('CandidateEducationDetail.id'=>$this->data['education_id'])));
+				$result['success']="Record has been updated";
+				$result['CandidateEducationDetail']=$edu_value['CandidateEducationDetail'];	
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="Record not updated";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}elseif($this->data['action']=='delete'){
+			$this->CandidateEducationDetail->id = $this->data['education_id'];
+			if ($this->CandidateEducationDetail->delete()) {
+				$result="record has been removed";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="record not deleted";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}else{
+			$result="Invalid Action";
+			$this->set(array(
+	            'result' => $result,
+	            '_serialize' => array('result')
+	        ));
+		}
+	}
+	
+	
+	function certification_api(){
+		$this->loadmodel('Certification');
+		if($this->data['action']=='view'){
+			$this->Certification->recursive=-1;
+			$edu_value=$this->Certification->find('all',array('conditions'=>array('Certification.candidate_id'=>$this->data['candidate_id'])));
+			$result=$edu_value;	
+			$this->set(array(
+	            'result' => $result,
+	            '_serialize' => array('result')
+	        ));
+		}elseif($this->data['action']=='add'){
+			$cert->data=null;
+			$this->Certification->create();
+			$cert->data['Certification']['certification']=$this->data['certificate_name'];
+			$cert->data['Certification']['issued_by']=$this->data['issuing_organization'];
+			$cert->data['Certification']['issued_date']=$this->data['issue_date'];
+			$cert->data['Certification']['issued_upto']=$this->data['issued_upto'];
+			$cert->data['Certification']['candidate_id']=$this->data['candidate_id'];
+			if($this->Certification->save($cert->data)){
+				$last_insertedvalue=$this->Certification->getLastInsertId();	
+				$this->Certification->recursive=-1;
+				$edu_value=$this->Certification->find('first',array('conditions'=>array('Certification.id'=>$last_insertedvalue)));
+				$result['success']="Record has been saved";
+				$result['Certification']=$edu_value['Certification'];
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="Record is not saved";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}elseif($this->data['action']=='edit'){
+			$cert->data=null;
+			$cert->data['Certification']['id']=$this->data['certificate_id'];
+			$cert->data['Certification']['certification']=$this->data['certificate_name'];
+			$cert->data['Certification']['issued_by']=$this->data['issuing_organization'];
+			$cert->data['Certification']['issued_date']=$this->data['issue_date'];
+			$cert->data['Certification']['issued_upto']=$this->data['issued_upto'];
+			$cert->data['Certification']['candidate_id']=$this->data['candidate_id'];
+			if($this->Certification->save($cert->data)){
+				$this->Certification->recursive=-1;	
+				$edu_value=$this->Certification->find('first',array('conditions'=>array('Certification.id'=>$this->data['certificate_id'])));
+				$result['success']="Record has been updated";
+				$result['Certification']=$edu_value['Certification'];	
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="Record not updated";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}elseif($this->data['action']=='delete'){
+			$this->Certification->id = $this->data['certificate_id'];
+			if ($this->Certification->delete()) {
+				$result="record has been removed";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="record not deleted";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}else{
+			$result="Invalid Action";
+			$this->set(array(
+	            'result' => $result,
+	            '_serialize' => array('result')
+	        ));
+		}
+	}
+
+		
+	function experience_api(){
+		$this->loadmodel('CandidatePreviousDetail');
+		if($this->data['action']=='view'){
+			$this->CandidatePreviousDetail->recursive=-1;
+			$edu_value=$this->CandidatePreviousDetail->find('all',array('conditions'=>array('CandidatePreviousDetail.candidate_id'=>$this->data['candidate_id'])));
+			$result=$edu_value;	
+			$this->set(array(
+	            'result' => $result,
+	            '_serialize' => array('result')
+	        ));
+		}elseif($this->data['action']=='add'){
+			$com->data=null;
+			$this->CandidatePreviousDetail->create();
+			$com->data['CandidatePreviousDetail']['company_name']=$this->data['company_name'];
+			$com->data['CandidatePreviousDetail']['from']=$this->data['start_date'];
+			$com->data['CandidatePreviousDetail']['to']=$this->data['end_date'];
+			$com->data['CandidatePreviousDetail']['role']=$this->data['role'];
+			$com->data['CandidatePreviousDetail']['functioning']=$this->data['role_description'];
+			$com->data['CandidatePreviousDetail']['last_salary_drawn']=$this->data['last_salary'];
+			$com->data['CandidatePreviousDetail']['candidate_id']=$this->data['candidate_id'];
+			$com->data['CandidatePreviousDetail']['updated_on']=date('Y-m-d H:i:s');
+			if($this->CandidatePreviousDetail->save($com->data)){
+				$last_insertedvalue=$this->CandidatePreviousDetail->getLastInsertId();	
+				$this->CandidatePreviousDetail->recursive=-1;
+				$edu_value=$this->CandidatePreviousDetail->find('first',array('conditions'=>array('CandidatePreviousDetail.id'=>$last_insertedvalue)));
+				$result['success']="Record has been saved";
+				$result['CandidatePreviousDetail']=$edu_value['CandidatePreviousDetail'];
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="Record is not saved";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}elseif($this->data['action']=='edit'){
+			$com->data=null;
+			$com->data['CandidatePreviousDetail']['id']=$this->data['company_id'];
+			$com->data['CandidatePreviousDetail']['company_name']=$this->data['company_name'];
+			$com->data['CandidatePreviousDetail']['from']=$this->data['start_date'];
+			$com->data['CandidatePreviousDetail']['to']=$this->data['end_date'];
+			$com->data['CandidatePreviousDetail']['role']=$this->data['role'];
+			$com->data['CandidatePreviousDetail']['functioning']=$this->data['role_description'];
+			$com->data['CandidatePreviousDetail']['last_salary_drawn']=$this->data['last_salary'];
+			$com->data['CandidatePreviousDetail']['candidate_id']=$this->data['candidate_id'];
+			$com->data['CandidatePreviousDetail']['updated_on']=date('Y-m-d H:i:s');
+			if($this->CandidatePreviousDetail->save($com->data)){
+				$this->CandidatePreviousDetail->recursive=-1;	
+				$edu_value=$this->CandidatePreviousDetail->find('first',array('conditions'=>array('CandidatePreviousDetail.id'=>$this->data['company_id'])));
+				$result['success']="Record has been updated";
+				$result['CandidatePreviousDetail']=$edu_value['CandidatePreviousDetail'];	
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="Record not updated";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}elseif($this->data['action']=='delete'){
+			$this->CandidatePreviousDetail->id = $this->data['company_id'];
+			if ($this->CandidatePreviousDetail->delete()) {
+				$result="record has been removed";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="record not deleted";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}else{
+			$result="Invalid Action";
+			$this->set(array(
+	            'result' => $result,
+	            '_serialize' => array('result')
+	        ));
+		}
+	}
+
+	function project_api(){
+		$this->loadmodel('CandidatePreviousProject');
+		$this->loadmodel('CandidatePreviousDetail');
+		if($this->data['action']=='view'){
+			$this->CandidatePreviousProject->recursive=-1;
+			$all_company_ids=$this->CandidatePreviousDetail->find('list',array('conditions'=>array('CandidatePreviousDetail.candidate_id'=>$this->data['candidate_id']),'fields'=>array('CandidatePreviousDetail.id','CandidatePreviousDetail.id')));
+			$all_companiess=$this->CandidatePreviousDetail->find('list',array('conditions'=>array('CandidatePreviousDetail.candidate_id'=>$this->data['candidate_id']),'fields'=>array('CandidatePreviousDetail.id','CandidatePreviousDetail.company_name')));
+			$all_companies=null;
+			$j=0;
+			foreach($all_companiess as $k=>$v){
+				$j++;
+				$all_companies[$j]['id']=$k;
+				$all_companies[$j]['company_name']=$v;
+			}
+			$this->CandidatePreviousProject->Behaviors->attach('Containable');
+			$edu_value=$this->CandidatePreviousProject->find('all',array('contain'=>array('CandidatePreviousDetail.company_name'),'conditions'=>array('CandidatePreviousProject.candidate_previous_detail_id'=>$all_company_ids)));
+			$result['all_projects']=$edu_value;	
+			$result['all_companies']=$all_companies;
+			$this->set(array(
+	            'result' => $result,
+	            '_serialize' => array('result')
+	        ));
+		}elseif($this->data['action']=='add'){
+			$proj->data=null;
+			$this->CandidatePreviousProject->create();
+			$proj->data['CandidatePreviousProject']['project_title']=$this->data['project_title'];
+			$proj->data['CandidatePreviousProject']['start_date']=$this->data['project_start_date'];
+			$proj->data['CandidatePreviousProject']['end_date']=$this->data['project_end_date'];
+			$proj->data['CandidatePreviousProject']['description']=$this->data['project_description'];
+			$proj->data['CandidatePreviousProject']['role']=$this->data['project_role_description'];
+			$proj->data['CandidatePreviousProject']['candidate_previous_detail_id']=$this->data['company_id'];
+			$proj->data['CandidatePreviousProject']['size']=$this->data['project_size'];
+			if($this->CandidatePreviousProject->save($proj->data)){
+				$last_insertedvalue=$this->CandidatePreviousProject->getLastInsertId();	
+				$this->CandidatePreviousProject->recursive=-1;
+				$edu_value=$this->CandidatePreviousProject->find('first',array('conditions'=>array('CandidatePreviousProject.id'=>$last_insertedvalue)));
+				$result['success']="Record has been saved";
+				$result['CandidatePreviousProject']=$edu_value['CandidatePreviousProject'];
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="Record is not saved";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}elseif($this->data['action']=='edit'){
+			$proj->data=null;
+			$proj->data['CandidatePreviousProject']['id']=$this->data['project_id'];
+			$proj->data['CandidatePreviousProject']['project_title']=$this->data['project_title'];
+			$proj->data['CandidatePreviousProject']['start_date']=$this->data['project_start_date'];
+			$proj->data['CandidatePreviousProject']['end_date']=$this->data['project_end_date'];
+			$proj->data['CandidatePreviousProject']['description']=$this->data['project_description'];
+			$proj->data['CandidatePreviousProject']['role']=$this->data['project_role_description'];
+			$proj->data['CandidatePreviousProject']['candidate_previous_detail_id']=$this->data['company_id'];
+			$proj->data['CandidatePreviousProject']['size']=$this->data['project_size'];
+			if($this->CandidatePreviousProject->save($proj->data)){
+				$this->CandidatePreviousProject->recursive=-1;	
+				$edu_value=$this->CandidatePreviousProject->find('first',array('conditions'=>array('CandidatePreviousProject.id'=>$this->data['project_id'])));
+				$result['success']="Record has been updated";
+				$result['CandidatePreviousProject']=$edu_value['CandidatePreviousProject'];	
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="Record not updated";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}elseif($this->data['action']=='delete'){
+			$this->CandidatePreviousProject->id = $this->data['project_id'];
+			if ($this->CandidatePreviousProject->delete()) {
+				$result="record has been removed";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}else{
+				$result="record not deleted";
+				$this->set(array(
+		            'result' => $result,
+		            '_serialize' => array('result')
+		        ));
+			}
+		}else{
+			$result="Invalid Action";
+			$this->set(array(
+	            'result' => $result,
+	            '_serialize' => array('result')
+	        ));
+		}
+	}
+	
+	function education_lists_api(){
+		$education_types['degree']=array("1" =>"Not Pursuing Graduation",
+		 "2" =>"B.A",
+		 "3" =>"B.Arch",
+		 "4" =>"BCA",
+		 "5" =>"B.B.A",
+		 "6" =>"B.Com",
+		 "7" =>"B.Ed",
+		 "8" =>"BDS",
+		 "9" =>"BHM",
+		 "10" =>"B.Pharma",
+		 "11" =>"B.Sc",
+		 "12" =>"B.Tech/B.E.",
+		 "13" =>"LLB",
+		 "14" =>"MBBS",
+		 "15" =>"Diploma",
+		 "16" =>"BVSC");	
+		 
+		 $education_types['master_degree']=array("1" =>"CA",
+		 "2" =>"CS",
+		 "3" =>"ICWA (CMA)",
+		 "4" =>"Integrated PG",
+		 "5" =>"LLM",
+		 "6" =>"M.A",
+		 "7" =>"M.Arch",
+		 "8" =>"M.Com",
+		 "9" =>"M.Ed",
+		 "10" =>"M.Pharma",
+		 "11" =>"M.Sc",
+		 "12" =>"M.Tech",
+		 "13" =>"MBA/PGDM",
+		 "14" =>"MCA",
+		 "15" =>"MS",
+		 "16" =>"PG Diploma",
+		 "17" =>"MVSC",
+		 "18" =>"MCM");
+		
+		$education_types['doctorate']=array("1" =>"Ph.D/Doctorate",
+		 "2" =>"MPHIL");
+		 
+			
+		$result=$education_types;
+		$this->set(array(
+            'result' => $result,
+            '_serialize' => array('result')
+        ));
+		
+			
+			
+		
+	}
+	
+	function logout(){
+		$this->Session->destroy('Auth');
+		$this->Session->delete('Auth');
+		$this->redirect($this->Auth->logout());
+	}
+	
+	function forgotpassword(){
+		$this->layout = 'registration_layout';
+		$this->User->recursive=-1;
+		$user=$this->User->find('first',array('conditions'=>array('User.email'=>trim($this->data['Forgotpassword']['username']))));
+		
+		if(!empty($this->data)){
+			if(!trim($this->data['Forgotpassword']['username'])){
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Please enter the mail id.</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+				return;
+			}
+			if($user){
+				$snt_mail=$this->forgotpasswordMail($user);
+				if($snt_mail){
+					$this->Session->setFlash('<h4>Success Message : </h4><p>Password reset link is sent successfully. Please check your mail for further details.</p>','default',array('class' => 'flashmessagebox flashsuccess hrwidthimp')); 
+				}else{
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Some thing went wrong. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+				}
+				$this->redirect(array('controller'=>'users','action' => 'login'));
+			}else{
+				 $this->Session->setFlash('<h4>Warning Message : </h4><p>Email is incorrect.</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+			}
+		}
+	}
+	
+	public function forgotpasswordMail($user){
+		$id=$user['User']['id'];
+		$for_send=$id.'-FOrTest!@#$%^&**&^%$#@!';
+		$encrypt_key = base64_encode($for_send);
+		$this->set(compact('user','from','encrypt_key'));
+		$this->Email->to = trim($user['User']['email']);
+		//$this->Email->cc = 'venugopal@carmatec.com';
+		$this->Email->subject = 'Carmatec careers Password Reset Confirmation';
+		$this->Email->replyTo = 'admin@visioncarma.com';
+	    $this->Email->from = 'VisionCarma <admin@visioncarma.com>';
+	    $this->Email->template = 'forgotpassword_mail';
+	    $this->Email->sendAs = 'html';
+		if($this->Email->send()){
+			return 1;
+		}else{
+			return 0;
+		}
+		
+	}
+	
+	
+	public function password_edit($decrypt_key = null){
+		//configure::write('debug',2);
+		$this->layout = 'registration_layout';
+		// Later decrypt it.
+		$for_explode = base64_decode($decrypt_key);
+		$for_id=explode('-', $for_explode);
+		$id=$for_id[0];
+		//debug($id);
+		if($id){
+			if(!empty($this->data)){
+				if($this->data['password_edit']['Password']==$this->data['password_edit']['confirm_password']){
+					$user_ok=$this->User->find('first',array('conditions'=>array('User.id'=>$id)));
+					if($user_ok){
+						$password=$this->data['password_edit']['Password'];
+				   		$saveArray->data=null;
+				   		$saveArray->data['User']['id']=$id;
+				   		$saveArray->data['User']['password']=$password;
+				   		if($this->User->save($saveArray->data)){
+				   			$this->Session->setFlash('<h4>Success Message : </h4><p>New Password have been saved..</span>','default',array('class' => 'flashmessagebox flashsuccess hrwidthimp')); 
+							$this->redirect(array('controller'=>'users','action' => 'login'));
+				   		}
+					}else{
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>User is not exists.</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+					}	
+					
+				}else{
+					//$this->Session->setFlash(__('Sorry Password is not matching'));
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Sorry Password is not matching</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+				}
+			}
+				
+		}
+		
+	}
+
+	public function email_already_exits(){
+	
+		$email_enterd = $this->params->query['email'];
+		
+		$this->autoRender = false;	
+		$this->User->recursive=-1;
+		$id=$this->Session->read('Auth.User.id');
+		if($id){
+			$val =$this->User->find('first',array('conditions'=>array('User.id !='=>$id,'User.email'=>$email_enterd),'fields'=>array('User.email')));
+		}else{
+			$val =$this->User->find('first',array('conditions'=>array('User.email'=>$email_enterd),'fields'=>array('User.email')));
+		}
+		
+		if($val){
+ 			echo "true";	
+		}else{
+			echo "false";	
+		}
+	}
+
+	public function user_already_exits(){
+	
+		$username_enterd = $this->params->query['user'];
+		
+		$this->autoRender = false;	
+		$this->User->recursive=-1;
+		$val =$this->User->find('first',array('conditions'=>array('User.username'=>$username_enterd),'fields'=>array('User.email')));
+		if($val){
+ 			echo "true";	
+		}else{
+			echo "false";	
+		}
+	}
+	
+	public function password_already_exits(){
+		$this->autoRender = false;
+		$password_enterd = AuthComponent::password($this->params->query['old_password']);
+		$id=$this->Session->read('Auth.User.id');
+		$this->User->recursive=-1;
+		$val =$this->User->find('first',array('conditions'=>array('User.id'=>$id,'User.password'=>$password_enterd),'fields'=>array('User.password')));
+		if($val){
+ 			echo "true";	
+		}else{
+			echo "false";	
+		}
+	}
+	
+	public function career_login(){
+		$this->layout=FALSE;
+		configure::write('debug',2);
+		debug($this->data);
+		echo $this->data;
+	}
+	
+	public function change_password(){
+		if($this->data){
+			$id=$this->Session->read('Auth.User.id');
+			$this->User->recursive=-1;
+			$save_data=null;
+			$save_data['User']['id']=$id;
+			$save_data['User']['password']=$this->data['ChangePassword']['new_password'];
+			if($this->User->save($save_data)){
+	   			$this->Session->setFlash('<h4>Success Message : </h4><p>New Password have been saved..</span>','default',array('class' => 'flashmessagebox flashsuccess hrwidthimp')); 
+				$this->redirect(array('controller'=>'candidates','action' => 'profile_view'));
+	   		}else{
+	   			$this->Session->setFlash('<h4>Warning Message : </h4><p>Something went wrong. Please try again</p>','default',array('class' => 'flashmessagebox flashwarning hrwidthimp'));
+				$this->redirect(array('controller'=>'candidates','action' => 'profile_view'));
+	   		}
+		}
+	}
+	
+		
+}

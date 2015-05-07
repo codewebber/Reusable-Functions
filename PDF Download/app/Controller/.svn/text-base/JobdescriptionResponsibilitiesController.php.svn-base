@@ -1,0 +1,111 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * JobdescriptionResponsibilities Controller
+ *
+ * @property JobdescriptionResponsibility $JobdescriptionResponsibility
+ * @property PaginatorComponent $Paginator
+ * @property SessionComponent $Session
+ */
+class JobdescriptionResponsibilitiesController extends AppController {
+
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('Paginator', 'Session');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->JobdescriptionResponsibility->recursive = 0;
+		$this->set('jobdescriptionResponsibilities', $this->Paginator->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		if (!$this->JobdescriptionResponsibility->exists($id)) {
+			throw new NotFoundException(__('Invalid jobdescription responsibility'));
+		}
+		$options = array('conditions' => array('JobdescriptionResponsibility.' . $this->JobdescriptionResponsibility->primaryKey => $id));
+		$this->set('jobdescriptionResponsibility', $this->JobdescriptionResponsibility->find('first', $options));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->JobdescriptionResponsibility->create();
+			if ($this->JobdescriptionResponsibility->save($this->request->data)) {
+				$this->Session->setFlash(__('The jobdescription responsibility has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The jobdescription responsibility could not be saved. Please, try again.'));
+			}
+		}
+		$users = $this->JobdescriptionResponsibility->User->find('list');
+		$jobDescriptions = $this->JobdescriptionResponsibility->JobDescription->find('list');
+		$this->set(compact('users', 'jobDescriptions'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		if (!$this->JobdescriptionResponsibility->exists($id)) {
+			throw new NotFoundException(__('Invalid jobdescription responsibility'));
+		}
+		if ($this->request->is(array('post', 'put'))) {
+			if ($this->JobdescriptionResponsibility->save($this->request->data)) {
+				$this->Session->setFlash(__('The jobdescription responsibility has been saved.'));
+				return $this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The jobdescription responsibility could not be saved. Please, try again.'));
+			}
+		} else {
+			$options = array('conditions' => array('JobdescriptionResponsibility.' . $this->JobdescriptionResponsibility->primaryKey => $id));
+			$this->request->data = $this->JobdescriptionResponsibility->find('first', $options);
+		}
+		$users = $this->JobdescriptionResponsibility->User->find('list');
+		$jobDescriptions = $this->JobdescriptionResponsibility->JobDescription->find('list');
+		$this->set(compact('users', 'jobDescriptions'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		$this->JobdescriptionResponsibility->id = $id;
+		if (!$this->JobdescriptionResponsibility->exists()) {
+			throw new NotFoundException(__('Invalid jobdescription responsibility'));
+		}
+		$this->request->allowMethod('post', 'delete');
+		if ($this->JobdescriptionResponsibility->delete()) {
+			$this->Session->setFlash(__('The jobdescription responsibility has been deleted.'));
+		} else {
+			$this->Session->setFlash(__('The jobdescription responsibility could not be deleted. Please, try again.'));
+		}
+		return $this->redirect(array('action' => 'index'));
+	}
+}

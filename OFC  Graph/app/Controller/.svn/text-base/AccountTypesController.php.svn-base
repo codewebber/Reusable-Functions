@@ -1,0 +1,162 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * AccountTypes Controller
+ *
+ * @property AccountType $AccountType
+ */
+class AccountTypesController extends AppController {
+
+	public function beforeFilter(){
+		parent::beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Account Types';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+    }
+
+/**
+ * index method
+ *
+ * @return void
+ */
+ 
+ 
+	public function index() {
+		if(!$accountTypes = Cache::read('accountTypes')){
+			$this->AccountType->recursive = 0;
+			$this->set('accountTypes', $this->paginate());
+			Cache::write('accountTypes', $accountTypes, 86400);
+		}
+		if(!empty($this->data)){
+			$this->loadModel('AccountsGoldenrule');
+			$accountTypes = $this->AccountType->find('all',array('conditions'=>array('OR'=>array('AccountsGoldenrule.type_name LIKE '=>'%'.$this->data['Search']['accounttype'].'%','AccountType.id LIKE'=>'%'.$this->data['Search']['accounttype'].'%','AccountType.type_name LIKE'=>'%'.$this->data['Search']['accounttype'].'%'/*,'AccountType.description LIKE'=>'%'.$this->data['Search']['accounttype'].'%'*/))));
+			$this->set('accountTypes',$accountTypes);
+		}
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->AccountType->recursive = 0;
+		$this->AccountType->id = $id;
+		if (!$this->AccountType->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageSuccess">Invalid account type</div>'));
+		}
+		$this->set('accountType', $this->AccountType->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() 
+	{
+		if ($this->request->is('post')) 
+		{
+			if(strlen($this->data['AccountType']['type_name'])>50){
+				$this->Session->setFlash(__('<div class="flashMessageError">The account type name is too large. Please, try again.</div>'));
+				return;
+			}
+			$this->AccountType->create();
+			if ($this->AccountType->save($this->request->data)) 
+			{
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The account type has been saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			} 
+			else 
+			{
+				$this->Session->setFlash(__('<div class="flashMessageError">The account type could not be saved. Please, try again.</div>'));
+			}
+		}
+		$accountsGoldenrules = $this->AccountType->AccountsGoldenrule->find('list',array('fields'=>'AccountsGoldenrule.type_name'));
+		$this->set(compact('accountsGoldenrules'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$accountType = $this->AccountType->findById($id);
+		$this->set(compact('accountType'));
+		$this->AccountType->id = $id;
+		if (!$this->AccountType->exists()) {
+			throw new NotFoundException(__('Invalid account type'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			
+			if(strlen($this->data['AccountType']['type_name'])>50){
+				$this->Session->setFlash(__('<div class="flashMessageError">The account type name is too large. Please, try again.</div>'));
+				return;
+			}
+			
+			if ($this->AccountType->save($this->request->data)) {
+				$this->Session->setFlash(__('<div class="flashMessageSuccess">The account type has been saved</div>'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The account type could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->AccountType->read(null, $id);
+		}
+		
+		$accountsGoldenrules = $this->AccountType->AccountsGoldenrule->find('list',array('fields'=>'AccountsGoldenrule.type_name'));
+		$this->set(compact('accountsGoldenrules'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		
+		/*if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}*/
+		$this->AccountType->id = $id;
+		if (!$this->AccountType->exists()) {
+			throw new NotFoundException(__('<div class="flashMessageError">Invalid account type</font>'));
+		}
+		$protected = $this->AccountType->findById($id);
+		if($protected['AccountType']['protected'] == 'Yes'){
+			$this->Session->setFlash(__('<div class="flashMessageError">Account type is protected, cannot be deleted!</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		elseif ($this->AccountType->delete()) {
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Account type has been deleted</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		//$this->Session->setFlash(__('Account type was not deleted'));
+		//$this->redirect(array('action' => 'index'));
+	}
+}

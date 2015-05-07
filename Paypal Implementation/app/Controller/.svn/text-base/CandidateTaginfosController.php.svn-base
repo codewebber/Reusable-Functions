@@ -1,0 +1,105 @@
+<?php
+App::uses('AppController', 'Controller');
+CakePlugin::load('Tags');
+CakePlugin::loadAll();
+/**
+ * CandidateTaginfos Controller
+ *
+ * @property CandidateTaginfo $CandidateTaginfo
+ */
+class CandidateTaginfosController extends AppController {
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->CandidateTaginfo->recursive = 0;
+		$this->set('candidateTaginfos', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->CandidateTaginfo->id = $id;
+		if (!$this->CandidateTaginfo->exists()) {
+			throw new NotFoundException(__('Invalid candidate taginfo'));
+		}
+		$this->set('candidateTaginfo', $this->CandidateTaginfo->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->CandidateTaginfo->create();
+			if ($this->CandidateTaginfo->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate taginfo has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate taginfo could not be saved. Please, try again.'));
+			}
+		}
+		$candidates = $this->CandidateTaginfo->Candidate->find('list');
+		$this->set(compact('candidates'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->CandidateTaginfo->id = $id;
+		if (!$this->CandidateTaginfo->exists()) {
+			throw new NotFoundException(__('Invalid candidate taginfo'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->CandidateTaginfo->save($this->request->data)) {
+				$this->Session->setFlash(__('The candidate taginfo has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The candidate taginfo could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->CandidateTaginfo->read(null, $id);
+		}
+		$candidates = $this->CandidateTaginfo->Candidate->find('list');
+		$this->set(compact('candidates'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->CandidateTaginfo->id = $id;
+		if (!$this->CandidateTaginfo->exists()) {
+			throw new NotFoundException(__('Invalid candidate taginfo'));
+		}
+		if ($this->CandidateTaginfo->delete()) {
+			$this->Session->setFlash(__('Candidate taginfo deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Candidate taginfo was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

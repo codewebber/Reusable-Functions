@@ -1,0 +1,107 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * QuestionJobdescriptions Controller
+ *
+ * @property QuestionJobdescription $QuestionJobdescription
+ */
+class QuestionJobdescriptionsController extends AppController {
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->QuestionJobdescription->recursive = 0;
+		$this->set('questionJobdescriptions', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->QuestionJobdescription->id = $id;
+		if (!$this->QuestionJobdescription->exists()) {
+			throw new NotFoundException(__('Invalid question jobdescription'));
+		}
+		$this->set('questionJobdescription', $this->QuestionJobdescription->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->QuestionJobdescription->create();
+			if ($this->QuestionJobdescription->save($this->request->data)) {
+				$this->Session->setFlash(__('The question jobdescription has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The question jobdescription could not be saved. Please, try again.'));
+			}
+		}
+		$jobDescriptions = $this->QuestionJobdescription->JobDescription->find('list');
+		$roles = $this->QuestionJobdescription->Role->find('list');
+		$feedbackQuestions = $this->QuestionJobdescription->FeedbackQuestion->find('list');
+		$this->set(compact('jobDescriptions', 'roles', 'feedbackQuestions'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->QuestionJobdescription->id = $id;
+		if (!$this->QuestionJobdescription->exists()) {
+			throw new NotFoundException(__('Invalid question jobdescription'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->QuestionJobdescription->save($this->request->data)) {
+				$this->Session->setFlash(__('The question jobdescription has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The question jobdescription could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->QuestionJobdescription->read(null, $id);
+		}
+		$jobDescriptions = $this->QuestionJobdescription->JobDescription->find('list');
+		$roles = $this->QuestionJobdescription->Role->find('list');
+		$feedbackQuestions = $this->QuestionJobdescription->FeedbackQuestion->find('list');
+		$this->set(compact('jobDescriptions', 'roles', 'feedbackQuestions'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->QuestionJobdescription->id = $id;
+		if (!$this->QuestionJobdescription->exists()) {
+			throw new NotFoundException(__('Invalid question jobdescription'));
+		}
+		if ($this->QuestionJobdescription->delete()) {
+			$this->Session->setFlash(__('Question jobdescription deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Question jobdescription was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

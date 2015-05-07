@@ -1,0 +1,27 @@
+To Call API
+
+
+1: In controller add the bellow code and customize as required.
+
+	function call_api(){
+		$auth_url='http://path.json?';
+		$auth_query='parameters'; // If any parameters need to pass.
+		$auth_query = http_build_query($auth_query, '', '&'); // removing the space
+		$ch = curl_init("$auth_url");
+		$agent = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)"; 
+		$ref = $_SERVER['PHP_SELF'];
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0); 
+		curl_setopt($ch, CURLOPT_NOPROGRESS, 1); 
+		curl_setopt($ch, CURLOPT_VERBOSE, 1); 
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION,0); 
+		curl_setopt($ch, CURLOPT_POST, 1); 
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $auth_query); 
+		curl_setopt($ch, CURLOPT_TIMEOUT, 120); 
+		curl_setopt($ch, CURLOPT_USERAGENT, $agent); 
+		curl_setopt($ch, CURLOPT_REFERER, $ref);
+		
+		$response = curl_exec($ch); // for execute the api call. return values will get in $response.
+							
+		curl_close ($ch); // Closing
+		
+	}

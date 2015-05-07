@@ -1,0 +1,569 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * BillingUnits Controller
+ *
+ * @property BillingUnit $BillingUnit
+ */
+class BillingUnitsController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	var $helpers = array('Html', 'Form','Ajax', 'Js','Javascript');
+	
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('Email', 'RequestHandler','Session');
+	
+	function beforeFilter() {
+		parent :: beforeFilter();
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+		
+		//Currency Setting For Services Module To default_billing_currency
+		$this->loadModel('Currency');
+		$currency=$this->Currency->find('first',array('conditions'=>array('Currency.default_billing_currency'=>'Y')));
+		$symbol=$currency['Currency']['symbol'];
+		$currency_name = $currency['Currency']['name'];
+		if($currency_name == 'USD') {
+			$cn = 'en_US';
+		}
+		elseif($currency_name == 'INR') {
+			$cn = 'en_IN';
+		}
+		elseif($currency_name == 'EUR') {
+			$cn = 'en_EUR';
+		}
+		setlocale(LC_MONETARY, $cn);
+		$this->params['currency']=$symbol;
+		//Currency Settings Ends Here
+		
+		$url = $this->params['action'];
+		$controller = $this->params['controller'];
+			$module_name = 'Billing Units';
+			$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>$module_name)));
+			$aros_acosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+			$this->Session->write('Auth1.User.Permission',$aros_acosDetails);
+			if($aros_acosDetails['ArosAco']['_create'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_read'] == 1){
+	    		$proceed=1;
+		    }
+		    if($aros_acosDetails['ArosAco']['_update'] == 1){
+	    		$proceed=1;
+	    	}
+		    if($aros_acosDetails['ArosAco']['_delete'] == 1){
+		    	$proceed=1;
+	    	}	    
+	    
+	    if(!$proceed){
+	    	$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+	    }
+
+	}
+		
+/**
+ * index method
+ *
+ * @return void
+ */
+		
+	public function index($strStatus=null) {
+	    // Configure::write('debug',2);
+		/*debug($this->data);*/
+		$this->loadModel('Brand');
+		$this->loadModel('StaffLevel');
+		$this->BillingUnit->recursive = 0;
+		//$this->data['Search']['billingunit'] = null;
+		$this->paginate['order'] =array('BillingUnit.name'=>'ASC');
+		//$plimit = $this->paginate['limit'];
+		//$this->set(compact('plimit'));
+		/*if(($this->data['Search']['billingunit']) && ($this->data['Search']['billingunit'] != "-Search-"))
+		{	
+			if(!$billingUnits = Cache::read('billingUnits'))
+			{				
+				//$billingUnits = $this->BillingUnit->find('all');
+				$this->paginate = array('conditions'=>array('AND'=>array('BillingUnit.name LIKE'=>'%'.$this->data['Search']['billingunit'].'%')));
+				$this->set('billingUnits', $this->paginate());
+				Cache::write('billingUnits', $billingUnits, 86400);
+			}
+		}*/
+		//debug(Cache::read('billingUnits'));
+		$page=$this->params['named']['page'];
+		$this->set(compact('page'));
+		if ($strStatus == 'inactiveunit') {
+			$this->paginate = array('conditions'=>array('AND'=>array('BillingUnit.active' => 'N')));
+		}
+		else {
+		$this->paginate = array('conditions'=>array('AND'=>array('BillingUnit.active' => 'Y')));
+		}
+		
+		if ($this->data['Search']['search_by'] == "Name")
+		{
+			if(!$billingUnits = Cache::read('billingUnits'))
+			{				
+				$this->set('billingUnits',  $this->paginate(array('BillingUnit.name LIKE'=>$this->data['Search']['billingunit'].'%')));
+				Cache::write('billingUnits', $billingUnits, 86400);
+			}
+		}
+		elseif ($this->data['Search']['search_by'] == "Brand")
+		{
+			if(!$billingUnits = Cache::read('billingUnits'))
+			{	
+				$finding_brand   = $this->Brand->find('first',array('conditions'=>array('AND'=>array('Brand.brandname LIKE'=>$this->data['Search']['billingunit']))));			
+				$this->paginate  = array('conditions'=>array('BillingUnit.brand_id'=>$finding_brand['Brand']['id']));
+				$final_brand     = $this->paginate;
+				foreach($final_brand as $key => $val)
+				{
+					foreach($val as $val1)
+					{						
+						$resBrand[$val1['brand_id']] = $this->BillingUnit->find('all',array('conditions'=>array('BillingUnit.brand_id'=>$val1['brand_id'])));					
+					}
+				}				
+				$this->set('billingUnits', $this->paginate());
+				Cache::write('billingUnits', $billingUnits, 86400);
+			}
+		}
+		elseif ($this->data['Search']['search_by'] == "StaffLevel")
+		{
+			$stafflevel_search=$this->StaffLevel->find('first',array('conditions'=>array('StaffLevel.staff_level'=>$this->data['Search']['billingunit'])));
+			debug($stafflevel_search);
+			$this->paginate  = array('conditions'=>array('BillingUnit.staff_level_id'=>$stafflevel_search['StaffLevel']['id']));
+				$final_brand     = $this->paginate;
+				foreach($final_brand as $key => $val)
+				{
+					foreach($val as $val1)
+					{						
+						$resBrand[$val1['brand_id']] = $this->BillingUnit->find('all',array('conditions'=>array('BillingUnit.brand_id'=>$val1['brand_id'])));					
+					}
+				}				
+				$this->set('billingUnits', $this->paginate());
+				Cache::write('billingUnits', $billingUnits, 86400);
+		}
+		
+		
+		else
+		{
+			debug('ABC');
+			if(!$billingUnits = Cache::read('billingUnits'))
+			{	
+				$billingUnits = $this->paginate();
+				$this->set('billingUnits', $this->paginate());				
+				Cache::write('billingUnits', $billingUnits, 86400);				
+			}
+		}
+		$this->set(compact('strStatus'));
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->BillingUnit->recursive = 0;
+		$this->BillingUnit->id = $id;
+		$this->set(compact('id'));
+		if (!$this->BillingUnit->exists()) {
+			throw new NotFoundException(__('Invalid billing unit'));
+		}
+		$this->set('billingUnit', $this->BillingUnit->read(null, $id));
+	}
+
+/**
+ * add method
+
+
+ *
+ * @return void
+ */
+ 
+ 
+ 
+ 
+ 	public function add_popup($edit = null,$serviceid = null)
+ 	{
+ 	//	Configure::write('debug',2);	
+ 		debug($this->data);	
+ 		$this->loadModel('Brand');
+		$this->loadModel('StaffLevel');
+		$this->loadModel('BillingSlot');
+		
+		if($this->data)
+		{
+			if( ($this->data['BillingUnit']['unitname'] && $this->data['BillingUnit']['stafflevel']) && ( ($this->data['BillingUnit']['brand'] && $this->data['BillingUnit']['billingslot']) && ($this->data['BillingUnit']['rate']) )  )
+			{
+				if ($this->request->is('post')) 
+				{
+					//save
+					$this->BillingUnit->create();
+					$save->data = null;
+					$save->data['BillingUnit']['name']            = $this->data['BillingUnit']['unitname'];
+					$save->data['BillingUnit']['staff_level_id']  = $this->data['BillingUnit']['stafflevel'];
+					$save->data['BillingUnit']['description']     = $this->data['BillingUnit']['description'];
+					$save->data['BillingUnit']['date']            = date('Y-m-d',strtotime($this->data['BillingUnit']['created']));
+					$save->data['BillingUnit']['brand_id']        = $this->data['BillingUnit']['brand'];
+					$save->data['BillingUnit']['billing_slot_id'] = $this->data['BillingUnit']['billingslot'];			
+					$save->data['BillingUnit']['amount']          = $this->data['BillingUnit']['rate'];
+					//debug($save->data);exit;
+					if ($this->BillingUnit->save($save->data)) 
+					{
+						$this->Session->setFlash(__('<div class="flashMessageSuccess">The billing unit has been saved</div>'));
+						if($edit == 0)
+						$this->redirect(array('controller'=>'brands_services','action' => 'add',1));
+						if($edit == 1)
+						$this->redirect(array('controller'=>'brands_services','action' => 'edit',$serviceid,1));
+					} 
+				}
+			}
+			
+			else
+			{
+				//error + list
+				if(!$this->data['BillingUnit']['unitname'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the unit name in the Add New Unit popup</div>'));
+					if($edit == 0)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'add',1));
+					}
+					if($edit == 1)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'edit',$serviceid,1));
+					}
+				}
+				elseif(!$this->data['BillingUnit']['stafflevel'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any one staff level in the Add New Unit popup </div>'));
+					if($edit == 0)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'add',1));
+					}
+					if($edit == 1)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'edit',$serviceid,1));
+					}
+				}
+				
+				elseif(!$this->data['BillingUnit']['brand'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any one brand in the Add New Unit popup</div>'));
+					if($edit == 0)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'add',1));
+					}
+					if($edit == 1)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'edit',$serviceid,1));
+					}
+				}
+				
+				elseif(!$this->data['BillingUnit']['billingslot'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please select any one billing slot in the Add New Unit popup</div>'));
+					if($edit == 0)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'add',1));
+					}
+					if($edit == 1)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'edit',$serviceid,1));
+					}
+				}
+				
+				elseif(!$this->data['BillingUnit']['rate'])
+				{	
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the rate in the Add New Unit popup</div>'));
+					if($edit == 0)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'add',1));
+					}
+					if($edit == 1)
+					{
+						$this->redirect(array('controller'=>'brands_services','action' => 'edit',$serviceid,1));
+					}
+				}
+				
+				$brands =  $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+				$stafflevels =  $this->StaffLevel->find('list', array('fields' => array('StaffLevel.id','StaffLevel.staff_level'),'conditions'=>array('StaffLevel.active'=>'Y')));
+				$billingslots =  $this->BillingSlot->find('list', array('fields' => array('BillingSlot.id','BillingSlot.slot_name')));
+				$this->set(compact('brands', 'stafflevels', 'billingslots'));
+			}
+			
+		}
+		
+		else
+		{
+			//list
+			$brands =  $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+			$stafflevels =  $this->StaffLevel->find('list', array('fields' => array('StaffLevel.id','StaffLevel.staff_level'),'conditions'=>array('StaffLevel.active'=>'Y')));
+			$billingslots =  $this->BillingSlot->find('list', array('fields' => array('BillingSlot.id','BillingSlot.slot_name')));
+			$this->set(compact('brands', 'stafflevels', 'billingslots'));
+		}
+ 	}
+ 
+ 	public function add_popupold($edit = null,$serviceid = null)
+ 	{
+ 	//	Configure::write('debug',2);	
+ 		debug($this->data);	
+		$this->loadModel('Brand');
+		$this->loadModel('StaffLevel');
+		$this->loadModel('BillingSlot');
+		//$currencies = $this->BillingUnit->Currency->find('list');
+		$brands =  $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+		$stafflevels =  $this->StaffLevel->find('list', array('fields' => array('StaffLevel.id','StaffLevel.staff_level'),'conditions'=>array('StaffLevel.active'=>'Y')));
+		$billingslots =  $this->BillingSlot->find('list', array('fields' => array('BillingSlot.id','BillingSlot.slot_name')));
+		
+		$createdt = $this->data['BillingUnit']['created'];
+		$date1=explode('-',$createdt);
+		debug($date1);
+		if($date1[1] == "Jan") $month = "01";
+		if($date1[1] == "Feb") $month = "02";
+		if($date1[1] == "Mar") $month = "03";
+		if($date1[1] == "Apr") $month = "04";
+		if($date1[1] == "May") $month = "05";
+		if($date1[1] == "Jun") $month = "06";
+		if($date1[1] == "Jul") $month = "07";
+		if($date1[1] == "Aug") $month = "08";
+		if($date1[1] == "Sep") $month = "09";
+		if($date1[1] == "Oct") $month = "10";
+		if($date1[1] == "Nov") $month = "11";
+		if($date1[1] == "Dec") $month = "12";
+		$created = $date1[2].'-'.$month.'-'.$date1[0];
+		debug($created);
+		
+		
+		
+		if ($this->request->is('post')) 
+		{
+			$this->BillingUnit->create();
+			$save->data = null;
+			$save->data['BillingUnit']['name']            = $this->data['BillingUnit']['unitname'];
+			$save->data['BillingUnit']['staff_level_id']  = $this->data['BillingUnit']['stafflevel'];
+			$save->data['BillingUnit']['description']     = $this->data['BillingUnit']['description'];
+			$save->data['BillingUnit']['date']            = $created;
+			$save->data['BillingUnit']['brand_id']        = $this->data['BillingUnit']['brand'];
+			$save->data['BillingUnit']['billing_slot_id'] = $this->data['BillingUnit']['billingslot'];			
+			$save->data['BillingUnit']['amount']          = $this->data['BillingUnit']['rate'];
+			//debug($save->data);exit;
+			if ($this->BillingUnit->save($save->data)) 
+			{
+				$this->Session->setFlash(__('The billing unit has been saved'));
+				if($edit == 0)
+				$this->redirect(array('controller'=>'brands_services','action' => 'add',1));
+				if($edit == 1)
+				$this->redirect(array('controller'=>'brands_services','action' => 'edit',$serviceid,1));
+			} 
+			else {
+				$this->Session->setFlash(__('The billing unit could not be saved. Please, try again.'));
+			}
+		}
+		
+		$this->set(compact('brands', 'stafflevels', 'billingslots'));
+ 		
+ 	}
+	public function add() {
+		
+		//Configure::write('debug',2);		
+		$this->loadModel('Brand');
+		$this->loadModel('StaffLevel');
+		$this->loadModel('BillingSlot');
+		//$currencies = $this->BillingUnit->Currency->find('list');
+		$brands =  $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+		$stafflevels =  $this->StaffLevel->find('list', array('fields' => array('StaffLevel.id','StaffLevel.staff_level'),'conditions'=>array('StaffLevel.active'=>'Y')));
+		$billingslots =  $this->BillingSlot->find('list', array('fields' => array('BillingSlot.id','BillingSlot.slot_name')));
+		
+			if ($this->request->is('post')) {
+				
+				if($this->data['BillingUnit']['unitname'] && $this->data['BillingUnit']['brand'] && $this->data['BillingUnit']['rate'] )
+				{
+					if(is_numeric($this->data['BillingUnit']['rate'])){
+						$this->BillingUnit->create();
+						$save->data = null;
+						$save->data['BillingUnit']['name']            = $this->data['BillingUnit']['unitname'];
+						$save->data['BillingUnit']['staff_level_id']  = $this->data['BillingUnit']['stafflevel'];
+						$save->data['BillingUnit']['description']     = $this->data['BillingUnit']['description'];
+						$save->data['BillingUnit']['date']            = $this->data['BillingUnit']['created'];
+						$save->data['BillingUnit']['brand_id']        = $this->data['BillingUnit']['brand'];
+						$save->data['BillingUnit']['billing_slot_id'] = $this->data['BillingUnit']['billingslot'];			
+						$save->data['BillingUnit']['amount']          = $this->data['BillingUnit']['rate'];
+						//debug($save->data);exit;
+						if ($this->BillingUnit->save($save->data)) {						
+							$this->Session->setFlash(__('<div class="flashMessageSuccess">The billing unit has been saved</div>'));
+							$this->redirect(array('action' => 'index'));
+						} else {
+							$this->Session->setFlash(__('<div class="flashMessageError">The billing unit could not be saved. Please, try again.</div>'));
+						}
+				}
+				else {
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the valid rate</div>'));
+				}
+					
+			}
+		else
+		 {
+			if(!$this->data['BillingUnit']['unitname'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please enter the unit name</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['stafflevel'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select staff level</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['description'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please enter the Description</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['created'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select the Date</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['brand'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select Brand</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['billingslot'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select Billing Slot</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['rate'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please enter the valid rate</div>'));
+			}
+			
+		}
+	}
+		$this->set(compact('brands', 'stafflevels', 'billingslots'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		
+		$this->loadModel('Brand');
+		$this->loadModel('StaffLevel');
+		$this->loadModel('BillingSlot');
+		//$currencies = $this->BillingUnit->Currency->find('list');
+		$brands =  $this->Brand->find('list', array('fields' => array('Brand.id','Brand.brandname')));
+		$stafflevels =  $this->StaffLevel->find('list', array('fields' => array('StaffLevel.id','StaffLevel.staff_level'),'conditions'=>array('StaffLevel.active'=>'Y')));
+		$billingslots =  $this->BillingSlot->find('list', array('fields' => array('BillingSlot.id','BillingSlot.slot_name')));
+		
+		$this->BillingUnit->id = $id;
+		
+		$billUnitArr = $this->BillingUnit->find('first',array('conditions'=>array('BillingUnit.id'=>$id)));
+		
+		$unitname        = $billUnitArr['BillingUnit']['name'];
+		$stafflevel      = $billUnitArr['BillingUnit']['staff_level_id'];			
+		$created         = $billUnitArr['BillingUnit']['date'];
+		$brand           = $billUnitArr['BillingUnit']['brand_id'];
+		$billingslot     = $billUnitArr['BillingUnit']['billing_slot_id'];
+		$rate            = $billUnitArr['BillingUnit']['amount'];
+		
+		$this->set(compact('unitname','stafflevel','created','brand','billingslot','rate'));
+		
+		if (!$this->BillingUnit->exists()) {
+			throw new NotFoundException(__('Invalid billing unit'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if($this->data['BillingUnit']['unitname'] && $this->data['BillingUnit']['stafflevel'] && $this->data['BillingUnit']['description']
+		&& $this->data['BillingUnit']['created'] && $this->data['BillingUnit']['brand'] && $this->data['BillingUnit']['billingslot'] && $this->data['BillingUnit']['rate'])
+		{
+			if(is_numeric($this->data['BillingUnit']['rate'])){
+				$save->data= null;
+				$save->data['BillingUnit']['name']            = $this->data['BillingUnit']['unitname'];
+				$save->data['BillingUnit']['staff_level_id']  = $this->data['BillingUnit']['stafflevel'];
+				$save->data['BillingUnit']['active']          = $this->data['BillingUnit']['active'];
+				$save->data['BillingUnit']['description']     = $this->data['BillingUnit']['description'];
+				$save->data['BillingUnit']['date']            = $this->data['BillingUnit']['created'];
+				$save->data['BillingUnit']['brand_id']        = $this->data['BillingUnit']['brand'];
+				$save->data['BillingUnit']['billing_slot_id'] = $this->data['BillingUnit']['billingslot'];
+				$save->data['BillingUnit']['amount']          = $this->data['BillingUnit']['rate'];
+				
+				if ($this->BillingUnit->save($save->data)) {
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">The billing unit has been saved</div>'));
+					$this->redirect(array('action' => 'index'));
+				} else {
+					$this->Session->setFlash(__('<div class="flashMessageError">The billing unit could not be saved. Please, try again.</div>'));
+					}
+			}
+			else {
+					$this->Session->setFlash(__('<div class="flashMessageError">Please enter the valid rate</div>'));
+				}			
+		}
+		else
+		 {
+			if(!$this->data['BillingUnit']['unitname'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please enter the unit name</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['stafflevel'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select staff level</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['description'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please enter the Description</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['created'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select the Date</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['brand'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select Brand</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['billingslot'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please select Billing Slot</div>'));
+			}
+			elseif(!$this->data['BillingUnit']['rate'])
+			{	
+				$this->Session->setFlash(__('<div class="flashMessageError">Please enter the valid rate</div>'));
+			}
+			
+		}
+			
+		} else {
+			$this->request->data = $this->BillingUnit->read(null, $id);
+		}
+		
+		$this->set(compact('brands', 'stafflevels', 'billingslots'));
+	}
+	
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		/*if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}*/
+		$this->BillingUnit->id = $id;
+		if (!$this->BillingUnit->exists()) {
+			throw new NotFoundException(__('Invalid billing unit'));
+		}
+		if ($this->BillingUnit->delete()) {
+			$this->Session->setFlash(__('<div class="flashMessageSuccess">Billing unit deleted</div>'));
+			$this->redirect(array('action'=>'index'));
+		}
+		else 
+		$this->Session->setFlash(__('<div class="flashMessageError">Billing unit was not deleted</div>'));	
+		$this->redirect(array('action' => 'index'));
+	
+  }
+}

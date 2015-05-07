@@ -1,0 +1,109 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * StaffBiodatas Controller
+ *
+ * @property StaffBiodata $StaffBiodata
+ * @property RequestHandlerComponent $RequestHandler
+ */
+class StaffBiodatasController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	var $helpers = array('Ajax', 'Javascript');
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('RequestHandler');
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->StaffBiodata->recursive = 0;
+		$this->set('staffBiodatas', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->StaffBiodata->id = $id;
+		if (!$this->StaffBiodata->exists()) {
+			throw new NotFoundException(__('Invalid staff biodata'));
+		}
+		$this->set('staffBiodata', $this->StaffBiodata->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() {
+		if ($this->request->is('post')) {
+			$this->StaffBiodata->create();
+			if ($this->StaffBiodata->save($this->request->data)) {
+				$this->Session->setFlash(__('The staff biodata has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The staff biodata could not be saved. Please, try again.'));
+			}
+		}
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->StaffBiodata->id = $id;
+		if (!$this->StaffBiodata->exists()) {
+			throw new NotFoundException(__('Invalid staff biodata'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->StaffBiodata->save($this->request->data)) {
+				$this->Session->setFlash(__('The staff biodata has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The staff biodata could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->StaffBiodata->read(null, $id);
+		}
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->StaffBiodata->id = $id;
+		if (!$this->StaffBiodata->exists()) {
+			throw new NotFoundException(__('Invalid staff biodata'));
+		}
+		if ($this->StaffBiodata->delete()) {
+			$this->Session->setFlash(__('Staff biodata deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('Staff biodata was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+}

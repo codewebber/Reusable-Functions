@@ -1,0 +1,112 @@
+
+<script>
+	$(function() {
+		$( "#sortable" ).sortable();
+		$( "#sortable1" ).sortable();
+	});
+	</script>
+<script type="text/javascript" >
+	var togglenew = function(element) {
+	var idvisible = document.getElementById(element);
+	if(idvisible.style.display == "none")
+	{
+	idvisible.style.display = "block";
+	}
+	else
+	{
+	idvisible.style.display = "none";
+	}
+	}
+</script>
+
+
+
+<div class="contentWrapper">
+ 	<?php echo $this->Form->create('User',array('controller'=>'users','action'=>'edit'));?>
+	<?php echo $this->Form->hidden('userid',array('value'=>$id)); ?>
+	<?php echo $this->Form->hidden('stafidid',array('value'=>$stafid)); ?>
+	<?php echo $this->Form->hidden('flag',array('value'=>$flag)); ?>
+	<?php echo $this->Form->hidden('aro_id',array('value'=>$aro['Aro']['id'])); ?>
+  <div class="mainContent">
+    <div class="contentHeader">
+      <div class="breadcrumTrail">
+        <ul>
+          <li><span><? echo $this->Js->link('DASHBOARD',array('controller'=>'brands_packages','action'=>'index'), array('div'=>false,'update' =>'#pageContent', 'before' => "loadingshow();" ,'complete' =>"loadinghide();")); ?> &gt;</span></li>
+          <li><span><? echo $this->Js->link('ACCOUNTS',array('controller'=>'accounts_accounts','action'=>'home'), array('div'=>false,'update' =>'#pageContent', 'before' => "loadingshow();" ,'complete' =>"loadinghide();")); ?> &gt;</span></li>
+          <li><span><? echo $this->Js->link('STAFFS',array('controller'=>'staffs','action'=>'index'), array('div'=>false,'update' =>'#pageContent', 'before' => "loadingshow();" ,'complete' =>"loadinghide();")); ?> &gt;</span></li>
+          <li><span><? echo $this->Js->link('STAFFS',array('controller'=>'staffs','action'=>'edit',$stafid), array('div'=>false,'update' =>'#pageContent', 'before' => "loadingshow();" ,'complete' =>"loadinghide();")); ?> &gt;</span></li>
+          <li class="activeLink">EDIT LOGIN DETAILS</li>
+        </ul>
+      </div>
+     
+      <hr />
+    </div>
+    <div class="levelThreeLinks">
+      <ul>
+        <li>
+          <div class="acc_buttons_left1">
+            <div class="submit"><? echo $this->Js->link('Back',array('controller'=>'staffs','action'=>'edit',$stafid), array( 'div'=>false,'update' =>'#pageContent', 'before' => "loadingshow();" ,'complete' =>"loadinghide();")); ?></div>
+          </div>
+        </li>
+      </ul>
+    </div>
+    <div class="mainContentWrapper">
+    	
+      <div class="viewwrapper addvendor">
+			<div class="fillwidth_row">
+			<div class="budgetHeaderBar2">
+						    <div class="createinvoice_submenu">
+								    <ul class="createinvoice_submenu_Ulist">
+									    <li class="selected_bgc"><?php echo $this->Js->link('Edit Login Details',array('controller'=>'users','action' => 'edit'.'/'.$user['User']['id']),array('update'=>'#pageContent','div'=>false, 'before' => "loadingshow();" ,'complete' =>"loadinghide();")); ?></li>
+									    <li><?php echo $this->Js->link('Edit Staff',array('controller'=>'staffs','action' => 'edit',$stafid),array('update'=>'#pageContent','div'=>false, 'before' => "loadingshow();" ,'complete' =>"loadinghide();")); ?></li>
+								    </ul>
+						    </div>
+			</div>
+			</div>
+		<div class="add_hike_form_main" >
+			
+							<? echo $this->Session->flash(); ?>
+								
+											
+								   
+         
+          <div class="add_row" >
+            <div class="add_row_lable" > <span class="class_float_left" >User Name<span><font color="red">*</font></span></span> <span class="colen" >:</span> </div>
+            <div class="add_row_right" > <span class="class_float_left" ></span>
+            <? echo $this->Form->input('username',array('class'=>'input_common','type'=>'text','label'=>false,'default'=>array($user['User']['username']))); ?>
+              
+            </div>
+          </div>
+		 
+		  <div class="add_row" >
+            <div class="add_row_lable" > <span class="class_float_left" >Edit Password</span> <span class="colen" >:</span> </div>
+            <div class="add_row_right" > <span class="class_float_left" ></span>
+            <? echo $this->Form->input('npwd',array('class'=>'input_common','label'=>false,'type'=>'password'/*,'default'=>$user['User']['password']*/)); ?> 
+            </div>
+          </div>
+          <div class="add_row" >
+            <div class="add_row_lable" > <span class="class_float_left" >Confirm Password</span> <span class="colen" >:</span> </div>
+            <div class="add_row_right" > <span class="class_float_left" ></span>
+            <? echo $this->Form->input('cpwd',array('class'=>'input_common','label'=>false,'type'=>'password'/*,'default'=>$user['User']['password']*/)); ?>
+              
+            </div>
+          </div>
+			
+        </div>
+      </div>
+     <div class="paginationBar">
+        <div class="buttons_main" >
+        	<?php echo $this->Form->submit('EDIT',array('div'=>false,'class'=>'botton_button_common','type'=>'submit'));
+        	    /*echo $this->Form->end();*/
+        	?>
+        	
+         
+          <? echo $this->Js->link('CANCEL',array('controller'=>'staffs','action'=>'edit',$stafid), array('type'=>'button','class'=>'botton_button_common', 'div'=>false,'update' =>'#pageContent', 'before' => "loadingshow();" ,'complete' =>"loadinghide();")); ?>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+  
+</div>
+<?php echo $this->Js->writeBuffer();?>

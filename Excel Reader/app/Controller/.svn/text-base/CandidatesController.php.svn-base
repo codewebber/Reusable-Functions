@@ -1,0 +1,2353 @@
+<?php
+App::uses('AppController', 'Controller');
+
+CakePlugin::load('Uploader');
+App::import('Vendor', 'Uploader.Uploader');
+
+App::uses('AppModel', 'Model');
+App::uses('AppHelper', 'View', 'helper');
+/**
+ * Candidates Controller
+ *
+ * @property Candidate $Candidate
+ */
+class CandidatesController extends AppController {
+	public $components = array('Session','Email', 'RequestHandler');
+	var $helpers = array('Html', 'Form','Js');
+	public $actsAs = array('Uploader.Attachment');
+	
+	 
+	public function beforeFilter() {
+		parent::beforeFilter();
+		$this->Auth->allow('apply','email_already_exits','alt_email_already_exits','email_already_exits_edit','alt_email_already_exits_edit','certificates_more','company_more','project_more','profile_view','registration','education_more','company_more_new','skills_more_new','cert_more_new','proj_more_new','for_ajax_update_company_name');          
+    	$action = $this->params['action'];
+		
+		if($action != 'education_more' && $action != 'company_more_new' && $action != 'skills_more_new' && $action != 'cert_more_new' && $action != 'proj_more_new' && $action != 'for_ajax_update_company_name'){
+			$this->Session->delete('company_list');
+		}
+
+		if($action=='index'){
+			$active_class_candidate_index = 'for_active_class';
+			$this->set(compact('active_class_candidate_index'));
+		}	
+	}
+	
+	
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index($page=null,$limit=null,$count=null,$view_inactive=null,$candidate_search=null,$opening=null,$interview_status=null,$notice_period=null) {
+		//Configure::write('debug',2);
+		$roleid=$this -> Session -> read('Auth.User.Role.id');
+		$this->loadModel('JobDescription');
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('FeedbackStatus');
+		$this->loadModel('Resume');
+		$this->Candidate->Behaviors->attach('Containable');
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		$this->FeedbackStatus->Behaviors->attach('Containable');
+		$openings = $this->JobDescription->find('list',array('fields'=>'title','order'=>'JobDescription.title ASC'));
+		if(!$page) $page = 1;
+		if(!$limit) $limit= $this->paginate['limit'];
+		$offset = AppModel::countPages($count,$limit,$page);
+		if(!$offset) $offset = 0;	
+		
+		if($candidate_search){$this->request->data['Candidate_search']['search']=$candidate_search;} 
+		if($opening){$this->request->data['Candidate']['openings']=$opening;} 
+		if($interview_status){$this->request->data['Candidate']['interview_status']=$interview_status;} 
+		if($notice_period){$this->request->data['Candidate']['notice_period']=$notice_period;} 
+		
+		if($this->data['Candidate_search']['search']) $candidate_search=trim($this->data['Candidate_search']['search']);
+		if($this->data['Candidate']['openings']) $opening=$this->data['Candidate']['openings'];
+		if($this->data['Candidate']['interview_status']) $interview_status=$this->data['Candidate']['interview_status'];
+		if($this->data['Candidate']['notice_period']) $notice_period=$this->data['Candidate']['notice_period'];
+		
+		
+		if($this->data['make_inactive']){
+			foreach($this->data['make_inactive'] as $k=>$v){
+				if($v){
+					$candidate_inactive = $this->Candidate->find('first', array('conditions' => array('Candidate.id' => $v)));
+					$save->data['Candidate']['id'] = $candidate_inactive['Candidate']['id'];
+					$save->data['Candidate']['active']='N';
+					$this->Candidate->save($save->data);
+				}
+			}
+		}
+		if($this->data['Candidate_search']['search']){
+			$name=explode(" ",$candidate_search);
+			$f_name=$name[0];$l_name=$name[1];
+			if($f_name && $l_name){
+				$candidate=$this->Candidate->find('all',array('conditions'=>array('Candidate.first_name LIKE'=>$name[0]."%",'Candidate.last_name LIKE'=>$name[1]."%",'Candidate.active'=>'Y'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.first_name LIKE'=>$name[0]."%",'Candidate.last_name LIKE'=>$name[1]."%",'Candidate.active'=>'Y')));
+			}else{
+				$candidate=$this->Candidate->find('all',array('conditions'=>array('Candidate.first_name LIKE'=>$name[0]."%",'Candidate.active'=>'Y'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.first_name LIKE'=>$name[0]."%",'Candidate.active'=>'Y')));
+				if(!$candidate){
+					$candidate=$this->Candidate->find('all',array('conditions'=>array('Candidate.last_name LIKE'=>$name[0]."%",'Candidate.active'=>'Y'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.last_name LIKE'=>$name[0]."%",'Candidate.active'=>'Y')));	
+				}
+			}
+			if($candidate){
+				$total_resume=$count;
+				$final=null;$i=0;
+				foreach($candidate as $candidate){
+					$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+					$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+					$final[$i]['id']=$candidate['Candidate']['id'];
+					$final[$i]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+					$final[$i]['experience']=$candidate['Candidate']['experience'];
+					$final[$i]['notice_period']=$candidate['Candidate']['notice_period'];
+					$final[$i]['contact_no']=$candidate['Resume']['resume_user_contact'];
+					$final[$i]['resume_path']=$candidate['Resume']['resume_path'];
+					$final[$i]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+					$final[$i]['position']=$job_description['JobDescription']['title'];
+					$final[$i]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+					$i++;
+				}
+			}else{
+				$this->Session->setFlash(__('Sorry no record found. Please, try again.'));
+			}
+		}elseif(($view_inactive) && empty($this->data)){
+			$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+			$total_resume=$this->Candidate->find('count',array('conditions'=>array('Candidate.active'=>'N')));
+			$final=null;$i=0;$count=$total_resume;
+			foreach($candidates as $candidate){
+				$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+				$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+				$final[$i]['id']=$candidate['Candidate']['id'];
+				$final[$i]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+				$final[$i]['experience']=$candidate['Candidate']['experience'];
+				$final[$i]['notice_period']=$candidate['Candidate']['notice_period'];
+				$final[$i]['contact_no']=$candidate['Resume']['resume_user_contact'];
+				$final[$i]['resume_path']=$candidate['Resume']['resume_path'];
+				$final[$i]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+				$final[$i]['position']=$job_description['JobDescription']['title'];
+				$final[$i]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+				$i++;
+			}
+		}elseif($this->data['Candidate']['openings'] && $this->data['Candidate']['interview_status'] && $this->data['Candidate']['notice_period']){
+			$candidatejobdescriptionmappings_candidatesid=$this->CandidateJobdescriptionmapping->find('list',array('conditions'=>array('CandidateJobdescriptionmapping.job_description_id'=>$this->data['Candidate']['openings']),'fields'=>array('CandidateJobdescriptionmapping.candidate_id')));
+			$FeedbackStatus_candidatesid=$this->FeedbackStatus->find('list',array('conditions'=>array('FeedbackStatus.status LIKE'=>"%".$this->data['Candidate']['interview_status']."%"),'fields'=>array('FeedbackStatus.candidate_id')));
+			$ids=null;
+			foreach($candidatejobdescriptionmappings_candidatesid as $k=>$v){
+				foreach($FeedbackStatus_candidatesid as $k1=>$v1){
+					if($v==$v1){
+						$ids[$k]=$v1;
+					}
+				}
+			}
+			if($this->data['Candidate']['notice_period'] =='30'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));
+				}
+			}
+			if($this->data['Candidate']['notice_period'] =='60'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));	
+				}
+					
+			}
+			if($this->data['Candidate']['notice_period'] =='90'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));	
+				}
+			}
+			$final=null; $i=0;$total_resume=$count;
+			foreach($candidates as $candidate){
+				$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+				$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title','CandidateJobdescriptionmapping.candidate_id'),'order'=>array('CandidateJobdescriptionmapping.id DESC'),'limit'=>$limit,'offset'=>$offset));
+				$final[$i]['id']=$candidate['Candidate']['id'];
+				$final[$i]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+				$final[$i]['experience']=$candidate['Candidate']['experience'];
+				$final[$i]['notice_period']=$candidate['Candidate']['notice_period'];
+				$final[$i]['contact_no']=$candidate['Resume']['resume_user_contact'];
+				$final[$i]['resume_path']=$candidate['Resume']['resume_path'];
+				$final[$i]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+				$final[$i]['position']=$job_description['JobDescription']['title'];
+				$final[$i]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+				$i++;				
+			}
+		}elseif($this->data['Candidate']['openings'] && $this->data['Candidate']['interview_status']){
+			$candidatejobdescriptionmappings_candidatesid=$this->CandidateJobdescriptionmapping->find('list',array('conditions'=>array('CandidateJobdescriptionmapping.job_description_id'=>$this->data['Candidate']['openings']),'fields'=>array('CandidateJobdescriptionmapping.candidate_id'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+			$FeedbackStatus_candidatesid=$this->FeedbackStatus->find('list',array('conditions'=>array('FeedbackStatus.status LIKE'=>"%".$this->data['Candidate']['interview_status']."%"),'fields'=>array('FeedbackStatus.candidate_id')));
+			$ids=null;
+			foreach($candidatejobdescriptionmappings_candidatesid as $k=>$v){
+				foreach($FeedbackStatus_candidatesid as $k1=>$v1){
+					if($v==$v1){
+						$ids[$k]=$v1;
+					}
+				}
+			}
+			if($view_inactive){
+				$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.active'=>'N')));
+			}else{
+				$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.active'=>'Y'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$ids,'Candidate.active'=>'Y')));
+			}
+			$final=null; $i=0;$total_resume=$count;
+			foreach($candidates as $candidate){
+				$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+				$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title','CandidateJobdescriptionmapping.candidate_id'),'order'=>array('CandidateJobdescriptionmapping.id DESC'),'limit'=>$limit,'offset'=>$offset));
+				$final[$i]['id']=$candidate['Candidate']['id'];
+				$final[$i]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+				$final[$i]['experience']=$candidate['Candidate']['experience'];
+				$final[$i]['notice_period']=$candidate['Candidate']['notice_period'];
+				$final[$i]['contact_no']=$candidate['Resume']['resume_user_contact'];
+				$final[$i]['resume_path']=$candidate['Resume']['resume_path'];
+				$final[$i]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+				$final[$i]['position']=$job_description['JobDescription']['title'];
+				$final[$i]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+				$i++;				
+			}
+		}elseif($this->data['Candidate']['openings'] && $this->data['Candidate']['notice_period']){
+			$candidatejobdescriptionmappings_candidatesid=$this->CandidateJobdescriptionmapping->find('list',array('conditions'=>array('CandidateJobdescriptionmapping.job_description_id'=>$this->data['Candidate']['openings']),'fields'=>array('CandidateJobdescriptionmapping.candidate_id'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+			if($this->data['Candidate']['notice_period'] =='30'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));
+				}
+			}
+			if($this->data['Candidate']['notice_period'] =='60'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));	
+				}
+					
+			}
+			if($this->data['Candidate']['notice_period'] =='90'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));	
+				}
+			}
+			$final=null;$i=0;$total_resume=$count;
+			foreach($candidates as $candidate){
+				$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+				$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+				$final[$i]['id']=$candidate['Candidate']['id'];
+				$final[$i]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+				$final[$i]['experience']=$candidate['Candidate']['experience'];
+				$final[$i]['notice_period']=$candidate['Candidate']['notice_period'];
+				$final[$i]['contact_no']=$candidate['Resume']['resume_user_contact'];
+				$final[$i]['resume_path']=$candidate['Resume']['resume_path'];
+				$final[$i]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+				$final[$i]['position']=$job_description['JobDescription']['title'];
+				$final[$i]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+				$i++;
+			}
+		}elseif($this->data['Candidate']['interview_status'] && $this->data['Candidate']['notice_period']){
+			$FeedbackStatus_candidatesid=$this->FeedbackStatus->find('list',array('conditions'=>array('FeedbackStatus.status LIKE'=>"%".$this->data['Candidate']['interview_status']."%"),'fields'=>array('FeedbackStatus.candidate_id')));
+			if($this->data['Candidate']['notice_period'] =='30'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));
+				}
+			}
+			if($this->data['Candidate']['notice_period'] =='60'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));	
+				}
+					
+			}
+			if($this->data['Candidate']['notice_period'] =='90'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));	
+				}
+			}
+			$final=null; $i=0; $total_resume=$count;
+			foreach($candidates as $candidate){
+				$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id'],'FeedbackStatus.status LIKE'=>"%".$this->data['Candidate']['interview_status']."%"),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+				$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+				$final[$i]['id']=$candidate['Candidate']['id'];
+				$final[$i]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+				$final[$i]['experience']=$candidate['Candidate']['experience'];
+				$final[$i]['notice_period']=$candidate['Candidate']['notice_period'];
+				$final[$i]['contact_no']=$candidate['Resume']['resume_user_contact'];
+				$final[$i]['resume_path']=$candidate['Resume']['resume_path'];
+				$final[$i]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+				$final[$i]['position']=$job_description['JobDescription']['title'];
+				$final[$i]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+				$i++;
+			}
+		}elseif($this->data['Candidate']['notice_period']){
+			if($this->data['Candidate']['notice_period'] =='30'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));
+				}
+			}
+			if($this->data['Candidate']['notice_period'] =='60'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));	
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.notice_period >'=>'30','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));
+				}
+					
+			}
+			if($this->data['Candidate']['notice_period'] =='90'){
+				if($view_inactive){
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active'=>'N')));
+				}else{
+					$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));	
+					$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.notice_period >'=>'60','Candidate.notice_period <='=>$this->data['Candidate']['notice_period'],'Candidate.active !='=>'N')));
+				}
+			}
+			$final=null;$i=0;
+			foreach($candidates as $candidate){
+				$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+				$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+				$final[$i]['id']=$candidate['Candidate']['id'];
+				$final[$i]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+				$final[$i]['experience']=$candidate['Candidate']['experience'];
+				$final[$i]['notice_period']=$candidate['Candidate']['notice_period'];
+				$final[$i]['contact_no']=$candidate['Resume']['resume_user_contact'];
+				$final[$i]['resume_path']=$candidate['Resume']['resume_path'];
+				$final[$i]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+				$final[$i]['position']=$job_description['JobDescription']['title'];
+				$final[$i]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+				$i++;
+			}
+		}elseif($this->data['Candidate']['interview_status']){
+			$FeedbackStatus_candidatesid=$this->FeedbackStatus->find('list',array('conditions'=>array('FeedbackStatus.status LIKE'=>"%".$this->data['Candidate']['interview_status']."%"),'fields'=>array('FeedbackStatus.candidate_id')));
+			if($view_inactive){
+				$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.active'=>'N')));
+			}else{
+				$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.active'=>'Y'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$FeedbackStatus_candidatesid,'Candidate.active'=>'Y')));
+			}
+			$final=null; $i=0; $total_resume=$count;
+			foreach($candidates as $candidate){
+				$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+				$job_descriptions=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+				$final[$FeedbackStatus['FeedbackStatus']['candidate_id']]['id']=$candidate['Candidate']['id'];
+				$final[$FeedbackStatus['FeedbackStatus']['candidate_id']]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+				$final[$FeedbackStatus['FeedbackStatus']['candidate_id']]['experience']=$candidate['Candidate']['experience'];
+				$final[$FeedbackStatus['FeedbackStatus']['candidate_id']]['notice_period']=$candidate['Candidate']['notice_period'];
+				$final[$FeedbackStatus['FeedbackStatus']['candidate_id']]['contact_no']=$candidate['Resume']['resume_user_contact'];
+				$final[$FeedbackStatus['FeedbackStatus']['candidate_id']]['resume_path']=$candidate['Resume']['resume_path'];
+				$final[$FeedbackStatus['FeedbackStatus']['candidate_id']]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+				$final[$FeedbackStatus['FeedbackStatus']['candidate_id']]['position']=$job_descriptions['JobDescription']['title'];
+				$final[$FeedbackStatus['FeedbackStatus']['candidate_id']]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+				$i++;
+			}
+		}elseif($this->data['Candidate']['openings']){
+			$candidatejobdescriptionmappings_candidatesid=$this->CandidateJobdescriptionmapping->find('list',array('conditions'=>array('CandidateJobdescriptionmapping.job_description_id'=>$this->data['Candidate']['openings']),'fields'=>array('CandidateJobdescriptionmapping.candidate_id'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+			if($view_inactive){
+				$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.active'=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.active'=>'N')));
+			}else{
+				$candidates=$this->Candidate->find('all',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.active'=>'Y'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'limit'=>$limit,'offset'=>$offset));
+				$count=$this->Candidate->find('count',array('conditions'=>array('Candidate.id'=>$candidatejobdescriptionmappings_candidatesid,'Candidate.active'=>'Y')));
+			}
+			$final=null; $i=0; $total_resume=$count;
+			foreach($candidates as $candidate){
+				$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+				$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+				$final[$i]['id']=$candidate['Candidate']['id'];
+				$final[$i]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+				$final[$i]['experience']=$candidate['Candidate']['experience'];
+				$final[$i]['notice_period']=$candidate['Candidate']['notice_period'];
+				$final[$i]['contact_no']=$candidate['Resume']['resume_user_contact'];
+				$final[$i]['resume_path']=$candidate['Resume']['resume_path'];
+				$final[$i]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+				$final[$i]['position']=$job_description['JobDescription']['title'];
+				$final[$i]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+				$i++;
+			}
+		}else{
+			$candidates=$this->Candidate->find('all',array('conditions'=>array(/*'Candidate.resume_id !='=>'NULL',*/'Candidate.active !='=>'N'),'contain'=>array('Resume'),'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact','Resume.resume_username'),'order'=>array('Candidate.first_name ASC'),'limit'=>$limit,'offset'=>$offset));
+			$count=$this->Candidate->find('count',array('conditions'=>array(/*'Candidate.resume_id !='=>'NULL',*/'Candidate.active !='=>'N')));
+			$total_resume=$count;
+			$final=null;
+			$i=0;
+			foreach($candidates as $candidate){
+				$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('JobDescription.title'),'fields'=>array('JobDescription.title'),'order'=>array('CandidateJobdescriptionmapping.id DESC')));
+				$FeedbackStatus=$this->FeedbackStatus->find('first',array('conditions'=>array('FeedbackStatus.candidate_id'=>$candidate['Candidate']['id']),'contain'=>array('User.first_name','User.last_name'),'fields'=>array('FeedbackStatus.status','User.first_name','User.last_name'),'order'=>array('FeedbackStatus.id DESC')));
+				$final[$i]['id']=$candidate['Candidate']['id'];
+				$final[$i]['name']=$candidate['Candidate']['first_name']." ".$candidate['Candidate']['last_name'];
+				$final[$i]['experience']=$candidate['Candidate']['experience'];
+				$final[$i]['notice_period']=$candidate['Candidate']['notice_period'];
+				$final[$i]['contact_no']=$candidate['Resume']['resume_user_contact'];
+				$final[$i]['resume_path']=$candidate['Resume']['resume_path'];
+				$final[$i]['interview_status']=$FeedbackStatus['FeedbackStatus']['status'];
+				$final[$i]['position']=$job_description['JobDescription']['title'];
+				$final[$i]['last_interviewer']=$FeedbackStatus['User']['first_name']." ".$FeedbackStatus['User']['last_name'];
+				$i++;
+			}
+		}
+		
+		$this->set(compact('final','openings','view_inactive','total_resume','page','limit','count','roleid','candidate_search','opening','interview_status','notice_period'));
+	}
+
+/**
+ * view method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->Candidate->id = $id;
+		if (!$this->Candidate->exists()) {
+			throw new NotFoundException(__('Invalid candidate'));
+		}
+		$this->set('candidate', $this->Candidate->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add(){
+		
+		$this->loadModel('JobDescription');
+		$this->loadModel('Resume');
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('Brand');
+		$this->loadModel('User');
+		$this->loadModel('Role');
+		$this->Resume->recursive=-1;
+		$this->User->recursive=-1;
+		
+		if(!empty($this->data['Candidate_popup'])){
+			//debug($this->data);	
+			if($this->data['Candidate_popup']['job_openings'] && $this->data['Candidate_popup']['brands']){
+				$array=null;
+				$this->JobDescription->create();
+				$array->data['JobDescription']['title']=$this->data['Candidate_popup']['job_openings'];
+				$array->data['JobDescription']['brand_id']=$this->data['Candidate_popup']['brands'];
+				$array->data['JobDescription']['company_id']='1';
+				$array->data['JobDescription']['job_invite_id']='1';
+				$this->JobDescription->save($array->data);
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Please fill the fields</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			}
+		}
+		
+		
+		$this->loadModel('JobStatus');
+		$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));
+		
+	
+		$openings = $this->JobDescription->find('list',array('fields'=>'title','order'=>array('JobDescription.title ASC')));
+		$brands=$this->Brand->find('list',array('fields'=>'brand_name'));
+		if(!empty($this->data)){
+			if($this->data['Candidate']['resume_useremail']) $email_validate= $this->Resume->find('first',array('conditions'=>array('Resume.resume_useremail'=>trim($this->data['Candidate']['resume_useremail']))));
+			
+			if(!$email_validate){
+				$email_validate=$this->User->find('first',array('conditions'=>array('User.email'=>trim($this->data['Candidate']['resume_useremail']))));
+			}
+			
+			if(!$email_validate){
+				$email_validate=$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>trim($this->data['Candidate']['resume_useremail']))));
+			}
+			if($email_validate){
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Email is already exists.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			}else{
+				$this->Uploader = new Uploader();
+				$this->Uploader = new Uploader(array('tempDir' => TMP));
+				$this->Uploader->setup(array('tempDir' => TMP));
+				$this->Uploader->uploadDir = 'files/uploads/resumeZipped';
+				$data = $this->Uploader->uploadAll(array('fileName1'));
+				if(!$this->data['Candidate']['first_name'] || !$this->data['Candidate']['resume_useremail'] || !$this->data['Candidate']['resume_user_contact'] || !$this->data['Candidate']['openings']){
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Please fill all the fields</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				}else{
+					if($data['fileName1']['path']){
+						$saveArray->data=null;
+						$this->Resume->create();
+						$saveArray->data['Resume']['resume_username']=$this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name'];
+						$saveArray->data['Resume']['resume_useremail']=trim($this->data['Candidate']['resume_useremail']);
+						$saveArray->data['Resume']['resume_user_contact']=$this->data['Candidate']['resume_user_contact'];
+						$saveArray->data['Resume']['resume_path']=$data['fileName1']['path'];
+						$saveArray->data['Resume']['verified']='Y';
+						if($this->Resume->save($saveArray->data)){
+							$resume_id=$this->Resume->getLastInsertID();
+							$saveArray1=null;
+							$this->Candidate->create();
+							$saveArray1->data['Candidate']['first_name']=$this->data['Candidate']['first_name'];
+							$saveArray1->data['Candidate']['last_name']=$this->data['Candidate']['last_name'];
+							$saveArray1->data['Candidate']['gender']=$this->data['Candidate']['gender'];
+							$saveArray1->data['Candidate']['email']=trim($this->data['Candidate']['resume_useremail']);
+							$saveArray1->data['Candidate']['contact']=$this->data['Candidate']['resume_user_contact'];
+							$saveArray1->data['Candidate']['experience']=$this->data['Candidate']['experience'];
+							$saveArray1->data['Candidate']['relevant_exp']=$this->data['Candidate']['relevant_exp'];
+							$saveArray1->data['Candidate']['current_role']=$this->data['Candidate']['current_role'];
+							$saveArray1->data['Candidate']['current_ctc']=$this->data['Candidate']['current_ctc'];
+							$saveArray1->data['Candidate']['expected_ctc']=$this->data['Candidate']['expected_ctc'];
+							$saveArray1->data['Candidate']['notice_period']=$this->data['Candidate']['notice_period'];
+							$saveArray1->data['Candidate']['reason_for_change']=$this->data['Candidate']['reason_for_change'];
+							$saveArray1->data['Candidate']['resume_id']=$resume_id;
+							if(trim($this->data['Candidate']['experience'])){
+								$saveArray1->data['Candidate']['type']='E';
+							}else{
+								$saveArray1->data['Candidate']['type']='F';
+							}
+							
+							if($this->Candidate->save($saveArray1->data)){
+								$candidate_id=$this->Candidate->getLastInsertID();
+								        
+								$role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'Candidate'),'fields'=>array('Role.id')));
+		    					$role_id=$role['Role']['id'];
+								
+								$password=substr(str_shuffle(md5(time())),0,8);
+								$saveArray3->data=null;
+								$this->User->create();
+								$saveArray3->data['User']['first_name']=$this->data['Candidate']['first_name'];
+								$saveArray3->data['User']['last_name']=$this->data['Candidate']['last_name'];
+								$saveArray3->data['User']['email']=trim($this->data['Candidate']['resume_useremail']);
+								$saveArray3->data['User']['username']=trim($this->data['Candidate']['resume_useremail']);
+								$saveArray3->data['User']['password']=$password;
+								$saveArray3->data['User']['active']='Y';
+								$saveArray3->data['User']['role_id']=$role_id;
+								$saveArray3->data['User']['candiadate_id']=$candidate_id;
+								$this->User->save($saveArray3->data);
+								
+								$this->CandidateJobdescriptionmapping->create();
+								$saveArray2=null;
+								$saveArray2->data['CandidateJobdescriptionmapping']['job_description_id']=$this->data['Candidate']['openings'];
+								$saveArray2->data['CandidateJobdescriptionmapping']['candidate_id']=$candidate_id;
+								$saveArray2->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+								$saveArray2->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+								
+								if($this->CandidateJobdescriptionmapping->save($saveArray2->data)){
+									$this->Session->setFlash('<h4>Success Message : </h4><p>The candidate has been saved.</span>','default',array('class' => 'flashmessagebox flashsuccess'));
+									$this->redirect(array('action'=>'index'));
+								}else{
+									$this->Resume->id = $resume_id;
+									$this->Resume->delete();
+									$this->Candidate->id = $candidate_id;
+									$this->Candidate->delete();
+								}
+								
+							}else{
+								$this->Resume->id = $resume_id;
+								$this->Resume->delete();
+							}
+						}
+					}else{
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Resume is not added.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+					}
+				
+				}
+			}
+			
+		}
+		
+		
+		$this->set(compact('openings','brands'));
+	}
+
+/**
+ * edit method
+ *
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		
+		$this->loadModel('JobDescription');
+		$this->loadModel('Resume');
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('User');
+		$this->loadModel('Role');
+		$this->User->recursive=-1;
+		
+		$this->loadModel('JobStatus');
+		$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));
+		
+		$this->Candidate->Behaviors->attach('Containable');
+		$this->CandidateJobdescriptionmapping->Behaviors->attach('Containable');
+		$openings = $this->JobDescription->find('list',array('fields'=>'title','order'=>array('JobDescription.title ASC')));
+		$job_description=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$id),'contain'=>array('JobDescription'),'fields'=>array('JobDescription.id','CandidateJobdescriptionmapping.id')));
+		$candidate =$this->Candidate->find('first',array('conditions'=>array('Candidate.resume_id !='=>'NULL','Candidate.id'=>$id),'contain'=>array('Resume')/*,'fields'=>array('Candidate.id','Candidate.first_name','Candidate.last_name','Candidate.experience','Candidate.notice_period','Resume.id','Resume.resume_path','Resume.resume_user_contact')*/));
+		$user_details = $this->User->find('first',array('conditions'=>array('User.candiadate_id'=>$id)));
+		if(!empty($this->data)){
+			if(!$this->data['Candidate']['first_name'] || !$this->data['Candidate']['resume_useremail'] || !$this->data['Candidate']['resume_user_contact'] || !$this->data['Candidate']['openings']){
+				//$this->Session->setFlash(__('Please fill all the fields'));
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>Please fill all the fields</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				
+			}else{
+				$email_validate=$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>trim($this->data['Candidate']['resume_useremail']),'Candidate.id !='=>$id)));	
+				
+				if(!$email_validate){
+					$email_validate=$this->User->find('first',array('conditions'=>array('User.email'=>trim($this->data['Candidate']['resume_useremail']),'User.candiadate_id !='=>$id)));
+				}
+				
+				if($email_validate){
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Email already exists. Please try again</p>','default',array('class' => 'flashmessagebox flashwarning'));
+					$this->redirect(array('action'=>'edit',$id));
+				}
+				$this->Uploader = new Uploader(); 
+				$this->Uploader = new Uploader(array('tempDir' => TMP));
+				$this->Uploader->setup(array('tempDir' => TMP));
+				$this->Uploader->uploadDir = 'files/uploads/resumeZipped';
+				$data = $this->Uploader->uploadAll(array('fileName1'));
+		  		if($data['fileName1']['path']){
+		  			$saveArray=null;
+			  		$saveArray->data['Resume']['id']=$candidate['Resume']['id'];
+					$saveArray->data['Resume']['resume_username']=$this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name'];
+					$saveArray->data['Resume']['resume_useremail']=$this->data['Candidate']['resume_useremail'];
+					$saveArray->data['Resume']['resume_user_contact']=$this->data['Candidate']['resume_user_contact'];
+					$saveArray->data['Resume']['resume_path']=$data['fileName1']['path'];
+					$saveArray->data['Resume']['verified']=$this->data['Candidate']['verified'];
+					if($this->Resume->save($saveArray->data)){
+						$saveArray1=null;
+						$saveArray1->data['Candidate']['id']=$candidate['Candidate']['id'];
+						$saveArray1->data['Candidate']['first_name']=$this->data['Candidate']['first_name'];
+						$saveArray1->data['Candidate']['last_name']=$this->data['Candidate']['last_name'];
+						$saveArray1->data['Candidate']['gender']=$this->data['Candidate']['gender'];
+						$saveArray1->data['Candidate']['experience']=$this->data['Candidate']['experience'];
+						$saveArray1->data['Candidate']['relevant_exp']=$this->data['Candidate']['relevant_exp'];
+						$saveArray1->data['Candidate']['current_role']=$this->data['Candidate']['current_role'];
+						$saveArray1->data['Candidate']['current_ctc']=$this->data['Candidate']['current_ctc'];
+						$saveArray1->data['Candidate']['expected_ctc']=$this->data['Candidate']['expected_ctc'];
+						$saveArray1->data['Candidate']['notice_period']=$this->data['Candidate']['notice_period'];
+						$saveArray1->data['Candidate']['reason_for_change']=$this->data['Candidate']['reason_for_change'];
+						$saveArray1->data['Candidate']['resume_id']=$candidate['Resume']['id'];
+						if(trim($this->data['Candidate']['experience'])){
+							$saveArray1->data['Candidate']['type']='E';
+						}else{
+							$saveArray1->data['Candidate']['type']='F';
+						}
+						if($this->Candidate->save($saveArray1->data)){
+							
+							$saveArray3->data=null;
+							$saveArray3->data['User']['id']=$user_details['User']['id'];
+							$saveArray3->data['User']['first_name']=$this->data['Candidate']['first_name'];
+							$saveArray3->data['User']['last_name']=$this->data['Candidate']['last_name'];
+							$saveArray3->data['User']['email']=trim($this->data['Candidate']['resume_useremail']);
+							$saveArray3->data['User']['username']=trim($this->data['Candidate']['resume_useremail']);
+							$saveArray3->data['User']['active']='Y';
+							$this->User->save($saveArray3->data);
+								
+							$saveArray2=null;
+							$saveArray2->data['CandidateJobdescriptionmapping']['id']=$job_description['CandidateJobdescriptionmapping']['id'];
+							$saveArray2->data['CandidateJobdescriptionmapping']['job_description_id']=$this->data['Candidate']['openings'];
+							$saveArray2->data['CandidateJobdescriptionmapping']['candidate_id']=$candidate['Candidate']['id'];
+							$saveArray2->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+							$saveArray2->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+								
+							if($this->CandidateJobdescriptionmapping->save($saveArray2->data)){
+								//$this->Session->setFlash(__('The candidate has been edited'));
+								//$this->Session->setFlash('<h4>Success Message : </h4><p>The candidate has been edited.</p>','default',array('class'=>'flashmessagebox flashwarning'));
+								$this->Session->setFlash('<h4>Success Message : </h4><p>The candidate has been edited.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+								$this->redirect(array('action'=>'index'));
+							}else{
+								//$this->Session->setFlash(__('Please try again'));
+								$this->Session->setFlash('<h4>Warning Message : </h4><p>Please try again</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							}
+						}
+					}
+		  		}else{
+		  			$saveArray->data['Resume']['id']=$candidate['Resume']['id'];
+					$saveArray->data['Resume']['resume_username']=$this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name'];
+					$saveArray->data['Resume']['resume_useremail']=$this->data['Candidate']['resume_useremail'];
+					$saveArray->data['Resume']['resume_user_contact']=$this->data['Candidate']['resume_user_contact'];
+					$saveArray->data['Resume']['verified']=$this->data['Candidate']['verified'];
+					$this->Resume->save($saveArray->data);
+		  			$saveArray1=null;
+					$saveArray1->data['Candidate']['id']=$candidate['Candidate']['id'];
+					$saveArray1->data['Candidate']['first_name']=$this->data['Candidate']['first_name'];
+					$saveArray1->data['Candidate']['last_name']=$this->data['Candidate']['last_name'];
+					$saveArray1->data['Candidate']['gender']=$this->data['Candidate']['gender'];
+					$saveArray1->data['Candidate']['experience']=$this->data['Candidate']['experience'];
+					$saveArray1->data['Candidate']['relevant_exp']=$this->data['Candidate']['relevant_exp'];
+					$saveArray1->data['Candidate']['current_role']=$this->data['Candidate']['current_role'];
+					$saveArray1->data['Candidate']['current_ctc']=$this->data['Candidate']['current_ctc'];
+					$saveArray1->data['Candidate']['expected_ctc']=$this->data['Candidate']['expected_ctc'];
+					$saveArray1->data['Candidate']['notice_period']=$this->data['Candidate']['notice_period'];
+					$saveArray1->data['Candidate']['reason_for_change']=$this->data['Candidate']['reason_for_change'];
+					$saveArray1->data['Candidate']['resume_id']=$candidate['Resume']['id'];
+					if(trim($this->data['Candidate']['experience'])){
+						$saveArray1->data['Candidate']['type']='E';
+					}else{
+						$saveArray1->data['Candidate']['type']='F';
+					}
+					if($this->Candidate->save($saveArray1->data)){
+							
+						$saveArray3->data=null;
+						$saveArray3->data['User']['id']=$user_details['User']['id'];
+						$saveArray3->data['User']['first_name']=$this->data['Candidate']['first_name'];
+						$saveArray3->data['User']['last_name']=$this->data['Candidate']['last_name'];
+						$saveArray3->data['User']['email']=trim($this->data['Candidate']['resume_useremail']);
+						$saveArray3->data['User']['username']=trim($this->data['Candidate']['resume_useremail']);
+						$saveArray3->data['User']['active']='Y';
+						$this->User->save($saveArray3->data);
+							
+						$saveArray2=null;
+						$saveArray2->data['CandidateJobdescriptionmapping']['id']=$job_description['CandidateJobdescriptionmapping']['id'];
+						$saveArray2->data['CandidateJobdescriptionmapping']['job_description_id']=$this->data['Candidate']['openings'];
+						$saveArray2->data['CandidateJobdescriptionmapping']['candidate_id']=$candidate['Candidate']['id'];
+						$saveArray2->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+						$saveArray2->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+						
+						if($this->CandidateJobdescriptionmapping->save($saveArray2->data)){
+							//$this->Candidate->cacheQueries=false;
+							$this->Session->setFlash('<h4>Success Message : </h4><p>The candidate has been edited.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+							$this->redirect(array('action'=>'index'));
+						}else{
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Please try again</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						}
+					}
+		  		}
+			}
+		}
+		$this->set(compact('openings','id','job_description','candidate'));
+	}
+
+/**
+ * delete method
+ *
+ * @throws MethodNotAllowedException
+ * @throws NotFoundException
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+		if (!$this->request->is('post')) {
+			throw new MethodNotAllowedException();
+		}
+		$this->Candidate->id = $id;
+		if (!$this->Candidate->exists()) {
+			throw new NotFoundException(__('Invalid candidate'));
+		}
+		if ($this->Candidate->delete()) {
+			$this->Session->setFlash(__('Candidate deleted'));
+			$this->redirect(array('action' => 'index'));
+		}
+		$this->Session->setFlash(__('Candidate was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	function comingsoon(){
+		
+	}
+	
+	function apply(){
+		
+				
+		$this->layout='nologin';
+		
+		/*if(empty($this->data)){
+			
+			$this->loadModel('JobDescription');
+			
+			$valid_job=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$jobid)));
+			
+			if(!$valid_job){
+			    $error_message="Invalid Job ID";	
+			}
+			elseif($valid_job['JobDescription']['active']=='N'){
+				$error_message="This job is not active";	
+			}
+			elseif($valid_job['JobDescription']['end_date']<date('Y-m-d')){
+				$error_message="Last date to apply for this job is passed";	
+			}
+			
+			$this->set(compact('error_message','jobid'));
+		
+		}*/
+		
+		if(!empty($this->data)){
+			
+			
+			
+			$jobid=$this->data['Candidate']['jobid'];
+		
+			$this->Uploader = new Uploader();
+			$this->Uploader = new Uploader(array('tempDir' => TMP));
+			$this->Uploader->setup(array('tempDir' => TMP));
+			$this->Uploader->uploadDir = 'files/uploads/resumeZipped';
+			$data = $this->Uploader->uploadAll(array('fileName1'));
+			
+			$this->Uploader = new Uploader();
+			$this->Uploader = new Uploader(array('tempDir' => TMP));
+			$this->Uploader->setup(array('tempDir' => TMP));
+			$this->Uploader->uploadDir = 'files/uploads/avatars';
+			$data1 = $this->Uploader->uploadAll(array('browse_image'));
+			/*debug($data1);
+			exit;*/
+			
+			/*exit;*/
+		    if(($data['fileName1']['path'])&&($data1['browse_image']['path'])){
+		    	    
+		    	    $today = date('Y-m-d');
+					$s = strtotime($today);
+					$file_name=$this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name']."_".$s;
+					$this->loadModel('Resume');
+					$saveArray->data=null;
+					$this->Resume->create();
+					$saveArray->data['Resume']['resume_username']=$file_name;
+					$saveArray->data['Resume']['resume_useremail']=$this->data['Candidate']['resume_useremail'];
+					$saveArray->data['Resume']['resume_user_contact']=$this->data['Candidate']['resume_user_contact'];
+					$saveArray->data['Resume']['resume_path']=$data['fileName1']['path'];
+					$saveArray->data['Resume']['verified']='Y';
+					if($this->Resume->save($saveArray->data)){
+						    $resume_id=$this->Resume->getLastInsertID();
+							$candidate->data=null;
+							$this->Candidate->create();
+							$candidate->data['Candidate']['first_name']=$this->data['Candidate']['first_name'];
+							$candidate->data['Candidate']['last_name']=$this->data['Candidate']['last_name'];
+							$candidate->data['Candidate']['gender']=$this->data['Candidate']['gender'];
+							$candidate->data['Candidate']['address_line1']=$this->data['Candidate']['street_address1'];
+							$candidate->data['Candidate']['address_line2']=$this->data['Candidate']['street_address2'];
+							$candidate->data['Candidate']['city']=$this->data['Candidate']['city'];
+							$candidate->data['Candidate']['zip']=$this->data['Candidate']['zip_code'];
+							$candidate->data['Candidate']['email']=$this->data['Candidate']['resume_useremail'];
+							$candidate->data['Candidate']['alt_email']=$this->data['Candidate']['altresume_useremail'];
+							$candidate->data['Candidate']['contact']=$this->data['Candidate']['resume_user_contact'];
+							$candidate->data['Candidate']['alt_contact']=$this->data['Candidate']['altresume_user_contact'];
+							$experience=($this->data['Candidate']['curent_role']=='N')?0:$this->data['Candidate']['experience'];
+							$candidate->data['Candidate']['experience']=$experience;
+							$candidate->data['Candidate']['relevant_exp']=$this->data['Candidate']['relevant_exp'];
+							$candidate->data['Candidate']['current_role']=$this->data['Candidate']['current_exp_role'];
+							$candidate->data['Candidate']['current_ctc']=$this->data['Candidate']['current_ctc'];
+							$candidate->data['Candidate']['expected_ctc']=$this->data['Candidate']['expected_ctc'];
+							$candidate->data['Candidate']['notice_period']=$this->data['Candidate']['notice_period'];
+							$candidate->data['Candidate']['reason_for_change']=$this->data['Candidate']['reason_for_change'];
+							$candidate->data['Candidate']['resume_id']=$resume_id;
+							$candidate->data['Candidate']['active']='Y';
+							$candidate->data['Candidate']['updated_on']=date('Y-m-d H:i:s');
+							$candidate->data['Candidate']['avatar']=$data1['browse_image']['path'];
+							if($this->Candidate->save($candidate->data)){
+								$candidate_id=$this->Candidate->getLastInsertID();
+																
+								if(!empty($this->data['Candidate']['basic_graduation'])){
+									$this->loadModel('CandidateEducationDetail');
+									foreach($this->data['Candidate']['basic_graduation'] as $basic1=>$basic2){
+										$edu->data=null;
+										$this->CandidateEducationDetail->create();
+										$edu->data['CandidateEducationDetail']['graduation']=$basic2;
+										$edu->data['CandidateEducationDetail']['specialization']=$this->data['Candidate']['specialization'][$basic1];
+										$edu->data['CandidateEducationDetail']['institute']=$this->data['Candidate']['university'][$basic1];
+										$edu->data['CandidateEducationDetail']['score']=$this->data['Candidate']['score'][$basic1];
+										$edu->data['CandidateEducationDetail']['year']=$this->data['Candidate']['year'][$basic1];
+										$edu->data['CandidateEducationDetail']['updated_on']=date('Y-m-d H:i:s');
+										$edu->data['CandidateEducationDetail']['candidate_id']=$candidate_id;
+										$this->CandidateEducationDetail->save($edu->data);
+									}
+								}
+								
+								
+								if(!empty($this->data['Candidate']['certification'])){
+									$this->loadModel('Certification');
+									foreach($this->data['Candidate']['certification'] as $cer1=>$cer2){
+										$cert->data=null;
+										$this->Certification->create();
+										$cert->data['Certification']['certification']=$cer2;
+										$cert->data['Certification']['issued_by']=$this->data['Candidate']['issuing_organization'][$cer2];
+										$cert->data['Certification']['issued_date']=$this->data['Candidate']['issue_date'][$cer2];
+										$cert->data['Certification']['candidate_id']=$candidate_id;
+										$this->Certification->save($cert->data);
+									}
+								}
+								
+								
+								
+								if(!empty($this->data['Candidate']['company_name'])){
+									$this->loadModel('CandidatePreviousDetail');
+									$this->loadModel('CandidatePreviousProject');
+									foreach($this->data['Candidate']['company_name'] as $com1=>$com2){
+										$com->data=null;
+										$this->CandidatePreviousDetail->create();
+										$com->data['CandidatePreviousDetail']['company_name']=$com2;
+										$com->data['CandidatePreviousDetail']['from']=$this->data['Candidate']['start_date'][$com1];
+										$com->data['CandidatePreviousDetail']['to']=$this->data['Candidate']['end_date'][$com1];
+										$com->data['CandidatePreviousDetail']['role']=$this->data['Candidate']['role'][$com1];
+										$com->data['CandidatePreviousDetail']['functioning']=$this->data['Candidate']['role_description'][$com1];
+										$com->data['CandidatePreviousDetail']['last_salary_drawn']=$this->data['Candidate']['last_salary'][$com1];
+										$com->data['CandidatePreviousDetail']['candidate_id']=$candidate_id;
+										$com->data['CandidatePreviousDetail']['updated_on']=date('Y-m-d H:i:s');
+										$this->CandidatePreviousDetail->save($com->data);
+										
+										$prev_det_id=$this->CandidatePreviousDetail->getLastInsertID();
+										
+										foreach($this->data['Candidate']['project_title'][$com1] as $prj1=>$prj2){
+											$proj->data=null;
+											$this->CandidatePreviousProject->create();
+											$proj->data['CandidatePreviousProject']['project_title']=$prj2;
+											$proj->data['CandidatePreviousProject']['start_date']=$this->data['Candidate']['project_start_date'][$com1][$prj1];
+											$proj->data['CandidatePreviousProject']['end_date']=$this->data['Candidate']['project_end_date'][$com1][$prj1];
+											$proj->data['CandidatePreviousProject']['description']=$this->data['Candidate']['project_description'][$com1][$prj1];
+											$proj->data['CandidatePreviousProject']['role']=$this->data['Candidate']['project_role_description'][$com1][$prj1];
+											$proj->data['CandidatePreviousProject']['candidate_previous_detail_id']=$prev_det_id;
+											$proj->data['CandidatePreviousProject']['size']=$this->data['Candidate']['project_size'][$com1][$prj1];
+											$this->CandidatePreviousProject->save($proj->data);
+										}
+										
+									}
+								}
+								
+								
+								
+								
+								
+								$this->loadModel('JobStatus');
+								$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));
+								
+								/*$this->loadModel('CandidateJobdescriptionmapping');
+								$job_map->data=null;
+								$this->CandidateJobdescriptionmapping->create();
+								$job_map->data['CandidateJobdescriptionmapping']['job_description_id']=$this->data['Candidate']['jobid'];
+								$job_map->data['CandidateJobdescriptionmapping']['candidate_id']=$candidate_id;
+								$job_map->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+								$job_map->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+								$this->CandidateJobdescriptionmapping->save($job_map->data);*/
+								
+								$this->loadModel('JobDescription');
+								$job_details=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$this->data['Candidate']['jobid'])));
+								$job_title=$job_details['JobDescription']['title'];
+								$name=$this->data['Candidate']['first_name'].' '.$this->data['Candidate']['last_name'];
+								//$file_path=$data['fileName1']['path'];
+								//debug($this->webroot);
+								//$file_path='http://192.168.0.116/HRManagement/files/uploads/resumeZipped/shinov-1.doc';
+								//$file_path='/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/shinov-1.doc';
+								$file_rel_path=parent::settings();
+								$file_path=$file_rel_path.$data['fileName1']['path'];
+								
+								$this->loadmodel('User');
+								$this->loadmodel('Role');
+								$validate_email=null;
+								$validate_email=$this->User->find('first',array('conditions'=>array('User.email'=>$this->data['User']['email'])));
+								if(!$validate_email){
+		    						$role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'Candidate'),'fields'=>array('Role.id')));
+		    						$role_id=$role['Role']['id'];
+		    						$password=substr(str_shuffle(md5(time())),0,8);
+		    						$key=substr(str_shuffle(md5(time())),0,8);
+									$save->data=null;
+									$this->User->create();	
+									$save->data['User']['first_name']=$this->data['Candidate']['first_name'];
+									$save->data['User']['last_name']=$this->data['Candidate']['last_name'];
+									$save->data['User']['email']=$this->data['Candidate']['resume_useremail'];
+									$save->data['User']['username']=$this->data['Candidate']['resume_useremail'];
+									$save->data['User']['password']=$password;
+									$save->data['User']['active']='Y';
+									$save->data['User']['candiadate_id']=$candidate_id;
+									$save->data['User']['role_id']=$role_id;
+									$save->data['User']['api_key']=$key;
+									$this->User->save($save->data);
+									
+									$username=$this->data['Candidate']['resume_useremail'];
+								}
+								
+								$email_to=$this->data['Candidate']['resume_useremail'];
+								
+								App::uses('CakeEmail', 'Network/Email');
+								$Email = new CakeEmail();
+								$Email->template('welcome')
+									    ->emailFormat('html')
+									    ->to($email_to)
+										//->cc('venugopal@carmatec.com')
+									    ->from('admin@carmatec.com')
+									    ->subject('Welcome')
+									    ->viewVars(array('job_tile' => $job_title,'name'=>$name,'username'=>$username,'password'=>$password))
+									    ->send();
+								
+								$this->Session->setFlash('<h4>Success Message : </h4><p>Thank you for your interest in job. We have mailed you the login details, you can keep track of your job updates from the portal.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+								$this->redirect(array('controller'=>'users','action'=>'login'));
+								
+							}
+					}else{
+						
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>We were unable to save your resume, please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('controller'=>'candidates','action'=>'apply',$jobid));
+						
+					}
+					
+			}
+			else{
+				
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>We were unable to save your resume, please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				$this->redirect(array('controller'=>'candidates','action'=>'apply',$jobid));
+				
+			}
+				
+		}
+		
+	}
+
+	public function email_already_exits(){
+	
+		$email_enterd = $this->params->query['email'];
+		
+		$this->autoRender = false;	
+		$this->Candidate->recursive=-1;
+		$candidate =$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>$email_enterd),'fields'=>array('Candidate.email')));
+		if(!$candidate){
+			$candidate =$this->Candidate->find('first',array('conditions'=>array('Candidate.alt_email'=>$email_enterd),'fields'=>array('Candidate.alt_email')));
+		}
+		if($candidate){
+ 			echo "true";	
+		}else{
+			echo "false";	
+		}
+	}
+	
+	public function generate_resume(){
+		configure::write('debug',2);
+		debug($this->data);
+		$this->layout = 'pdf'; //this will use the pdf.ctp layout
+		$this->render();
+		//$this->set(compact('pdf'));	 
+	    $path ="/home/visioncarma/public_html/HRManagement/app/webroot/files/generated_resume/";
+	    $file = $path.'resume_name.pdf';
+	    $content = chunk_split(base64_encode(file_get_contents($file)));
+	    ob_start(); 
+	    $uid = md5(uniqid(time()));
+	    $name = basename($file);
+	}
+	
+	public function alt_email_already_exits(){
+	
+		$email_enterd = $this->params->query['email'];
+		
+		$this->autoRender = false;	
+		$this->Candidate->recursive=-1;
+		$candidate =$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>$email_enterd),'fields'=>array('Candidate.email')));
+		if(!$candidate){
+			$candidate =$this->Candidate->find('first',array('conditions'=>array('Candidate.alt_email'=>$email_enterd),'fields'=>array('Candidate.alt_email')));
+		}
+		if($candidate){
+ 			echo "true";	
+		}else{
+			echo "false";	
+		}
+	}
+	
+	
+	function certificates_more($i=null){
+		++$i;
+		$this->set(compact('i'));
+	}
+	
+	function company_more($c=null){
+		++$c;
+		$this->set(compact('c'));
+	}
+	
+	function project_more($com=null,$p=null){
+		++$p;
+		$this->set(compact('com','p'));
+	}
+	
+	public function candidate_profile() {
+		//configure::Write('debug',2);
+		$this->layout='candidate_profile_layout';		
+		debug($this->Session->read('Auth'));
+		$candidate_id=$this->Session->read('Auth.Candidate.id');
+		
+		$this->Candidate->recursive=-1;
+		$candidate_data=$this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id)));
+		
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$candidate_jobs=$this->CandidateJobdescriptionmapping->find('all',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate_id)));
+		$job=null; 
+		$i=0;
+		$this->loadModel('Company');
+		$this->Company->recursive=-1;
+		$this->loadModel('Brand');
+		$this->Brand->recursive=-1;
+		
+		foreach($candidate_jobs as $candidate_job=>$value){
+			$i++;
+			$company=$this->Company->find('first',array('conditions'=>array('Company.id'=>$value['JobDescription']['company_id'])));
+			$val[$i]['Job Title']=$value['JobDescription']['title'];
+			//debug($value['JobDescription']['company_id']);
+			$val[$i]['Company']=$company['Company']['company_name'];
+			$brand=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$value['JobDescription']['brand_id'])));
+		    //debug($value['JobDescription']['brand_id']);
+			$val[$i]['Brand']=$brand['Brand']['brand_name'];
+			$val[$i]['JobStatus']=$value['JobStatus']['status'];
+			//debug($brand);
+			//debug($candidate_job);
+			
+			
+		}
+		
+		$this->set(compact('candidate_jobs','candidate_data','val'));
+		
+		
+	}
+
+	public function profile_edit() {
+		$this->autoRender=FALSE;
+		configure::write('debug',2);
+		debug($this->data);
+		exit;
+		$candidate_id=$this->Session->read('Auth.Candidate.id');
+		debug($candidate_id);
+		$this->loadModel('User');
+		$this->loadModel('Resume');
+		$this->Resume->recursive=-1;
+		$this->User->recursive=-1;
+		$user_id=$this->Session->read('Auth.User.id');
+		$user =$this->User->find('first',array('conditions'=>array('User.id'=>$user_id),'fields'=>array('User.email,User.username')));
+		$can_name=$this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id)));    
+		debug($user);
+		$name=$can_name['Candidate']['first_name'].' '.$can_name['Candidate']['last_name'];
+	
+		$candidate_id=$this->Session->read('Auth.Candidate.id');
+		
+		$this->Uploader = new Uploader();
+		$this->Uploader = new Uploader(array('tempDir' => TMP));
+		$this->Uploader->setup(array('tempDir' => TMP));
+		$this->Uploader->uploadDir = 'files/uploads/avatars';
+		$upload = $this->Uploader->uploadAll(array('browse_image'));
+		
+		
+		$this->Uploader = new Uploader();
+		$this->Uploader = new Uploader(array('tempDir' => TMP));
+		$this->Uploader->setup(array('tempDir' => TMP));
+		$this->Uploader->uploadDir = 'files/uploads/resumeZipped';
+		$data_resume = $this->Uploader->uploadAll(array('browse_resume'));
+		/*
+		debug($data_resume);
+				exit;*/
+		
+		if(!empty($this->data)){
+			if($data_resume){
+				$rsm=null;	
+				if($can_name['Candidate']['resume_id']){
+					$rsm['Resume']['id']=$can_name['Candidate']['resume_id'];
+					if($this->data['Candidate']['email_id']){
+						$rsm['Resume']['resume_useremail']=$this->data['Candidate']['email_id'];
+					}
+					if($this->data['Candidate']['resume_user_contact']){
+						$rsm['Resume']['resume_user_contact']=$this->data['Candidate']['resume_user_contact'];
+					}
+					$rsm['Resume']['resume_path']=$data_resume['browse_resume']['path'];
+					$rsm['Resume']['verified']='Y';
+					$this->Resume->save($rsm);
+				}else{
+					$this->Resume->create();
+					$rsm['Resume']['resume_username']=$name;
+					$rsm['Resume']['resume_useremail']=$this->data['Candidate']['email_id'];
+					$rsm['Resume']['resume_user_contact']=$this->data['Candidate']['phone_no'];
+					$rsm['Resume']['resume_path']=$data_resume['browse_resume']['path'];
+					$rsm['Resume']['verified']='Y';
+					$this->Resume->save($rsm);
+					$resume_id=$this->Resume->getLastInsertID();
+				}
+				
+				
+			}
+				
+			$saveArray->data=null;
+			$saveArray->data['Candidate']['id']=$candidate_id;
+			$saveArray->data['Candidate']['address_line1']=$this->data['Candidate']['address_line1'];
+			$saveArray->data['Candidate']['address_line2']=$this->data['Candidate']['address_line2'];
+			$saveArray->data['Candidate']['city']=$this->data['Candidate']['city'];
+			$saveArray->data['Candidate']['zip']=$this->data['Candidate']['zip'];
+			if($resume_id){
+				$saveArray->data['Candidate']['resume_id']=$resume_id;
+			}
+			$saveArray->data['Candidate']['email']=$this->data['Candidate']['email_id'];
+			$saveArray->data['Candidate']['alt_email']=$this->data['Candidate']['alt_email_id'];
+			$saveArray->data['Candidate']['contact']=$this->data['Candidate']['phone_no'];
+			$saveArray->data['Candidate']['alt_contact']=$this->data['Candidate']['alt_phone_no'];
+			$saveArray->data['Candidate']['avatar']=$upload['browse_image']['path'];
+			
+				if($this->Candidate->save($saveArray->data)){
+							$user_one=null;
+					        $user_one['User']['id']=$user_id;
+							$user_one['User']['email']=$this->data['Candidate']['email_id'];	
+							$user_one['User']['username']=$this->data['Candidate']['email_id'];	
+										
+						if($this->User->save($user_one)){
+							
+							$email_to=$this->data['Candidate']['email_id'];
+							
+							App::uses('CakeEmail', 'Network/Email');
+								$Email = new CakeEmail();
+								$Email->template('profile')
+									    ->emailFormat('html')
+									    ->to($email_to)
+										//->cc('venugopal@carmatec.com')
+									    ->from('admin@carmatec.com')
+									    ->subject('Profile')
+										->viewVars(array('name'=>$name))
+									    ->send();
+							
+							
+							$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					    $this->redirect(array('action'=>'candidate_profile'));
+						}
+					
+						
+					}
+		}
+		else{
+						
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'candidate_profile'));
+				}
+		
+		$this->set(compact('candidate_id'));
+	
+	}
+	
+	public function complete_profile(){
+		//configure::write('debug',2);
+		$this->layout='candidate_profile_layout';
+		$this->loadModel('CandidateEducationDetail');
+		$this->loadModel('Certification');
+		$candidate_id=$this->Session->read('Auth.Candidate.id');
+		debug($candidate_id);
+		
+		$this->Candidate->recursive=-1;
+		$candidate_details=$this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id)));
+		debug($candidate_details);
+		if(!$candidate_details['Candidate']['experience']){
+			$fresher=1;
+		}
+		
+		$this->CandidateEducationDetail->recursive=-1;	
+		$education_details=$this->CandidateEducationDetail->find('all',array('conditions'=>array('CandidateEducationDetail.candidate_id'=>$candidate_id)));
+		//debug($education_details);
+		
+		$this->Certification->recursive=-1;
+		$certification_details=$this->Certification->find('all',array('conditions'=>array('Certification.candidate_id'=>$candidate_id)));
+		debug($certification_details);
+		
+		$this->set(compact('fresher','candidate_id'));
+	}
+	
+	public function add_educations($candidate_id = null){
+		configure::write('debug',2);
+		
+	}
+	
+	public function email_already_exits_edit(){
+		
+           // configure::write('debug',2);
+			$candidate_id=$this->Session->read('Auth.Candidate.id');
+			$email_enterd = $this->params->query['email'];
+			$this->autoRender = false;	
+			$this->Candidate->recursive=-1;
+			$candidate =$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>$email_enterd,'Candidate.id !='=>$candidate_id),'fields'=>array('Candidate.email')));
+             		
+				if(!$candidate){
+					$candidate =$this->Candidate->find('first',array('conditions'=>array('Candidate.alt_email'=>$email_enterd,'Candidate.id !='=>$candidate_id),'fields'=>array('Candidate.alt_email')));
+				}
+				if($candidate){
+		 			echo "true";	
+				}else{
+					echo "false";	
+				}
+			
+		}
+	public function alt_email_already_exits_edit(){
+		
+			$candidate_id=$this->Session->read('Auth.Candidate.id');
+			$email_enterd = $this->params->query['email'];
+			$this->autoRender = false;	
+			$this->Candidate->recursive=-1;
+			$candidate =$this->Candidate->find('first',array('conditions'=>array('Candidate.email'=>$email_enterd,'Candidate.id !='=>$candidate_id),'fields'=>array('Candidate.email')));
+			if(!$candidate){
+				$candidate =$this->Candidate->find('first',array('conditions'=>array('Candidate.alt_email'=>$email_enterd,'Candidate.id !='=>$candidate_id),'fields'=>array('Candidate.alt_email')));
+			}
+			if($candidate){
+	 			echo "true";	
+			}else{
+				echo "false";	
+			}
+		}
+	
+	public function login_apply($jd_id=null){
+			$this->autoRender = false;
+			$candidate_id=$this->Session->read('Auth.Candidate.id');
+			$this->loadModel('JobStatus');
+			$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));	
+			$this->loadModel('CandidateJobdescriptionmapping');
+			
+			$already_applied=$this->CandidateJobdescriptionmapping->find('first',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate_id,'CandidateJobdescriptionmapping.job_description_id'=>$jd_id)));	
+			if(!$already_applied){
+				$job_map->data=null;
+				$this->CandidateJobdescriptionmapping->create();
+				$job_map->data['CandidateJobdescriptionmapping']['job_description_id']=$jd_id;
+				$job_map->data['CandidateJobdescriptionmapping']['candidate_id']=$candidate_id;
+				$job_map->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+				$job_map->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+				if($this->CandidateJobdescriptionmapping->save($job_map->data)){
+					$this->Session->setFlash('<h4>Success Message : </h4><p>You successfully applied for the selected job!</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					//$this->redirect(array('action'=>'candidate_profile'));
+					$this->redirect(array('action'=>'profile_view'));
+				}else{
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Something went wrong. Please try again</p>','default',array('class' => 'flashmessagebox flashwarning'));
+					$this->redirect(array('action'=>'profile_view'));
+				}
+			}else{
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>You have already applied for the selected job!</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				$this->redirect(array('action'=>'profile_view'));
+			}
+			
+			
+	}
+	
+	public function profile_view(){
+    	//configure::write('debug',2);
+    	if($this->Session->read('Auth.User.Role.role_name') !='Candidate'){
+			$this->redirect(array('controller'=>'users','action' => 'noaccess'));
+		}
+		$this->layout='candidate_profile_layout_new';
+		//debug($this->Session->read('Auth'));
+		$candidate_id=$this->Session->read('Auth.Candidate.id');
+		//$this->Candidate->unbindModel(array('hasMany'=>array('CandidateJobdescriptionmapping','CandidateRolemapping','CandidateSkillmapping','FeedbackRating','FeedbackStatus')));
+		
+		$this->loadModel('CandidateEducationDetail');
+		$this->loadModel('Certification');
+		$this->loadModel('CandidatePreviousDetail');
+		$this->loadModel('CandidatePreviousProject');
+		$this->loadModel('CandidateSkillmapping');
+		$this->loadModel('CandidateJobdescriptionmapping');
+		$this->loadModel('Resume');
+		$this->loadModel('User');
+		$this->loadModel('SkillMaster');
+		$this->loadModel('JobDescription');
+		$this->SkillMaster->recursive=-1;
+		
+		$this->JobDescription->recursive=-1;
+		
+		
+		$this->Candidate->recursive=-1;
+		$candidate_data=$this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id)));
+		$this->User->recursive=-1;
+		$user_data = $this->User->find('first',array('conditions'=>array('User.id'=>$this->Session->read('Auth.User.id'))));
+		
+		if($this->data){
+			
+			if($this->data['Candidate']['section']=='profile_edit'){
+				$email_verification=$this->Candidate->find('first',array('conditions'=>array('Candidate.id !='=>$candidate_id,'Candidate.email'=>$this->data['Candidate']['email_id'])));
+				if($email_verification){
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Email is already exists. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+					$this->redirect(array('action'=>'profile_view'));
+				}
+				
+				if($this->data['Candidate']['browse_image']['name']){
+					$this->Uploader = new Uploader();
+					$this->Uploader = new Uploader(array('tempDir' => TMP));
+					$this->Uploader->setup(array('tempDir' => TMP));
+					$this->Uploader->uploadDir = 'files/uploads/avatars';
+					$upload = $this->Uploader->uploadAll(array('browse_image'));
+					$image_path=$upload['browse_image']['path'];
+				}	
+			
+				if($this->data['Candidate']['browse_resume']['name']){
+					$this->Uploader = new Uploader();
+					$this->Uploader = new Uploader(array('tempDir' => TMP));
+					$this->Uploader->setup(array('tempDir' => TMP));
+					$this->Uploader->uploadDir = 'files/uploads/resumeZipped';
+					$upload = $this->Uploader->uploadAll(array('browse_resume'));
+					$resume_path=$upload['browse_resume']['path'];
+					
+					if($candidate_data['Candidate']['resume_id']){
+						$resume_date=null;
+						$resume_date['Resume']['id']=$candidate_data['Candidate']['resume_id'];
+						$resume_date['Resume']['resume_username']=$this->data['Candidate']['email_id'];
+						$resume_date['Resume']['resume_path']=$resume_path;
+						$resume_date['Resume']['resume_useremail']=$this->data['Candidate']['email_id'];
+						$resume_date['Resume']['verified']='Y';
+						if($this->Resume->save($resume_date)){
+							$lst_resume_id=$candidate_data['Candidate']['resume_id'];
+						}
+						
+					}else{
+						$resume_date=null;
+						$this->Resume->create();
+						$resume_date['Resume']['resume_username']=$this->data['Candidate']['email_id'];
+						$resume_date['Resume']['resume_path']=$resume_path;
+						$resume_date['Resume']['resume_useremail']=$this->data['Candidate']['email_id'];
+						$resume_date['Resume']['verified']='Y';
+						if($this->Resume->save($resume_date)){
+							$lst_resume_id=$this->Resume->getLastInsertID();
+						}
+					}
+				}			
+				
+				$for_edit_array=null;
+				$for_edit_array['Candidate']['id']=$candidate_id;
+				$for_edit_array['Candidate']['first_name']=$this->data['Candidate']['first_name'];
+				$for_edit_array['Candidate']['last_name']=$this->data['Candidate']['last_name'];
+				$for_edit_array['Candidate']['gender']=$this->data['Candidate']['gender'];
+				$for_edit_array['Candidate']['dob']=$this->data['Candidate']['dob'];
+				$for_edit_array['Candidate']['address_line1']=$this->data['Candidate']['address_line1'];
+				$for_edit_array['Candidate']['address_line2']=$this->data['Candidate']['address_line2'];
+				$for_edit_array['Candidate']['city']=$this->data['Candidate']['city'];
+				$for_edit_array['Candidate']['zip']=$this->data['Candidate']['zip'];
+				$for_edit_array['Candidate']['email']=$this->data['Candidate']['email_id'];
+				$for_edit_array['Candidate']['alt_email']=$this->data['Candidate']['alt_email'];
+				$for_edit_array['Candidate']['contact']=$this->data['Candidate']['contact'];
+				$for_edit_array['Candidate']['alt_contact']=$this->data['Candidate']['alt_contact'];
+				if($lst_resume_id){
+					$for_edit_array['Candidate']['resume_id']=$lst_resume_id;
+				}
+				
+				$for_edit_array['Candidate']['active']='Y';
+				$for_edit_array['Candidate']['updated_on']=date('Y-m-d H:i:s');
+				if($image_path){
+					$for_edit_array['Candidate']['avatar']=$image_path;
+				}
+				if($this->Candidate->save($for_edit_array)){
+					$user_edit=null;
+					$user_edit['User']['id']=$this->Session->read('Auth.User.id');
+					$user_edit['User']['first_name']=$this->data['Candidate']['first_name'];
+					$user_edit['User']['last_name']=$this->data['Candidate']['last_name'];
+					$user_edit['User']['email']=$this->data['Candidate']['email_id'];
+					$user_edit['User']['username']=$this->data['Candidate']['email_id'];
+					$user_edit['User']['candiadate_id']=$candidate_id;
+					if($this->User->save($user_edit)){
+						$this->Session->setFlash('<h4>Success Message : </h4><p>Profile Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					    $this->redirect(array('action'=>'profile_view'));
+					}else{
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Profile Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}
+				}
+				
+				
+			}elseif($this->data['Candidate']['section']=='education'){
+				$for_edit_array=null;	
+				if($this->data['Candidate']['action_type']=='add'){
+					if(!$this->data['Candidate']['basic_graduation-add'] || !$this->data['Candidate']['specialization-add'] || !$this->data['Candidate']['university-add'] || !$this->data['Candidate']['year-add']){
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Please fill education fields.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}	
+					$this->CandidateEducationDetail->create();
+					$for_edit_array['CandidateEducationDetail']['graduation']=$this->data['Candidate']['basic_graduation-add'];
+					$for_edit_array['CandidateEducationDetail']['specialization']=$this->data['Candidate']['specialization-add'];
+					$for_edit_array['CandidateEducationDetail']['institute']=$this->data['Candidate']['university-add'];
+					$for_edit_array['CandidateEducationDetail']['score']=$this->data['Candidate']['score-add'];
+					$for_edit_array['CandidateEducationDetail']['year']=$this->data['Candidate']['year-add'];
+					$for_edit_array['CandidateEducationDetail']['updated_on']=date('Y-m-d H:i:s');
+					$for_edit_array['CandidateEducationDetail']['candidate_id']=$candidate_id;
+					if($this->CandidateEducationDetail->save($for_edit_array)){
+						$this->Session->setFlash('<h4>Success Message : </h4><p>Education details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					    $this->redirect(array('action'=>'profile_view'));
+					}else{
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Education details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}
+				}elseif($this->data['Candidate']['action_type'] =='edit'){
+					if(!$this->data['Candidate']['basic_graduation_edit'][$this->data['Candidate']['id_for_save']] || !$this->data['Candidate']['specialization_edit'][$this->data['Candidate']['id_for_save']] || !$this->data['Candidate']['university_edit'][$this->data['Candidate']['id_for_save']] || !$this->data['Candidate']['year_edit'][$this->data['Candidate']['id_for_save']]){
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Please fill education fields.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}		
+					$for_edit_array['CandidateEducationDetail']['id']=$this->data['Candidate']['id_for_save'];
+					$for_edit_array['CandidateEducationDetail']['graduation']=$this->data['Candidate']['basic_graduation_edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidateEducationDetail']['specialization']=$this->data['Candidate']['specialization_edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidateEducationDetail']['institute']=$this->data['Candidate']['university_edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidateEducationDetail']['score']=$this->data['Candidate']['score_edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidateEducationDetail']['year']=$this->data['Candidate']['year_edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidateEducationDetail']['updated_on']=date('Y-m-d H:i:s');
+					$for_edit_array['CandidateEducationDetail']['candidate_id']=$candidate_id;
+					if($this->CandidateEducationDetail->save($for_edit_array)){
+						$this->Session->setFlash('<h4>Success Message : </h4><p>Education details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					    $this->redirect(array('action'=>'profile_view'));
+					}else{
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Education details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}
+				}
+				
+			}elseif($this->data['Candidate']['section']=='company'){
+				$for_edit_array=null;	
+				if($this->data['Candidate']['action_type']=='add'){
+					if($this->data['Candidate']['total_experience-add']){
+						$for_edit_array['Candidate']['id']=$candidate_id;
+						$for_edit_array['Candidate']['experience']=$this->data['Candidate']['total_experience-add'];
+						$for_edit_array['Candidate']['relevant_exp']=$this->data['Candidate']['relevent_experience-add'];
+						$for_edit_array['Candidate']['current_role']=$this->data['Candidate']['personal_role-add'];
+						$for_edit_array['Candidate']['current_ctc']=$this->data['Candidate']['current_ctc-add'];
+						$for_edit_array['Candidate']['expected_ctc']=$this->data['Candidate']['expected_ctc-add'];
+						$for_edit_array['Candidate']['notice_period']=$this->data['Candidate']['notice_period-add'];
+						$for_edit_array['Candidate']['reason_for_change']=$this->data['Candidate']['reason_for_change-add'];
+						$for_edit_array['Candidate']['type']='E';
+						if($this->Candidate->save($for_edit_array)){
+							if(!$this->data['Candidate']['company_name-add']){
+								$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+						    	$this->redirect(array('action'=>'profile_view'));
+							}
+						}else{
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}
+					}
+					
+					if($this->data['Candidate']['intern']=='Y'){
+						$for_edit_array=null;	
+						$for_edit_array['Candidate']['id']=$candidate_id;
+						$for_edit_array['Candidate']['type']='I';
+						$this->Candidate->save($for_edit_array);
+					}
+					
+					if($this->data['Candidate']['company_name-add']){
+						$for_edit_array=null;
+						$this->CandidatePreviousDetail->create();    
+						$for_edit_array['CandidatePreviousDetail']['company_name']=$this->data['Candidate']['company_name-add'];
+						$for_edit_array['CandidatePreviousDetail']['from']=$this->data['Candidate']['joining_date-add'];
+						$for_edit_array['CandidatePreviousDetail']['to']=$this->data['Candidate']['releving_date-add'];
+						$for_edit_array['CandidatePreviousDetail']['role']=$this->data['Candidate']['company_role-add'];
+						$for_edit_array['CandidatePreviousDetail']['last_salary_drawn']=$this->data['Candidate']['last_salary_drawn-add'];
+						$for_edit_array['CandidatePreviousDetail']['functioning']=$this->data['Candidate']['job_description-add'];
+						$for_edit_array['CandidatePreviousDetail']['candidate_id'] = $candidate_id;
+						$for_edit_array['CandidatePreviousDetail']['updated_on'] = date('Y-m-d');
+						if($this->CandidatePreviousDetail->save($for_edit_array)){
+							$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+						    $this->redirect(array('action'=>'profile_view'));
+						}else{
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}
+					}
+						
+				}elseif($this->data['Candidate']['action_type'] =='edit'){
+					$for_edit_array=null;
+					$for_edit_array['CandidatePreviousDetail']['id']=$this->data['Candidate']['id_for_save'];
+					$for_edit_array['CandidatePreviousDetail']['company_name']=$this->data['Candidate']['company_name-edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidatePreviousDetail']['from']=$this->data['Candidate']['joining_date-edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidatePreviousDetail']['to']=$this->data['Candidate']['releving_date-edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidatePreviousDetail']['role']=$this->data['Candidate']['role-edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidatePreviousDetail']['last_salary_drawn']=$this->data['Candidate']['last_salary_drawn-edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidatePreviousDetail']['functioning']=$this->data['Candidate']['job_description-edit'][$this->data['Candidate']['id_for_save']];
+					$for_edit_array['CandidatePreviousDetail']['candidate_id'] = $candidate_id;
+					$for_edit_array['CandidatePreviousDetail']['updated_on'] = date('Y-m-d');
+					if($this->CandidatePreviousDetail->save($for_edit_array)){
+						$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+					    $this->redirect(array('action'=>'profile_view'));
+					}else{
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}
+				}
+				
+			}elseif($this->data['Candidate']['section']=='company_experience'){
+				$for_edit_array=null;
+				$for_edit_array['Candidate']['id']=$candidate_id;
+				$for_edit_array['Candidate']['experience']=$this->data['Candidate']['total_experience-edit'];
+				$for_edit_array['Candidate']['relevant_exp']=$this->data['Candidate']['relevent_experience-edit'];
+				$for_edit_array['Candidate']['current_role']=$this->data['Candidate']['personal_role-edit'];
+				$for_edit_array['Candidate']['current_ctc']=$this->data['Candidate']['current_ctc-edit'];
+				$for_edit_array['Candidate']['expected_ctc']=$this->data['Candidate']['expected_ctc-edit'];
+				$for_edit_array['Candidate']['notice_period']=$this->data['Candidate']['notice_period-edit'];
+				$for_edit_array['Candidate']['reason_for_change']=$this->data['Candidate']['reason_for_change-edit'];
+				if($this->Candidate->save($for_edit_array)){
+					$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+				    $this->redirect(array('action'=>'profile_view'));
+				}else{
+					$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+					$this->redirect(array('action'=>'profile_view'));
+				}
+			}elseif($this->data['Candidate']['section']=='skills'){
+				$for_edit_array=null;	
+				if($this->data['Candidate']['action_type']=='add'){
+					$skill_exists=$this->SkillMaster->find('first',array('conditions'=>array('SkillMaster.skill_type'=>trim($this->data['Candidate']['skill-add']))));	
+					if($skill_exists){
+						$already_mapped=$this->CandidateSkillmapping->find('first',array('conditions'=>array('CandidateSkillmapping.skill_master_id'=>$skill_exists['SkillMaster']['id'],'CandidateSkillmapping.candidate_id'=>$candidate_id)));
+						if($already_mapped){
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Skill is already mapped. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}else{
+							$this->CandidateSkillmapping->create();    
+							$for_edit_array['CandidateSkillmapping']['candidate_id']=$candidate_id;
+							$for_edit_array['CandidateSkillmapping']['skill_master_id']=$skill_exists['SkillMaster']['id'];
+							$for_edit_array['CandidateSkillmapping']['proficiency']=$this->data['Candidate']['proficiency-add'];
+							if($this->CandidateSkillmapping->save($for_edit_array)){
+								$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+							    $this->redirect(array('action'=>'profile_view'));
+							}else{
+								$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+								$this->redirect(array('action'=>'profile_view'));
+							}
+						}
+					}else{
+						$for_edit_array=null;
+						$this->SkillMaster->create();    
+						$for_edit_array['SkillMaster']['skill_description']=trim($this->data['Candidate']['skill-add']);
+						$for_edit_array['SkillMaster']['skill_type']=trim($this->data['Candidate']['skill-add']);
+						if($this->SkillMaster->save($for_edit_array)){
+							$skill_id=$this->SkillMaster->getLastInsertID();
+							$for_edit_array1=null;
+							$this->CandidateSkillmapping->create();    
+							$for_edit_array1['CandidateSkillmapping']['candidate_id']=$candidate_id;
+							$for_edit_array1['CandidateSkillmapping']['skill_master_id']=$skill_id;
+							$for_edit_array1['CandidateSkillmapping']['proficiency']=$this->data['Candidate']['proficiency-add'];
+							if($this->CandidateSkillmapping->save($for_edit_array1)){
+								$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+							    $this->redirect(array('action'=>'profile_view'));
+							}else{
+								$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+								$this->redirect(array('action'=>'profile_view'));
+							}
+						}else{
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}
+					}
+				
+					
+				}elseif($this->data['Candidate']['action_type'] =='edit'){
+					
+					
+					$skill_exists=$this->SkillMaster->find('first',array('conditions'=>array('SkillMaster.skill_type'=>trim($this->data['Candidate']['skill-edit'][$this->data['Candidate']['id_for_save']]))));	
+					if($skill_exists){
+						$already_mapped=null;	
+						$already_mapped=$this->CandidateSkillmapping->find('first',array('conditions'=>array('CandidateSkillmapping.skill_master_id'=>$skill_exists['SkillMaster']['id'],'CandidateSkillmapping.candidate_id'=>$candidate_id,'CandidateSkillmapping.id <>'=>$this->data['Candidate']['id_for_save'])));
+						if($already_mapped){
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Skill is already mapped. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}else{
+							$for_edit_array['CandidateSkillmapping']['id']=$this->data['Candidate']['id_for_save'];	
+							$for_edit_array['CandidateSkillmapping']['candidate_id']=$candidate_id;
+							$for_edit_array['CandidateSkillmapping']['skill_master_id']=$skill_exists['SkillMaster']['id'];
+							$for_edit_array['CandidateSkillmapping']['proficiency']=$this->data['Candidate']['proficiency-edit'][$this->data['Candidate']['id_for_save']];
+							if($this->CandidateSkillmapping->save($for_edit_array)){
+								$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+							    $this->redirect(array('action'=>'profile_view'));
+							}else{
+								$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+								$this->redirect(array('action'=>'profile_view'));
+							}
+						}
+					}else{
+						$for_edit_array=null;
+						$this->SkillMaster->create();    
+						$for_edit_array['SkillMaster']['skill_description']=trim($this->data['Candidate']['skill-edit'][$this->data['Candidate']['id_for_save']]);
+						$for_edit_array['SkillMaster']['skill_type']=trim($this->data['Candidate']['skill-edit'][$this->data['Candidate']['id_for_save']]);
+						if($this->SkillMaster->save($for_edit_array)){
+							$skill_id=$this->SkillMaster->getLastInsertID();
+							$for_edit_array1=null;
+							$for_edit_array1['CandidateSkillmapping']['id']=$this->data['Candidate']['id_for_save'];	
+							$for_edit_array1['CandidateSkillmapping']['candidate_id']=$candidate_id;
+							$for_edit_array1['CandidateSkillmapping']['skill_master_id']=$skill_id;
+							$for_edit_array1['CandidateSkillmapping']['proficiency']=$this->data['Candidate']['proficiency-edit'][$this->data['Candidate']['id_for_save']];
+							if($this->CandidateSkillmapping->save($for_edit_array1)){
+								$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+							    $this->redirect(array('action'=>'profile_view'));
+							}else{
+								$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+								$this->redirect(array('action'=>'profile_view'));
+							}
+						}else{
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}
+					}
+					
+					
+				}
+			}elseif($this->data['Candidate']['section']=='certification'){
+				$for_edit_array=null;	
+				if($this->data['Candidate']['action_type']=='add'){
+					$already_mapped=null;	
+					$already_mapped=$this->Certification->find('first',array('conditions'=>array('Certification.certification'=>trim($this->data['Candidate']['certfication-add']),'Certification.candidate_id'=>$candidate_id)));
+					if($already_mapped){
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Certification details already exixts. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}else{
+						$for_edit_array1=null;
+						$this->Certification->create();
+						$for_edit_array1['Certification']['candidate_id']=$candidate_id;
+						$for_edit_array1['Certification']['certification']=$this->data['Candidate']['certfication-add'];
+						$for_edit_array1['Certification']['issued_by']=$this->data['Candidate']['issued_by-add'];
+						$for_edit_array1['Certification']['issued_date']=$this->data['Candidate']['issue_date-add'];
+						$for_edit_array1['Certification']['issued_upto']=$this->data['Candidate']['issue_upto-add'];
+						if($this->Certification->save($for_edit_array1)){
+							$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+						    $this->redirect(array('action'=>'profile_view'));
+						}else{
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}
+					}	
+				}elseif($this->data['Candidate']['action_type'] =='edit'){
+					$already_mapped=null;	
+					$already_mapped=$this->Certification->find('first',array('conditions'=>array('Certification.certification'=>trim($this->data['Candidate']['certfication-edit'][$this->data['Candidate']['id_for_save']]),'Certification.candidate_id'=>$candidate_id,'Certification.id <>'=>$this->data['Candidate']['id_for_save'])));
+					if($already_mapped){
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Certification details already exixts. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}else{
+						$for_edit_array['Certification']['id']=$this->data['Candidate']['id_for_save'];	
+						$for_edit_array['Certification']['candidate_id']=$candidate_id;
+						$for_edit_array['Certification']['certification']=$this->data['Candidate']['certfication-edit'][$this->data['Candidate']['id_for_save']];
+						$for_edit_array['Certification']['issued_date']=$this->data['Candidate']['issue_date-edit'][$this->data['Candidate']['id_for_save']];
+						$for_edit_array['Certification']['issued_upto']=$this->data['Candidate']['issue_upto-edit'][$this->data['Candidate']['id_for_save']];
+						$for_edit_array['Certification']['issued_by']=$this->data['Candidate']['issued_by-edit'][$this->data['Candidate']['id_for_save']];
+						if($this->Certification->save($for_edit_array)){
+							$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+						    $this->redirect(array('action'=>'profile_view'));
+						}else{
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}
+					}
+					
+				}
+			}elseif($this->data['Candidate']['section']=='projects'){
+				$for_edit_array=null;	
+				if($this->data['Candidate']['action_type']=='add'){
+					$already_mapped=null;	
+					$already_mapped=$this->CandidatePreviousProject->find('first',array('conditions'=>array('CandidatePreviousProject.project_title'=>trim($this->data['Candidate']['project_tittle-add']),'CandidatePreviousProject.candidate_previous_detail_id'=>$this->data['Candidate']['company-add'])));
+					if($already_mapped){
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Project details already exixts. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}else{
+						$for_edit_array1=null;
+						$this->CandidatePreviousProject->create();
+						$for_edit_array1['CandidatePreviousProject']['project_title']=$this->data['Candidate']['project_tittle-add'];
+						$for_edit_array1['CandidatePreviousProject']['start_date']=$this->data['Candidate']['pro_start_date-add'];
+						$for_edit_array1['CandidatePreviousProject']['end_date']=$this->data['Candidate']['pro_end_date-add'];
+						$for_edit_array1['CandidatePreviousProject']['description']=$this->data['Candidate']['project_description-add'];
+						$for_edit_array1['CandidatePreviousProject']['role']=$this->data['Candidate']['pro_role-add'];
+						$for_edit_array1['CandidatePreviousProject']['candidate_previous_detail_id']=$this->data['Candidate']['company-add'];
+						$for_edit_array1['CandidatePreviousProject']['size']=$this->data['Candidate']['pro_size-add'];
+						if($this->CandidatePreviousProject->save($for_edit_array1)){
+							$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+						    $this->redirect(array('action'=>'profile_view'));
+						}else{
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}
+					}	
+				}elseif($this->data['Candidate']['action_type'] =='edit'){
+					$already_mapped=null;	
+					$already_mapped=$this->CandidatePreviousProject->find('first',array('conditions'=>array('CandidatePreviousProject.project_title'=>trim($this->data['Candidate']['project_tittle_edit'][$this->data['Candidate']['id_for_save']]),'CandidatePreviousProject.candidate_previous_detail_id'=>$this->data['Candidate']['project_company_edit'][$this->data['Candidate']['id_for_save']],'CandidatePreviousProject.id <>'=>$this->data['Candidate']['id_for_save'])));
+					if($already_mapped){
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>Project details already exixts. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('action'=>'profile_view'));
+					}else{
+						$for_edit_array['CandidatePreviousProject']['id']=$this->data['Candidate']['id_for_save'];	
+						$for_edit_array['CandidatePreviousProject']['project_title']=$this->data['Candidate']['project_tittle_edit'][$this->data['Candidate']['id_for_save']];
+						$for_edit_array['CandidatePreviousProject']['candidate_previous_detail_id']=$this->data['Candidate']['project_company_edit'][$this->data['Candidate']['id_for_save']];
+						$for_edit_array['CandidatePreviousProject']['start_date']=$this->data['Candidate']['pro_start_date_edit'][$this->data['Candidate']['id_for_save']];
+						$for_edit_array['CandidatePreviousProject']['end_date']=$this->data['Candidate']['pro_end_date_edit'][$this->data['Candidate']['id_for_save']];
+						$for_edit_array['CandidatePreviousProject']['role']=$this->data['Candidate']['role_edit'][$this->data['Candidate']['id_for_save']];
+						$for_edit_array['CandidatePreviousProject']['description']=$this->data['Candidate']['project_description_edit'][$this->data['Candidate']['id_for_save']];
+						$for_edit_array['CandidatePreviousProject']['size']=$this->data['Candidate']['pro_size_edit'][$this->data['Candidate']['id_for_save']];
+						if($this->CandidatePreviousProject->save($for_edit_array)){
+							$this->Session->setFlash('<h4>Success Message : </h4><p>Details have been saved.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+						    $this->redirect(array('action'=>'profile_view'));
+						}else{
+							$this->Session->setFlash('<h4>Warning Message : </h4><p>Details cannot be saved. Please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+							$this->redirect(array('action'=>'profile_view'));
+						}
+					}
+					
+				}
+			}
+		}
+		
+		
+		
+		
+		
+		$this->CandidateEducationDetail->recursive=-1;
+		$candidate_educations=$this->CandidateEducationDetail->find('all',array('conditions'=>array('CandidateEducationDetail.candidate_id'=>$candidate_id)));
+		
+		
+		$this->Certification->recursive=-1;
+		$candidate_certifications=$this->Certification->find('all',array('conditions'=>array('Certification.candidate_id'=>$candidate_id)));
+		
+		
+		$this->CandidatePreviousDetail->recursive=-1;
+		$candidate_previous_companydetails_main=$this->CandidatePreviousDetail->find('all',array('conditions'=>array('CandidatePreviousDetail.candidate_id'=>$candidate_id)));
+		
+		if($candidate_previous_companydetails_main){
+			$candidate_previous_projects=null;
+			
+			$this->CandidatePreviousProject->recursive=-1;
+			foreach($candidate_previous_companydetails_main as $k => $candidate_previous_companydetail){
+				$candidate_previous_projectdetails=$this->CandidatePreviousProject->find('all',array('conditions'=>array('CandidatePreviousProject.candidate_previous_detail_id'=>$candidate_previous_companydetail['CandidatePreviousDetail']['id'])));
+				//$candidate_previous_companydetails[$k]=$candidate_previous_companydetail;
+				foreach ($candidate_previous_projectdetails as $key => $value) {
+					$candidate_previous_projects[$value['CandidatePreviousProject']['id']]=$value;
+				}
+			}
+		}
+
+		
+		
+		$this->CandidateSkillmapping->recursive=-1;
+		$this->CandidateSkillmapping->Behaviors->attach('Containable');
+		$candidate_skills=$this->CandidateSkillmapping->find('all',array('contain'=>array('SkillMaster'),'conditions'=>array('CandidateSkillmapping.candidate_id'=>$candidate_id)));
+		
+		$candidate_skills_for_jobs = $this->CandidateSkillmapping->find('list',array('conditions'=>array('CandidateSkillmapping.candidate_id'=>$candidate_id),'fields'=>array('CandidateSkillmapping.skill_master_id','CandidateSkillmapping.skill_master_id')));	
+		
+		$this->loadModel('JobdescriptionSkillmapping');
+		$jobs_by_skills = $this->JobdescriptionSkillmapping->find('list',array('conditions'=>array('JobdescriptionSkillmapping.skill_master_id'=>$candidate_skills_for_jobs),'fields'=>array('JobdescriptionSkillmapping.job_description_id','JobdescriptionSkillmapping.job_description_id')));
+		
+		
+		$all_jobs_list=$this->JobDescription->find('list',array('conditions'=>array('JobDescription.id'=>$jobs_by_skills,'JobDescription.approved'=>'Y','JobDescription.active'=>'Y'),'fields'=>array('JobDescription.id','JobDescription.title'),'limit'=>6));
+		if(!$all_jobs_list){
+			$all_jobs_list=$this->JobDescription->find('list',array('conditions'=>array('JobDescription.approved'=>'Y','JobDescription.active'=>'Y'),'fields'=>array('JobDescription.id','JobDescription.title'),'limit'=>6));
+		}
+		
+		
+		
+		
+		
+		$candidate_jobs=$this->CandidateJobdescriptionmapping->find('all',array('conditions'=>array('CandidateJobdescriptionmapping.candidate_id'=>$candidate_id)));
+		
+		//debug($candidate_jobs);
+		$job=null; 
+		$i=0;
+		$this->loadModel('Company');
+		$this->Company->recursive=-1;
+		$this->loadModel('Brand');
+		$this->Brand->recursive=-1;
+		
+		foreach($candidate_jobs as $candidate_job=>$value){
+			$i++;
+			$company=$this->Company->find('first',array('conditions'=>array('Company.id'=>$value['JobDescription']['company_id'])));
+			//debug($company);
+			$val[$i]['Job Title']=$value['JobDescription']['title'];
+			//debug($value['JobDescription']['company_id']);
+			$val[$i]['Company']=$company['Company']['company_name'];
+			$brand=$this->Brand->find('first',array('conditions'=>array('Brand.id'=>$value['JobDescription']['brand_id'])));
+		    //debug($value['JobDescription']['brand_id']);
+			$val[$i]['Brand']=$brand['Brand']['brand_name'];
+			$val[$i]['JobStatus']=$value['JobStatus']['status'];
+			//debug($brand);
+			//debug($candidate_job);
+			
+			
+		}
+		
+		$skill_lists=$this->SkillMaster->find('list',array('fields'=>array('SkillMaster.id','SkillMaster.skill_type')));
+		$all_companies_list=$this->CandidatePreviousDetail->find('list',array('conditions'=>array('CandidatePreviousDetail.candidate_id'=>$candidate_id),'fields'=>array('CandidatePreviousDetail.id','CandidatePreviousDetail.company_name')));
+		$this->set(compact('candidate_jobs','candidate_data','val','candidate_educations','candidate_certifications','candidate_previous_companydetails_main','candidate_previous_projects','candidate_skills','all_companies_list','skill_lists','all_jobs_list'));
+		
+    	
+    }
+
+	public function delete_education($id=null){ 
+		$this->autoRender=FALSE;
+		$this->loadModel('CandidateEducationDetail');
+		$this->CandidateEducationDetail->id = $id;
+		if (!$this->CandidateEducationDetail->exists()) {
+			$this->Session->setFlash('<h4>Warning Message : </h4><p>Education Details was not Exists.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			$this->redirect(array('action'=>'profile_view'));		
+		}
+		if ($this->CandidateEducationDetail->delete()) {
+			$this->Session->setFlash('<h4>Success Message : </h4><p>Education Details deleted.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+			$this->redirect(array('action'=>'profile_view'));
+		}
+		$this->Session->setFlash('<h4>Warning Message : </h4><p>Education Details was not deleted.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+		$this->redirect(array('action' => 'profile_view'));
+		
+	}	
+
+	public function delete_company($id=null){ 
+		$this->autoRender=FALSE;
+		$this->loadModel('CandidatePreviousDetail');
+		$this->loadModel('CandidatePreviousProject');
+		$this->CandidatePreviousDetail->id = $id;
+		if (!$this->CandidatePreviousDetail->exists()) {
+			$this->Session->setFlash('<h4>Warning Message : </h4><p>Company Details was not Exists.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			$this->redirect(array('action'=>'profile_view'));		
+		}
+		
+		$project_ids=$this->CandidatePreviousProject->find('list',array('conditions'=>array('CandidatePreviousProject.candidate_previous_detail_id'=>$id),'fields'=>array('CandidatePreviousProject.id','CandidatePreviousProject.id')));
+		if($project_ids){
+			foreach($project_ids as $k=>$v){
+				$this->CandidatePreviousProject->id = $k;	
+				$this->CandidatePreviousProject->delete();
+			}
+		}
+		
+		if ($this->CandidatePreviousDetail->delete()) {
+			$this->Session->setFlash('<h4>Success Message : </h4><p>Company Details deleted.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+			$this->redirect(array('action'=>'profile_view'));
+		}
+		$this->Session->setFlash('<h4>Warning Message : </h4><p>Company Details was not deleted.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+		$this->redirect(array('action' => 'profile_view'));
+		
+	}	
+	
+	public function delete_skill($id=null){ 
+		$this->autoRender=FALSE;
+		$this->loadModel('CandidateSkillmapping');
+		$this->CandidateSkillmapping->id = $id;
+		if (!$this->CandidateSkillmapping->exists()) {
+			$this->Session->setFlash('<h4>Warning Message : </h4><p>Skill Details was not Exists.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			$this->redirect(array('action'=>'profile_view'));		
+		}
+		if ($this->CandidateSkillmapping->delete()) {
+			$this->Session->setFlash('<h4>Success Message : </h4><p>Skill Details deleted.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+			$this->redirect(array('action'=>'profile_view'));
+		}
+		$this->Session->setFlash('<h4>Warning Message : </h4><p>Skill Details was not deleted.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+		$this->redirect(array('action' => 'profile_view'));
+		
+	}	
+	
+	public function delete_certificate($id=null){ 
+		$this->autoRender=FALSE;
+		$this->loadModel('Certification');
+		$this->Certification->id = $id;
+		if (!$this->Certification->exists()) {
+			$this->Session->setFlash('<h4>Warning Message : </h4><p>Certification Details was not Exists.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			$this->redirect(array('action'=>'profile_view'));		
+		}
+		if ($this->Certification->delete()) {
+			$this->Session->setFlash('<h4>Success Message : </h4><p>Certification Details deleted.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+			$this->redirect(array('action'=>'profile_view'));
+		}
+		$this->Session->setFlash('<h4>Warning Message : </h4><p>Certification Details was not deleted.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+		$this->redirect(array('action' => 'profile_view'));
+		
+	}	
+	
+	public function delete_project($id=null){ 
+		$this->autoRender=FALSE;
+		$this->loadModel('CandidatePreviousProject');
+		$this->CandidatePreviousProject->id = $id;
+		if (!$this->CandidatePreviousProject->exists()) {
+			$this->Session->setFlash('<h4>Warning Message : </h4><p>Project Details was not Exists.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+			$this->redirect(array('action'=>'profile_view'));		
+		}
+		if ($this->CandidatePreviousProject->delete()) {
+			$this->Session->setFlash('<h4>Success Message : </h4><p>Project Details deleted.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+			$this->redirect(array('action'=>'profile_view'));
+		}
+		$this->Session->setFlash('<h4>Warning Message : </h4><p>Project Details was not deleted.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+		$this->redirect(array('action' => 'profile_view'));
+		
+	}	
+	
+	public function registration(){
+		$this->layout=registration_layout;
+		if(!empty($this->data)){
+			
+			$this->loadmodel('User');
+			$this->loadmodel('Role');
+			$validate_email=null;
+			$validate_email=$this->User->find('first',array('conditions'=>array('User.email'=>trim($this->data['Candidate']['resume_useremail']))));
+			if($validate_email){
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>You are already registerd.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				$this->redirect(array('controller'=>'candidates','action'=>'registration'));
+			}
+			
+			$jobid=$this->data['Candidate']['jobid'];
+		
+			$this->Uploader = new Uploader();
+			$this->Uploader = new Uploader(array('tempDir' => TMP));
+			$this->Uploader->setup(array('tempDir' => TMP));
+			$this->Uploader->uploadDir = 'files/uploads/resumeZipped';
+			$data = $this->Uploader->uploadAll(array('fileName1'));
+			
+			$this->Uploader = new Uploader();
+			$this->Uploader = new Uploader(array('tempDir' => TMP));
+			$this->Uploader->setup(array('tempDir' => TMP));
+			$this->Uploader->uploadDir = 'files/uploads/avatars';
+			$data1 = $this->Uploader->uploadAll(array('browse_image'));
+			if(($data['fileName1']['path'])){
+		    	    
+		    	    $today = date('Y-m-d');
+					$s = strtotime($today);
+					$file_name=$this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name']."_".$s;
+					$this->loadModel('Resume');
+					$saveArray->data=null;
+					$this->Resume->create();
+					$saveArray->data['Resume']['resume_username']=$file_name;
+					$saveArray->data['Resume']['resume_useremail']=$this->data['Candidate']['resume_useremail'];
+					$saveArray->data['Resume']['resume_user_contact']=$this->data['Candidate']['resume_user_contact'];
+					$saveArray->data['Resume']['resume_path']=$data['fileName1']['path'];
+					$saveArray->data['Resume']['verified']='Y';
+					if($this->Resume->save($saveArray->data)){
+						    $resume_id=$this->Resume->getLastInsertID();
+							$candidate->data=null;
+							$this->Candidate->create();
+							$candidate->data['Candidate']['first_name']=$this->data['Candidate']['first_name'];
+							$candidate->data['Candidate']['last_name']=$this->data['Candidate']['last_name'];
+							$candidate->data['Candidate']['gender']=$this->data['Candidate']['gender'];
+							$candidate->data['Candidate']['address_line1']=$this->data['Candidate']['street_address1'];
+							$candidate->data['Candidate']['address_line2']=$this->data['Candidate']['street_address2'];
+							$candidate->data['Candidate']['city']=$this->data['Candidate']['city'];
+							$candidate->data['Candidate']['zip']=$this->data['Candidate']['zip_code'];
+							$candidate->data['Candidate']['email']=$this->data['Candidate']['resume_useremail'];
+							$candidate->data['Candidate']['alt_email']=$this->data['Candidate']['altresume_useremail'];
+							$candidate->data['Candidate']['contact']=$this->data['Candidate']['resume_user_contact'];
+							$candidate->data['Candidate']['alt_contact']=$this->data['Candidate']['altresume_user_contact'];
+							
+							$candidate->data['Candidate']['experience']=$this->data['Candidate']['experience'];
+							$candidate->data['Candidate']['relevant_exp']=$this->data['Candidate']['relevant_exp'];
+							$candidate->data['Candidate']['current_role']=$this->data['Candidate']['current_exp_role'];
+							$candidate->data['Candidate']['current_ctc']=$this->data['Candidate']['current_ctc'];
+							$candidate->data['Candidate']['expected_ctc']=$this->data['Candidate']['expected_ctc'];
+							$candidate->data['Candidate']['notice_period']=$this->data['Candidate']['notice_period'];
+							$candidate->data['Candidate']['reason_for_change']=$this->data['Candidate']['reason_for_change'];
+							$candidate->data['Candidate']['dob']=$this->data['Candidate']['dob'];
+							$candidate->data['Candidate']['resume_id']=$resume_id;
+							$candidate->data['Candidate']['active']='Y';
+							$candidate->data['Candidate']['updated_on']=date('Y-m-d H:i:s');
+							$candidate->data['Candidate']['avatar']=$data1['browse_image']['path'];
+							if($this->Candidate->save($candidate->data)){
+								$candidate_id=$this->Candidate->getLastInsertID();
+																
+								if(!empty($this->data['Candidate']['basic_graduation'])){
+									$this->loadModel('CandidateEducationDetail');
+									foreach($this->data['Candidate']['basic_graduation'] as $basic1=>$basic2){
+										if($basic2){
+											$edu->data=null;
+											$this->CandidateEducationDetail->create();
+											$edu->data['CandidateEducationDetail']['graduation']=$basic2;
+											$edu->data['CandidateEducationDetail']['specialization']=$this->data['Candidate']['specialization'][$basic1];
+											$edu->data['CandidateEducationDetail']['institute']=$this->data['Candidate']['university'][$basic1];
+											$edu->data['CandidateEducationDetail']['score']=$this->data['Candidate']['score'][$basic1];
+											$edu->data['CandidateEducationDetail']['year']=$this->data['Candidate']['year'][$basic1];
+											$edu->data['CandidateEducationDetail']['updated_on']=date('Y-m-d H:i:s');
+											$edu->data['CandidateEducationDetail']['candidate_id']=$candidate_id;
+											$this->CandidateEducationDetail->save($edu->data);
+										}
+										
+									}
+								}
+								
+								
+								if(!empty($this->data['Candidate']['certification'])){
+									$this->loadModel('Certification');
+									foreach($this->data['Candidate']['certification'] as $cer1=>$cer2){
+										if($cer2){
+											$cert->data=null;
+											$this->Certification->create();
+											$cert->data['Certification']['certification']=$cer2;
+											$cert->data['Certification']['issued_by']=$this->data['Candidate']['issuing_organization'][$cer2];
+											$cert->data['Certification']['issued_date']=$this->data['Candidate']['issue_date'][$cer2];
+											$cert->data['Certification']['issued_upto']=$this->data['Candidate']['issue_upto'][$cer2];
+											$cert->data['Certification']['candidate_id']=$candidate_id;
+											$this->Certification->save($cert->data);
+										}	
+										
+									}
+								}
+								
+								$this->loadModel('CandidatePreviousDetail');
+								$this->loadModel('CandidatePreviousProject');
+								
+								if(!empty($this->data['Candidate']['company_name'])){
+									
+									foreach($this->data['Candidate']['company_name'] as $com1=>$com2){
+										if($com2){
+											$com->data=null;
+											$this->CandidatePreviousDetail->create();
+											$com->data['CandidatePreviousDetail']['company_name']=$com2;
+											$com->data['CandidatePreviousDetail']['from']=$this->data['Candidate']['start_date'][$com1];
+											$com->data['CandidatePreviousDetail']['to']=$this->data['Candidate']['end_date'][$com1];
+											$com->data['CandidatePreviousDetail']['role']=$this->data['Candidate']['role'][$com1];
+											$com->data['CandidatePreviousDetail']['functioning']=$this->data['Candidate']['role_description'][$com1];
+											$com->data['CandidatePreviousDetail']['last_salary_drawn']=$this->data['Candidate']['last_salary'][$com1];
+											$com->data['CandidatePreviousDetail']['candidate_id']=$candidate_id;
+											$com->data['CandidatePreviousDetail']['updated_on']=date('Y-m-d H:i:s');
+											$this->CandidatePreviousDetail->save($com->data);
+											
+											$prev_det_id=$this->CandidatePreviousDetail->getLastInsertID();
+										}
+										
+										
+									}
+								}
+								
+								$this->CandidatePreviousDetail->cacheQueries = FALSE;
+								
+								if(!empty($this->data['Candidate']['project_name'])){
+									
+									foreach($this->data['Candidate']['project_name'] as $prj1=>$prj2){
+										if($prj2){
+											$pre_compny=null;	
+											$pre_compny=$this->CandidatePreviousDetail->find('first',array('conditions'=>array('CandidatePreviousDetail.company_name'=>$this->data['Candidate']['comp_add'][$prj1])));
+											if($pre_compny){
+												$proj->data=null;
+												$this->CandidatePreviousProject->create();
+												$proj->data['CandidatePreviousProject']['project_title']=$prj2;
+												$proj->data['CandidatePreviousProject']['start_date']=$this->data['Candidate']['project_start_date'][$prj1];
+												$proj->data['CandidatePreviousProject']['end_date']=$this->data['Candidate']['project_end_date'][$prj1];
+												$proj->data['CandidatePreviousProject']['description']=$this->data['Candidate']['project_description'][$prj1];
+												$proj->data['CandidatePreviousProject']['role']=$this->data['Candidate']['project_role_description'][$prj1];
+												$proj->data['CandidatePreviousProject']['candidate_previous_detail_id']=$pre_compny['CandidatePreviousDetail']['id'];
+												$proj->data['CandidatePreviousProject']['size']=$this->data['Candidate']['project_size'][$prj1];
+												$this->CandidatePreviousProject->save($proj->data);
+											}
+										}	
+										
+										
+									}
+									
+								}
+								
+								
+								$this->loadModel('SkillMaster');
+								$this->loadModel('CandidateSkillmapping');
+								
+								
+								if(!empty($this->data['Candidate']['skills'])){
+									
+									foreach ($this->data['Candidate']['skills'] as $skill1 => $skill_value) {
+										if($skill_value){
+											$skill_exists=null;
+											$skill_exists=$this->SkillMaster->find('first',array('conditions'=>array('SkillMaster.skill_type'=>trim($skill_value))));	
+											if($skill_exists){
+												$already_mapped=$this->CandidateSkillmapping->find('first',array('conditions'=>array('CandidateSkillmapping.skill_master_id'=>$skill_exists['SkillMaster']['id'],'CandidateSkillmapping.candidate_id'=>$candidate_id)));
+												if(!$already_mapped){
+													$this->CandidateSkillmapping->create();    
+													$for_edit_array['CandidateSkillmapping']['candidate_id']=$candidate_id;
+													$for_edit_array['CandidateSkillmapping']['skill_master_id']=$skill_exists['SkillMaster']['id'];
+													$this->CandidateSkillmapping->save($for_edit_array);
+													
+												}
+											}else{
+												$for_edit_array=null;
+												$this->SkillMaster->create();    
+												$for_edit_array['SkillMaster']['skill_description']=trim($skill_value);
+												$for_edit_array['SkillMaster']['skill_type']=trim($skill_value);
+												if($this->SkillMaster->save($for_edit_array)){
+													$skill_id=$this->SkillMaster->getLastInsertID();
+													$for_edit_array1=null;
+													$this->CandidateSkillmapping->create();    
+													$for_edit_array1['CandidateSkillmapping']['candidate_id']=$candidate_id;
+													$for_edit_array1['CandidateSkillmapping']['skill_master_id']=$skill_id;
+													$this->CandidateSkillmapping->save($for_edit_array1);
+														
+													
+												}
+											}
+										}
+										
+									}
+								}
+								
+								
+								
+								
+								$this->loadModel('JobStatus');
+								$applied_status=$this->JobStatus->find('first',array('conditions'=>array('JobStatus.status'=>'Applied')));
+								
+								/*$this->loadModel('CandidateJobdescriptionmapping');
+								$job_map->data=null;
+								$this->CandidateJobdescriptionmapping->create();
+								$job_map->data['CandidateJobdescriptionmapping']['job_description_id']=$this->data['Candidate']['jobid'];
+								$job_map->data['CandidateJobdescriptionmapping']['candidate_id']=$candidate_id;
+								$job_map->data['CandidateJobdescriptionmapping']['job_status_id']=$applied_status['JobStatus']['id'];
+								$job_map->data['CandidateJobdescriptionmapping']['applied_on']=date('Y-m-d');
+								$this->CandidateJobdescriptionmapping->save($job_map->data);*/
+								
+								$this->loadModel('JobDescription');
+								$job_details=$this->JobDescription->find('first',array('conditions'=>array('JobDescription.id'=>$this->data['Candidate']['jobid'])));
+								$job_title=$job_details['JobDescription']['title'];
+								$name=$this->data['Candidate']['first_name'].' '.$this->data['Candidate']['last_name'];
+								//$file_path=$data['fileName1']['path'];
+								//debug($this->webroot);
+								//$file_path='http://192.168.0.116/HRManagement/files/uploads/resumeZipped/shinov-1.doc';
+								//$file_path='/home/visioncarma/public_html/HRManagement/app/webroot/files/uploads/resumeZipped/shinov-1.doc';
+								$file_rel_path=parent::settings();
+								$file_path=$file_rel_path.$data['fileName1']['path'];
+								
+								
+								if(!$validate_email){
+		    						$role=$this->Role->find('first',array('conditions'=>array('Role.role_name'=>'Candidate'),'fields'=>array('Role.id')));
+		    						$role_id=$role['Role']['id'];
+		    						$password=substr(str_shuffle(md5(time())),0,8);
+		    						$key=substr(str_shuffle(md5(time())),0,8);
+									$save->data=null;
+									$this->User->create();	
+									$save->data['User']['first_name']=$this->data['Candidate']['first_name'];
+									$save->data['User']['last_name']=$this->data['Candidate']['last_name'];
+									$save->data['User']['email']=trim($this->data['Candidate']['resume_useremail']);
+									$save->data['User']['username']=trim($this->data['Candidate']['resume_useremail']);
+									$save->data['User']['password']=$password;
+									$save->data['User']['active']='Y';
+									$save->data['User']['candiadate_id']=$candidate_id;
+									$save->data['User']['role_id']=$role_id;
+									$save->data['User']['api_key']=$key;
+									$this->User->save($save->data);
+									
+									$username=$this->data['Candidate']['resume_useremail'];
+								}
+								
+								$email_to=$this->data['Candidate']['resume_useremail'];
+								
+								App::uses('CakeEmail', 'Network/Email');
+								$Email = new CakeEmail();
+								$Email->template('welcome')
+									    ->emailFormat('html')
+									    ->to($email_to)
+										//->cc('venugopal@carmatec.com')
+									    ->from('admin@carmatec.com')
+									    ->subject('Welcome')
+									    ->viewVars(array('job_tile' => $job_title,'name'=>$name,'username'=>$username,'password'=>$password))
+									    ->send();
+								
+								$this->Session->setFlash('<h4>Success Message : </h4><p>Thank you for your interest in job. We have mailed you the login details, you can keep track of your job updates from the portal.</p>','default',array('class' => 'flashmessagebox flashsuccess'));
+								$this->redirect(array('controller'=>'users','action'=>'login'));
+								
+							}
+					}else{
+						
+						$this->Session->setFlash('<h4>Warning Message : </h4><p>We were unable to save your resume, please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+						$this->redirect(array('controller'=>'candidates','action'=>'registration'));
+						
+					}
+					
+			}
+			else{
+				
+				$this->Session->setFlash('<h4>Warning Message : </h4><p>We were unable to save your resume, please try again.</p>','default',array('class' => 'flashmessagebox flashwarning'));
+				$this->redirect(array('controller'=>'candidates','action'=>'registration'));
+				
+			}
+				
+		}
+		
+	}
+	function education_more($i=null){
+		++$i;
+		$this->set(compact('i'));
+	}
+	function company_more_new($i=null){ 
+		++$i;
+		$this->set(compact('i'));
+	}
+	function skills_more_new($i=null){
+		++$i;
+		$this->set(compact('i'));
+	}
+	function cert_more_new($i=null){
+		++$i;
+		$this->set(compact('i'));
+	}
+	function proj_more_new($i=null){
+		++$i;
+		$cmpny_lst=$this->Session->read('company_list');
+		$this->set(compact('i','cmpny_lst'));
+	}
+
+	public function for_ajax_update_company_name() {
+		$compnies=$this->params->query['group_name'];
+		$compnies1=$_POST['arr'];
+		foreach($compnies1 as $k=>$v){
+			if($v){
+				$compnies[$v]=$v;
+			}
+		}
+		$this->Session->write('company_list',$compnies);
+		$this->set(compact('compnies'));
+	}
+	public function candidate_profile_update(){
+    	//Configure::write('debug',2);
+    	$this->loadModel('Resume');
+    	
+    	$candidate_id=$this->Session->read('Auth.Candidate.id');
+    	
+    	if($this->data){
+    		  $update_candidate=null;
+    		  $update_candidate['Candidate']['first_name']    = $candidate_id;
+    		  $update_candidate['Candidate']['first_name']    = $this->data['Candidate']['first_name'];
+    		  $update_candidate['Candidate']['last_name']     = $this->data['Candidate']['last_name'];
+    		  $update_candidate['Candidate']['gender']        = $this->data['Candidate']['gender'];
+    		  $update_candidate['Candidate']['email']         = $this->data['Candidate']['email'];
+    		  $update_candidate['Candidate']['alt_email']     = $this->data['Candidate']['alternative_email'];
+    		  $update_candidate['Candidate']['contact']       = $this->data['Candidate']['contact'];
+    		  $update_candidate['Candidate']['alt_contact']   = $this->data['Candidate']['alternative_contact'];
+    		  $update_candidate['Candidate']['dob']           = $this->data['Candidate']['dob'];
+    		  $update_candidate['Candidate']['address_line1'] = $this->data['Candidate']['address_line1'];
+    		  $update_candidate['Candidate']['address_line2'] = $this->data['Candidate']['address_line2'];
+    		  $update_candidate['Candidate']['city']          = $this->data['Candidate']['city'];
+    		  if($this->Candidate->save($update_candidate)){
+    		  	
+    		  	//If resume has uploaded
+    		  	if($this->data['Candidate']['resume']){
+    		  		
+    		  		if($this->data['resume']){
+    		  			
+    		  			    
+    		  			    $this->Uploader = new Uploader();
+							$this->Uploader = new Uploader(array('tempDir' => TMP));
+							$this->Uploader->setup(array('tempDir' => TMP));
+							$this->Uploader->uploadDir = 'files/uploads/resumeZipped';
+							$data = $this->Uploader->uploadAll(array('resume'));
+    		  			    
+    		  			    $candidate_resume= $this->Candidate->find('first',array('conditions'=>array('Candidate.id'=>$candidate_id),'fields'=>array('Candidate.resume_id')));
+    		  		        if($candidate_resume['Candidate']['resume_id']){
+    		  			    	    
+    		  			    	   if($data['resume']['path']){
+										$update_candidate_resume=null;
+										$update_candidate_resume['Resume']['id']          = $data['resume']['path'];
+										$update_candidate_resume['Resume']['resume_path'] = $data['resume']['path'];
+										if($this->Resume->save($update_candidate_resume)){
+											
+										}
+									}
+    		  			    }else{
+    		  			    	    if($data['resume']['path']){
+    		  			    	    	
+    		  			    	    	
+										$add_resume = null;
+										$this->Resume->create();
+										$add_resume['Resume']['resume_username']     = $this->data['Candidate']['first_name']."_".$this->data['Candidate']['last_name'];
+										$add_resume['Resume']['resume_useremail']    = $this->data['Candidate']['resume_useremail'];
+										$add_resume['Resume']['resume_user_contact'] = $this->data['Candidate']['resume_user_contact'];
+										$add_resume['Resume']['resume_path']         = $data['fileName1']['path'];
+										$add_resume['Resume']['verified']='Y';
+										if($this->Resume->save($add_resume)){
+											
+										}
+									} 
+    		  			    }
+    		  		}else{
+    		  			 
+    		  		}
+    		  	}
+    		  	
+    		  	
+    		 }
+    	}
+    	
+    }
+	
+	
+
+}
+

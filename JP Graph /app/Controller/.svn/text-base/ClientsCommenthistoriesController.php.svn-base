@@ -1,0 +1,248 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * ClientsCommenthistories Controller
+ *
+ * @property ClientsCommenthistory $ClientsCommenthistory
+ */
+class ClientsCommenthistoriesController extends AppController {
+
+
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+		$this->ClientsCommenthistory->recursive = 0;
+		$this->set('clientsCommenthistories', $this->paginate());
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+		$this->ClientsCommenthistory->id = $id;
+		if (!$this->ClientsCommenthistory->exists()) {
+			throw new NotFoundException(__('Invalid clients commenthistory'));
+		}
+		$this->set('clientsCommenthistory', $this->ClientsCommenthistory->read(null, $id));
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add() 
+	{
+		if ($this->request->is('post')) 
+		{
+			$this->ClientsCommenthistory->create();
+			if ($this->ClientsCommenthistory->save($this->request->data)) 
+			{
+				$this->Session->setFlash(__('The clients commenthistory has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else 
+			{
+				$this->Session->setFlash(__('The clients commenthistory could not be saved. Please, try again.'));
+			}
+		}
+		$clients = $this->ClientsCommenthistory->Client->find('list');
+		$staffs = $this->ClientsCommenthistory->Staff->find('list');
+		$this->set(compact('clients', 'staffs'));
+	}
+	
+	public function addcomment($client_id= null, $id= null) 
+	{
+		if($this->data)
+		{
+			if($this->data['Comment']['comment'])
+			{
+				if ($this->request->is('post')) 
+				{
+					$this->ClientsCommenthistory->create();
+					$save->data = null;
+					$save->data['ClientsCommenthistory']['client_id'] = $client_id;
+					$save->data['ClientsCommenthistory']['staff_id'] = $this->Session->read('Auth.staff.id');
+					$save->data['ClientsCommenthistory']['date'] = date('Y-m-d h:m:s');
+					$save->data['ClientsCommenthistory']['brands_estimate_id'] = $id;
+					$save->data['ClientsCommenthistory']['accounts_clientinvoice_id'] = '0';
+					$save->data['ClientsCommenthistory']['comment'] = $this->data['Comment']['comment'];
+					$this->ClientsCommenthistory->save($save->data);
+					$this->Session->setFlash(__('<div class="flashMessageSuccess">Comment added</div>'));
+					$this->redirect(array ('controller'=>'brands_estimates','action' => 'view',$id,1,comments));
+					
+				}
+			}
+			
+			else
+			{
+				if(!$this->data['Comment']['comment'])
+				{
+					$this->Session->setFlash(__('<div class="flashMessageError">Could not be saved. Try again</div>'));
+					$this->redirect(array ('controller'=>'brands_estimates','action' => 'view',$id,1,comments));
+				}
+			}
+		}
+		
+		
+	}
+	
+	
+	
+	public function addcommentold($client_id= null, $id= null) 
+	{
+		//Configure::write('debug',2);	
+		debug($this->data);
+		if ($this->request->is('post')) 
+		{
+			if (!empty ($this->data)) 
+			{
+
+				$this->ClientsCommenthistory->create();
+
+				if (1)  
+				{
+					$save->data = null;
+					$save->data['ClientsCommenthistory']['client_id'] = $client_id;
+					$save->data['ClientsCommenthistory']['staff_id'] = $this->Session->read('Auth.staff.id');
+					$save->data['ClientsCommenthistory']['date'] = date('Y-m-d h:m:s');
+					$save->data['ClientsCommenthistory']['brands_estimate_id'] = $id;
+					$save->data['ClientsCommenthistory']['accounts_clientinvoice_id'] = '0';
+					$save->data['ClientsCommenthistory']['comment'] = $this->data['Comment']['comment'];
+					$this->ClientsCommenthistory->save($save->data);
+					$this->Session->setFlash(__('Comment added'));
+					$this->redirect(array ('controller'=>'brands_estimates','action' => 'view',$id,1,comments));
+				}
+				else 
+				{
+					$this->Session->setFlash(__('The comment could not be saved. Please, try again.'));
+				}
+			}
+		}
+	}
+	public function addcommentinvoice($client_id= null, $id= null,$flag=null) 
+	{
+		/*Configure::write('debug',2);	
+		debug($this->data);
+		debug($client_id);
+		debug($this->Session->read('Auth.staff.id'));
+		debug($id);*/
+		if ($this->request->is('post')) 
+		{
+			if (!empty ($this->data)) 
+			{
+
+				
+
+				if (1) 
+				{
+					$this->ClientsCommenthistory->create();
+					$save->data = null;
+					$save->data['ClientsCommenthistory']['staff_id'] = $this->Session->read('Auth.staff.id');
+					$save->data['ClientsCommenthistory']['date'] = date('Y-m-d h:m:s');
+					$save->data['ClientsCommenthistory']['brands_estimate_id'] = '0';
+					$save->data['ClientsCommenthistory']['accounts_clientinvoice_id'] = $id;
+					$save->data['ClientsCommenthistory']['comment'] = $this->data['Comment']['comment'];
+					$this->ClientsCommenthistory->save($save->data);
+					$this->Session->setFlash(__('Comment added'));
+					$this->redirect(array ('controller'=>'accounts_clientinvoices','action' => 'view',$id,3,comments));
+				}
+				else 
+				{
+					$this->Session->setFlash(__('The comment could not be saved. Please, try again.'));
+				}
+			}
+		}
+	}
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null) {
+		$this->ClientsCommenthistory->id = $id;
+		if (!$this->ClientsCommenthistory->exists()) {
+			throw new NotFoundException(__('Invalid clients commenthistory'));
+		}
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if ($this->ClientsCommenthistory->save($this->request->data)) {
+				$this->Session->setFlash(__('The clients commenthistory has been saved'));
+				$this->redirect(array('action' => 'index'));
+			} else {
+				$this->Session->setFlash(__('The clients commenthistory could not be saved. Please, try again.'));
+			}
+		} else {
+			$this->request->data = $this->ClientsCommenthistory->read(null, $id);
+		}
+		$clients = $this->ClientsCommenthistory->Client->find('list');
+		$staffs = $this->ClientsCommenthistory->Staff->find('list');
+		$this->set(compact('clients', 'staffs'));
+	}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null,$estimateid = null, $field = null, $type = null) 
+	{
+	//	Configure::write('debug',2);	
+		debug($id);
+		if ($this->ClientsCommenthistory->delete($id)) 
+		{
+			$this->Session->setFlash(__('Comment deleted'));
+			$this->redirect(array('controller'=>'brands_estimates','action'=>'view',$estimateid,1,$type));
+		}
+		
+		/*if (!$this->request->is('post')) 
+		{
+			throw new MethodNotAllowedException();
+		}
+		$this->ClientsCommenthistory->id = $id;
+		if (!$this->ClientsCommenthistory->exists()) 
+		{
+			throw new NotFoundException(__('Invalid clients commenthistory'));
+		}
+		if ($this->ClientsCommenthistory->delete($id)) 
+		{
+			$this->Session->setFlash(__('Clients commenthistory deleted'));
+//			$this->redirect(array('controller'=>'brands_estimates','action'=>'view',$estimateid));
+		}
+		$this->Session->setFlash(__('Clients commenthistory was not deleted'));
+		$this->redirect(array('action' => 'index'));*/
+	}
+	public function delete_inv($id = null,$invoiceid = null) 
+	{
+	//	Configure::write('debug',2);	
+		debug($id);
+		if ($this->ClientsCommenthistory->delete($id)) 
+		{
+			$this->Session->setFlash(__('Comment deleted'));
+			$this->redirect(array ('controller'=>'accounts_clientinvoices','action' => 'view',$invoiceid,3,comments));
+		}
+		
+		/*if (!$this->request->is('post')) 
+		{
+			throw new MethodNotAllowedException();
+		}
+		$this->ClientsCommenthistory->id = $id;
+		if (!$this->ClientsCommenthistory->exists()) 
+		{
+			throw new NotFoundException(__('Invalid clients commenthistory'));
+		}
+		if ($this->ClientsCommenthistory->delete($id)) 
+		{
+			$this->Session->setFlash(__('Clients commenthistory deleted'));
+//			$this->redirect(array('controller'=>'brands_estimates','action'=>'view',$estimateid));
+		}
+		$this->Session->setFlash(__('Clients commenthistory was not deleted'));
+		$this->redirect(array('action' => 'index'));*/
+	}
+}

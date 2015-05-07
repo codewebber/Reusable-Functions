@@ -1,0 +1,16 @@
+
+        	$(document).ready(function() {
+          
+
+
+
+	// third example
+    if($("#red").size() > 0)
+        {
+    	$("#red").treeview({
+    		animated: "medium",
+    		collapsed: true,
+    		control: "#treecontrol"
+    	});
+    	}
+});

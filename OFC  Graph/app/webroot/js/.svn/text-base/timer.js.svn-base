@@ -1,0 +1,55 @@
+/*   Free Script provided by HIOXINDIA            */
+/*   visit us at http://www.hscripts.com     */
+/*   This is a copyright product of hioxindia.com */
+
+var rTimer;
+var sds ;
+
+TimeTick();
+
+function TimeTick()
+{
+	sds =  new Date();
+	
+	var newMints;
+	var newHours;
+	var newSeconds;
+	
+	if(sds.getMinutes() < 10)
+		{
+		 newMints = "0"+sds.getMinutes();
+		}
+	else
+		{
+		 newMints = sds.getMinutes();
+		}
+	
+	if(sds.getHours() < 10)
+		{
+		newHours = "0"+sds.getHours();
+		}
+	else
+		{
+		newHours = sds.getHours();
+		}
+
+	if(sds.getSeconds() < 10)
+		{
+		newSeconds = "0"+sds.getSeconds();
+		}
+	else
+		{
+		newSeconds = sds.getSeconds();
+		}
+
+	
+	document.time.tfield.value=" "+newHours+":"+newMints+":"+newSeconds;
+	if(rTimer)
+		{
+			clearTimeout(rTimer);
+		}
+
+	rTimer = setTimeout('TimeTick()', 1000);
+}
+
+

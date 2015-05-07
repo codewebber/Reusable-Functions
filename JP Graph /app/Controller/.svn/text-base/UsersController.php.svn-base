@@ -1,0 +1,1002 @@
+<?php
+App::uses('AppController', 'Controller');
+/**
+ * Users Controller
+ *
+ * @property User $User
+ * @property RequestHandlerComponent $RequestHandler
+ */
+class UsersController extends AppController {
+
+/**
+ * Helpers
+ *
+ * @var array
+ */
+	//var $helpers = array('Ajax', 'Javascript');
+/**
+ * Components
+ *
+ * @var array
+ */
+	public $components = array('Email', 'RequestHandler','RequestHandler');
+	
+	public $paginate = array('limit' => 10,'order' => array( 'User.id' => 'asc'));
+	
+	function beforeFilter(){ 
+		
+		/*if(isset($this->Security) && ($this->action = 'login'))
+	     $this->Security->enabled = false;
+		*/
+		
+	//	Configure::write('debug',2);
+ 		
+ 		$this->Auth->allow('forgotpassword','login');
+ 		parent::beforeFilter();
+ 		
+ 		
+	}
+	
+	
+	 
+/**
+ * index method
+ *
+ * @return void
+ */
+	public function index() {
+	//	configure::write('debug',2);
+		if(empty($this->data)){
+			$this->User->recursive = 0;
+			$this->set('users', $this->paginate());
+			$users=$this->User->find('all');
+				
+	
+		}
+		else
+		{
+			$this->User->recursive = 0;
+			
+			$this->paginate=array('conditions'=>array('User.username like'=>$this->data['Search']['user'].'%','User.active'=>'Y'));
+			$this->set('users', $this->paginate());
+			
+			
+		}
+		
+		
+	}
+
+/**
+ * view method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function view($id = null) {
+	//	configure::write('debug',2);
+		$this->User->recursive=0;
+		$this->User->id = $id;
+		if (!$this->User->exists()) {
+			throw new NotFoundException(__('Invalid user'));
+		}
+		$user=$this->User->find('first',array('conditions'=>array('User.id'=>$id)));
+	
+		$this->set(compact('user'));
+		/*$this->set('user', $this->User->read(null, $id));*/
+	}
+
+/**
+ * add method
+ *
+ * @return void
+ */
+	public function add($flag=null) {
+		//configure::write('debug',2);
+		$this->set(compact('flag'));
+		
+		if ($this->data) 
+			{
+				if($this->data['User']['username'])
+					{
+						$username_check=$this->User->find('all',array('conditions'=>array('User.username'=>$this->data['User']['username'])));
+						if(empty($username_check) || !$username_check)
+							{
+								if($this->data['User']['pwd'])
+									{
+										$this->loadModel('Staff');
+										$s_id= $this->data['User']['staff_name'];
+										$user = $this->Staff->findById($s_id);
+										$this->set(compact('user'));
+										if($this->data['User']['pwd']==$this->data['User']['cpwd'])
+											{
+												$savearray->data=null;
+												$this->User->create();
+												$savearray->data['usergroup_id']=$this->data['User']['usergroup'];
+												$savearray->data['username']=$this->data['User']['username'];
+												$savearray->data['staff_id']=$flag;
+												$savearray->data['emp_code']=$this->data['User']['staff_id'];
+												$savearray->data['created_on']=date('Y-m-d H:i:s');
+												$savearray->data['email']=$this->data['User']['email'];
+												//	$savearray->data['last_active']=$this->data['User']['access'];
+												$savearray->data['password']=$this->data['User']['pwd'];
+												$this->User->save($savearray->data);
+												$lastuser=$this->User->getLastInsertID();
+												$aro =& $this->Acl->Aro;
+												$data=null;
+												$aro->create();
+												$data['alias'] = $this->data['User']['username'];
+												$data['parent_id'] = $this->data['User']['usergroup'];
+												$data['model'] = "User";
+												$data['foreign_key'] = $lastuser;
+												$aro->save($data);
+									
+												$this->Session->setFlash(__('<div class="flashMessageSuccess">The user has been saved</div>'));
+												if($this->data['User']['flag'])
+													{
+														$this->redirect(array('controller'=>'staffs','action' => 'index'));
+													}
+												else
+													{
+														$this->redirect(array('action' => 'index'));
+													}
+												$this->Session->setFlash(__('<div class="flashMessageError">The user could not be saved. Please, try again.</div>'));
+											}
+										else
+											{
+												$this->Session->setFlash(__('<div class="flashMessageError">The user could not be saved. Password mismatch.</div>'));
+												$this->redirect(array('action' => 'add'.'/'.$flag));
+											}
+									}
+								else
+									{	
+										$error=1;
+										$this->set(compact('error'));
+										$this->Session->setFlash(__('<div class="flashMessageError">Password Cannot be left blank.</div>'));
+										$this->redirect(array('action' => 'add'.'/'.$flag));
+									}
+						}
+					else
+						{
+							$error=1;
+							$this->set(compact('error'));
+							$this->Session->setFlash(__('<div class="flashMessageError">Username in use.Enter a different username</div>'));
+							$this->redirect(array('action' => 'add'.'/'.$flag));
+						}
+						
+				}
+			else
+				{
+					$error=1;
+					$this->set(compact('error'));
+					$this->Session->setFlash(__('<div class="flashMessageError">Enter a username.</div>'));
+					$this->redirect(array('action' => 'add'.'/'.$flag));
+				}
+				
+			
+			}
+	//	$usergroups = $this->User->Usergroup->find('list',array('fields'=>array('Usergroup.id','Usergroup.group_name')));
+		
+		$usergroups=null;
+		$this->loadModel('Aro');
+		
+		$parentUserGroups1 = $this->Aro->find('list',array('conditions'=>array('Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+		$usergroup_access=$this->Session->read('Auth.User.usergroup_id');
+		
+		$aros_access=$this->Aro->find('first',array('conditions'=>array('Aro.id'=>$usergroup_access)));
+		
+		if(($aros_access['Aro']['alias'] == 'Super Admin') || ($aros_access['Aro']['alias'] == 'Admin') || ($aros_access['Aro']['alias'] == 'Admin Team') )
+			{
+				$admin=1;
+				$this->set(compact('admin'));
+			}
+		else
+			{
+				$usergroupdisp=$parentUserGroups1['Aro']['alias'];
+			}
+			
+		if($admin)
+			{
+				foreach($parentUserGroups1 as $k=>$v)
+					{
+						$usergroup[$k]=$v;
+						$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+						foreach($l2 as $k1=>$v2)
+							{
+								$usergroup[$k1]='|---'.$v2;
+							}
+					}
+			}
+		else
+			{
+				
+				
+				foreach($parentUserGroups1 as $k=>$v)
+					{
+						
+						if(($v!="Admin") && ($v!="Super Admin") && ($v!="Admin Team"))
+							{
+								debug($v);
+								$usergroup[$k]=$v;
+								$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+								
+								foreach($l2 as $k1=>$v2)
+									{
+										$usergroup[$k1]='|---'.$v2;
+									}
+							}
+							debug($usergroup);
+						
+					}
+				
+				$noaccessusergroup=1;
+				debug($noaccessusergroup);
+				$this->set(compact('noaccessusergroup'));
+			}
+		
+		
+		
+		
+		/*$parentUserGroups1 = $this->Aro->find('list',array('conditions'=>array('Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+		foreach($parentUserGroups1 as $k=>$v){
+			$usergroups[$k]=$v;
+			$l2 = $this->Aro->find('list',array('conditions'=>array('Aro.parent_id'=>$k,'Aro.foreign_key IS NULL'),'fields'=>array('Aro.id','Aro.alias')));
+			foreach($l2 as $k1=>$v2){
+				$usergroups[$k1]='---'.$v2;
+			}
+		}*/
+		
+		
+		
+		$staffs = $this->User->Staff->find('list',array('conditions'=>array('Staff.id'=>$flag),'fields'=>array('Staff.id','Staff.first_name')));
+		$staffsdetails=$this->User->Staff->find('first',array('conditions'=>array('Staff.id'=>$flag)));
+		
+		$this->set(compact('usergroup', 'staffs','staffsdetails'));
+	}
+
+/**
+ * edit method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function edit($id = null,$flag=null,$stafid=null) {
+		//configure::write('debug',2);
+		$this->loadModel('Staff');
+		$this->set(compact('flag','stafid'));
+		$this->User->recursive=0;
+		$user=$this->User->find('first',array('conditions'=>array('User.staff_id'=>$id)));
+		$this->loadModel('Aro');
+		$aro = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$user['User']['id'])));
+		$this->set(compact('aro'));
+		if($id==0)
+			{
+				$this->redirect(array('controller'=>'users','action'=>'add',$stafid));
+			}
+		$this->User->id = $id;
+		if (!$this->User->exists())
+			 {
+				throw new NotFoundException(__('Invalid user'));
+			 }
+		if(empty($this->data))
+		{
+			$user=$this->User->find('first',array('conditions'=>array('User.id'=>$id)));
+			if(!$stafid)
+			{
+				$stafid=$user['User']['staff_id'];
+				$this->set(compact('stafid'));
+			}
+			$this->set(compact('user','id'));
+			
+		}
+		if ($this->data) {
+			
+			$user=$this->User->find('first',array('conditions'=>array('User.id'=>$id)));
+			if(!$stafid)
+			{
+				$stafid=$user['User']['staff_id'];
+				$this->set(compact('stafid'));
+			}
+			$pass=AuthComponent::password($this->data['User']['opwd']);
+			if(!($this->data['User']['username']))
+				{
+					$error=1;
+					$this->set(compact('error'));
+					$this->Session->setFlash(__('<div class="flashMessageError">Username Required.</div>'));
+					$this->redirect(array('action' => 'edit'.'/'.$id));
+				}
+			
+			
+			
+			
+			if($this->data['User']['npwd']==$this->data['User']['cpwd'] )
+			{
+				
+					$savearray->data=null;
+					$savearray->data['User']['id']=$id;
+					$savearray->data['User']['username']=$this->data['User']['username'];
+					$savearray->data['User']['password']=$this->data['User']['npwd'];
+					if ($this->User->save($savearray->data))
+					 {
+						
+						if($this->data['User']['flag']==1)
+							{
+								$staffname=$this->Staff->find('first',array('conditions'=>array('Staff.id'=>$stafid)));
+								$name=$staffname['Staff']['first_name'].' '.$staffname['Staff']['last_name'];
+								$emailadd=$this->data['User']['username'];
+								$newpass = $this->data['User']['npwd'];
+								$this->Email->to = $user['User']['email'];
+				    			$this->Email->subject = 'Carmatec Accounts Password Reset';
+				    			$this->Email->replyTo = 'admin@carmatec.com';
+				    			$this->Email->from = 'Admin <admin@visioncarma.com>';
+				    			$this->Email->template = 'passwordreset'; 
+				   				$this->Email->sendAs = 'text';
+				   				$this->set(compact('name','emailadd','newpass'));
+				   				if($this->Email->send()){
+									$this->Session->setFlash(__('<div class="flashMessageSuccess">Login details has been saved.New password has been mailed.</div>'));
+   									$this->redirect(array('controller'=>'staffs','action' => 'edit'.'/'.$user['User']['staff_id']));
+   								}
+								
+								
+							}
+						else
+							{
+								$staffname=$this->Staff->find('first',array('conditions'=>array('Staff.id'=>$stafid)));
+								$name=$staffname['Staff']['first_name'].' '.$staffname['Staff']['last_name'];
+								$emailadd=$this->data['User']['username'];
+								$newpass = $this->data['User']['npwd'];
+								$this->Email->to = $user['User']['email'];
+				    			$this->Email->subject = 'Carmatec Accounts Password Reset';
+				    			$this->Email->replyTo = 'admin@carmatec.com';
+				    			$this->Email->from = 'Admin <admin@visioncarma.com>';
+				    			$this->Email->template = 'passwordreset'; 
+				   				$this->Email->sendAs = 'text';
+				   				$this->set(compact('name','emailadd','newpass'));
+				   				if($this->Email->send()){
+				   					
+				   				$this->Session->setFlash(__('<div class="flashMessageSuccess">Login details has been saved.New password has been mailed.</div>'));
+								$this->redirect(array('controller'=>'staffs','action' => 'index'));
+				   				}
+							}
+					} 
+				  else 
+					{
+						$error=1;
+						$this->set(compact('error'));
+						$this->Session->setFlash(__('<div class="flashMessageError">The user could not be saved. Please, try again.</div>'));
+						$this->redirect(array('action' => 'edit'.'/'.$id));
+					}
+			}	
+			else
+				{
+					$error=1;
+					$this->set(compact('error'));
+					$this->Session->setFlash(__('<div class="flashMessageError">Password Mismatch</div>'));
+					$this->redirect(array('action' => 'edit'.'/'.$id));
+				}
+			
+			
+			
+		} else {
+			$this->request->data = $this->User->read(null, $id);
+		}
+		
+	}
+
+	public function editlogindetail($id = null,$flag=null,$stafid=null,$editprofile=null)
+		{
+			
+			$this->set(compact('flag','stafid'));
+			$this->User->recursive=0;
+			$user=$this->User->find('first',array('conditions'=>array('User.staff_id'=>$id)));
+			$this->loadModel('Aro');
+			$aro = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$user['User']['id'])));
+			$this->set(compact('aro'));
+			if($id==0)
+				{
+					$this->redirect(array('controller'=>'users','action'=>'add',$stafid));
+				}	
+			$this->User->id = $id;
+			if (!$this->User->exists())
+			 	{
+					throw new NotFoundException(__('Invalid user'));
+			  	}
+			if(empty($this->data))
+				{
+					$user=$this->User->find('first',array('conditions'=>array('User.id'=>$id)));
+					if(!$stafid)
+						{
+							$stafid=$user['User']['staff_id'];
+							$this->set(compact('stafid'));
+						}
+					$this->set(compact('user','id'));
+			
+				}
+			if ($this->data) {
+			
+				$user=$this->User->find('first',array('conditions'=>array('User.id'=>$id)));
+				$username=$user['User']['username'];
+				if(!$stafid)
+					{
+						$stafid=$user['User']['staff_id'];
+						$this->set(compact('stafid'));
+					}
+				$pass=AuthComponent::password($this->data['User']['opwd']);
+			
+			
+			
+				if($this->data['User']['npwd']==$this->data['User']['cpwd'] )
+					{
+						
+						debug($id);
+						debug($username);
+						debug($this->data['User']['npwd']);
+						$savearray->data=null;
+						$savearray->data['User']['id']=$id;
+						$savearray->data['User']['username']=$username;
+						$savearray->data['User']['password']=$this->data['User']['npwd'];
+						debug($savearray->data);
+						if ($this->User->save($savearray->data))
+					 		{
+								$this->Session->setFlash(__('<div class="flashMessageSuccess">The user has been saved</div>'));
+								if($this->data['User']['flag']==1)
+									{
+										$this->redirect(array('controller'=>'staffs','action' => 'editprofile'.'/'.$stafid.'/'.'profile'));
+									}
+								else
+									{
+										$this->redirect(array('controller'=>'staffs','action' => 'editprofile'.'/'.$stafid.'/'.'profile'));
+									}
+							} 
+				 	  else 
+							{
+								$error=1;
+								$this->set(compact('error'));
+								$this->Session->setFlash(__('<div class="flashMessageError">The user could not be saved. Please, try again.</div>'));
+								$this->redirect(array('action' => 'editlogindetail'.'/'.$id.'/'.'1'.'/'.$user['User']['staff_id'].'/'.'profile'));
+							}
+				}	
+			else
+				{
+					$error=1;
+					$this->set(compact('error'));
+					$this->Session->setFlash(__('<div class="flashMessageError">Password Mismatch</div>'));
+					$this->redirect(array('action' => 'editlogindetail'.'/'.$id.'/'.'1'.'/'.$user['User']['staff_id'].'/'.'profile'));
+				}
+		
+			
+			
+			
+		} else {
+			$this->request->data = $this->User->read(null, $id);
+		}
+		
+		
+		
+		
+		}
+
+/**
+ * delete method
+ *
+ * @param string $id
+ * @return void
+ */
+	public function delete($id = null) {
+	
+		$this->User->id = $id;
+		if (!$this->User->exists()) {
+			throw new NotFoundException(__('Invalid user'));
+		}
+		if ($this->User->delete()) {
+			$this->Session->setFlash(__('User deleted'));
+			$this->redirect(array('action'=>'index'));
+		}
+		$this->Session->setFlash(__('User was not deleted'));
+		$this->redirect(array('action' => 'index'));
+	}
+	
+	public function login($displaysessionmessage=NULL) {
+		//configure::write('debug',2);
+		$this->layout='login';
+		//if ($this->request->is('post')) {
+			if(!$displaysessionmessage) {
+				$displaysessionmessage=0;
+			}
+			$this->set(compact('displaysessionmessage'));
+			
+		if(!empty($this->data)){
+			
+			$displaysessionmessage=1;
+			$this->set(compact('displaysessionmessage'));
+        if ($this->Auth->login()) {
+        	
+        	$this->loadModel('ArosAco');
+	 		$this->loadModel('Aco');
+	 		$top_menus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id IS NULL'),'order'=>array('Aco.order ASC')));
+	 		$i=0;
+	 		foreach($top_menus as $top_menu){
+	 			$permission = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth.User.usergroup_id'),'ArosAco.aco_id'=>$top_menu['Aco']['id'])));
+	 			if(!empty($permission)){
+	 				if(($permission['ArosAco']['_read'] == 1) || ($permission['ArosAco']['_create'] == 1) || ($permission['ArosAco']['_update'] == 1) || ($permission['ArosAco']['_delete'] == 1)){
+	 					$accessible_menus[$i] = $permission['ArosAco']['aco_id'];
+	 					$i++;
+	 				}
+	 			}		
+	 		}
+	 		
+	 		$url = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$accessible_menus[0]),'order'=>array('Aco.order ASC')));
+	 		$controller_action = explode('/',$url['Aco']['url']);
+	 		$controller = $controller_action['0'];
+	 		$action = $controller_action['1'];
+	 		//$this->Auth->loginRedirect = array('controller'=>$controller,'action'=>$action);
+	 		
+			$this->Auth->loginRedirect = array('controller' => 'staffs', 'action' => 'index');
+	 		
+        	if(($controller == 'dashboards') && ($action == 'accountsDashboard')){
+ 				$this->Auth->loginRedirect = array('controller' => 'dashboards', 'action' => 'accountsDashboard');
+	 		}
+	 		if(($controller == 'dashboards') && ($action == 'invoices_dashboard')){
+	 			$this->Auth->loginRedirect = array('controller' => 'dashboards', 'action' => 'invoices_dashboard');
+	 		}
+	 		if(($controller == 'reports') && ($action == 'invoiceReport')){
+	 			$this->Auth->loginRedirect = array('controller' => 'reports', 'action' => 'invoiceReport');
+	 		}
+	 		if(($controller == 'settings') && ($action == 'index')){
+	 			$this->Auth->loginRedirect = array('controller' => 'settings', 'action' => 'index');
+	 		}
+	 		if(($controller == 'staffs') && ($action == 'index')){
+	 			$this->Auth->loginRedirect = array('controller' => 'staffs', 'action' => 'index');
+	 		}
+	 	 	
+        	$this->requestAction('users/sublinks');
+        	$this->requestAction('users/third_levelmenus');
+        	//$this->redirect($this->Auth->loginRedirect);
+        	
+        	/**/
+        	debug($this->Session->read());	
+			//exit;
+        	$sessionUsergroupId = $this->Session->read('Auth.User.usergroup_id');
+			$this->loadModel('Aro');
+			$userrGrroup = $this->Aro->find('first',array('conditions'=>array('Aro.id'=>$sessionUsergroupId),'fields'=>array('Aro.alias')));
+        	if($userrGrroup['Aro']['alias'] == 'Accountant') {
+        		$this->redirect(array('controller'=>'accounts_bills','action'=>'index'));
+        	}
+			/**/
+        	
+        	
+        	return $this->redirect($this->Auth->redirect());
+        } else {
+            $this->Session->setFlash(__('Username or password is incorrect'), 'default', array(), 'auth');
+        }
+    	}
+    	
+	}
+
+	public function logout() {
+		$this->Session->write('Ledger',NULL);
+		$this->Session->write('LedgerPagination',NULL);
+   		$this->redirect($this->Auth->logout());
+	}
+	
+	public function forgotpassword(){
+		$this->layout='login';
+		if($this->data){
+			$emailispresent = $this->User->find('first',array('conditions'=>array('User.email'=>$this->data['User']['email'])));
+				$this->loadModel('Staff');
+				$staff = $this->Staff->find('first',array('conditions'=>array('Staff.id'=>$emailispresent['User']['staff_id'])));
+				$name = $staff['Staff']['first_name'].' '.$staff['Staff']['last_name'];
+				$emailadd = $emailispresent['User']['username'];
+			if($emailispresent){
+				$newpass = substr(uniqid(mt_rand(), true), 0, 8);
+				$this->Email->to = $emailispresent['User']['email'];
+    			$this->Email->subject = 'Carmatec Accounts Password Reset';
+    			$this->Email->replyTo = 'admin@carmatec.com';
+    			$this->Email->from = 'Admin <admin@carmatec.com>';
+    			$this->Email->template = 'passwordreset'; 
+   				$this->Email->sendAs = 'text';
+   				$this->set(compact('name','emailadd','newpass'));
+   				if($this->Email->send()){
+   					$save->data = null;
+   					$save->data['User']['id'] = $emailispresent['User']['id'];
+					$save->data['User']['password'] = $newpass;
+					$this->User->save($save->data);
+					$this->Session->setFlash(__('The reset password has been sent to you, kindly check your email for the login details.', true));
+   				}
+   				
+			}else{
+				$this->Session->setFlash(__('Invalid Email, Try again', true));
+			}
+			
+		}
+	}
+	
+	public function home(){
+		
+		if($this->params['requested']){
+			$users = $this->Session->read('Auth.User');
+			$name = $users['username'];
+			$this->loadModel('Staff');
+			$staff = $this->Staff->findById($users['staff_id']);
+			
+			$this->Session->write('Auth.staff.id',$staff['Staff']['id']);
+			$this->Session->write('Auth.company_id',$staff['Staff']['company_id']);
+			$this->Session->write('Auth.User.name',$name);
+			return $name;
+		}
+	}
+	
+	function topmenus(){
+		if($this->params['requested']){
+			$users = $this->Session->read('Auth.User');
+			$this->loadModel('Aro');
+			$aro = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$users['id'])));
+			$this->loadModel('ArosAcos');
+			$acos_aros = $this->ArosAcos->find('all',array('conditions'=>array('ArosAcos.aro_id'=>$aro['Aro']['parent_id'])));
+			$i=0;
+			foreach($acos_aros as $k=>$v){
+				if(($v['ArosAcos']['_create'])||($v['ArosAcos']['_read'])||($v['ArosAcos']['_update'])||($v['ArosAcos']['_delete'])){
+					$this->loadModel('Aco');
+					$acos = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$v['ArosAcos']['aco_id'],'Aco.parent_id IS NULL','Aco.ismenu'=>'Y'),'order'=>array('Aco.order ASC')));
+					if($acos){
+						$menus[$i]['id']= $acos['Aco']['id'];
+						$menus[$i]['menuname']= $acos['Aco']['alias'];
+						$menus[$i]['url']= $acos['Aco']['url'];
+						$menus[$i]['order']= $acos['Aco']['order'];
+						$i++;
+					}
+					
+				}
+			}
+			$j=0;
+			foreach($menus as $menu){
+				$url[$j]=$menu['url'];
+				$j++;
+			}
+			$menus= Set::sort($menus, '{n}.order', 'asc');
+			$this->Session->write('Auth.User.Menuname',$menus['0']['menuname']);
+			return $menus;
+		}	
+	}
+	
+	function sublinks($id=null,$var=null){
+		//Configure::write('debug',2);
+		if(!$id && !$var){
+			$this->loadModel('Aro');
+			$this->loadModel('Aco');
+			$this->loadModel('ArosAcos');
+			$users = $this->Session->read('Auth.User');
+			$aro = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$users['id'])));
+			$acos_aros = $this->ArosAcos->find('all',array('conditions'=>array('ArosAcos.aro_id'=>$aro['Aro']['parent_id'])));
+			$i=0;
+			foreach($acos_aros as $k=>$v){
+				if(($v['ArosAcos']['_create'] == 1)||($v['ArosAcos']['_read'] == 1)||($v['ArosAcos']['_update'] == 1)||($v['ArosAcos']['_delete'] == 1)){
+					$acos = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$v['ArosAcos']['aco_id'],'Aco.parent_id is NULL','Aco.ismenu'=>'Y')));
+					if(!empty($acos)){
+						$submenus[$i]['id']= $acos['Aco']['id'];
+						$submenus[$i]['menuname']= $acos['Aco']['alias'];
+						$submenus[$i]['url']= $acos['Aco']['url'];
+						$submenus[$i]['order']= $acos['Aco']['order'];
+						$i++;
+					}
+				}
+			}
+			$submenus1= Set::sort($submenus, '{n}.order', 'asc');
+			$id = $submenus1['0']['id'];
+		}
+		if($id){
+			$this->Session->write('Auth.User.submenuid',$id);
+			$this->loadModel('Aco');
+			$suburl = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$id)));
+			$this->Session->write('Auth.User.url123',$suburl['Aco']['url']);
+			$this->Session->write('Auth.User.thirdmenuid',0);
+		}
+		if($this->params['requested']){
+			if($this->Session->read('Auth.User.submenuid')){
+				$this->loadModel('Aco');
+				$this->loadModel('Aro');
+				$this->loadModel('ArosAcos');
+				$users = $this->Session->read('Auth.User');
+				$aro = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$users['id'])));
+				$acos_aros = $this->ArosAcos->find('all',array('conditions'=>array('ArosAcos.aro_id'=>$aro['Aro']['parent_id'])));
+				$i=0;
+				foreach($acos_aros as $k=>$v){
+					if(($v['ArosAcos']['_create'])||($v['ArosAcos']['_read'])||($v['ArosAcos']['_update'])||($v['ArosAcos']['_delete'])){
+						$this->loadModel('Aco');
+						$acos = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$v['ArosAcos']['aco_id'],'Aco.parent_id'=>$this->Session->read('Auth.User.submenuid'),'Aco.ismenu'=>'Y'),'order'=>array('Aco.order ASC')));
+						if($acos){
+							$submenus[$i]['id']= $acos['Aco']['id'];
+							$submenus[$i]['menuname']= $acos['Aco']['alias'];
+							$submenus[$i]['url']= $acos['Aco']['url'];
+							$submenus[$i]['order']= $acos['Aco']['order'];
+							$i++;
+						}
+					}
+				}
+				
+				$submenus = Set::sort($submenus, '{n}.order', 'asc');
+				return $submenus;
+			}	
+		}
+	}
+	
+	function third_levelmenus($id=null,$var=null){
+		if(!$id && !$var){
+			$this->loadModel('Aro');
+			$this->loadModel('Aco');
+			$this->loadModel('ArosAcos');
+			$users = $this->Session->read('Auth.User');
+			$aro = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$users['id'])));
+			$acos_aros = $this->ArosAcos->find('all',array('conditions'=>array('ArosAcos.aro_id'=>$aro['Aro']['parent_id'])));
+			$i=0;
+			foreach($acos_aros as $k=>$v){
+				$acos = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$v['ArosAcos']['aco_id'],'Aco.parent_id is NULL')));
+				if($acos){
+						$menus[$i]['id']= $acos['Aco']['id'];
+						$menus[$i]['menuname']= $acos['Aco']['alias'];
+						$menus[$i]['url']= $acos['Aco']['url'];
+						$menus[$i]['order']= $acos['Aco']['order'];
+						$i++;
+				}
+			}
+			$menus= Set::sort($menus, '{n}.order', 'asc');
+			foreach($acos_aros as $valuess){
+				$acos12 = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$valuess['ArosAcos']['aco_id'],'Aco.parent_id'=>$menus[0]['id'],'Aco.ismenu'=>'Y')));
+				if($acos12){
+					$menus1[$i]['id']= $acos12['Aco']['id'];
+					$menus1[$i]['menuname']= $acos12['Aco']['alias'];
+					$menus1[$i]['url']= $acos12['Aco']['url'];
+					$menus1[$i]['order']= $acos12['Aco']['order'];
+					$i++;
+				}
+			}
+			
+			//$menus1 = $this->sorting($menus1);
+			$menus1= Set::sort($menus1, '{n}.order', 'asc');
+			$id = $menus1[0]['id'];
+			$this->Session->write('Auth.User.thirdmenuid',$id);
+		}
+		if($id){
+			$this->Session->write('Auth.User.thirdmenuid',$id);
+		}
+		if($this->params['requested']){
+			if($this->Session->read('Auth.User.thirdmenuid')){
+				$this->loadModel('Aco');
+				$this->loadModel('Aro');
+				$this->loadModel('ArosAcos');
+				$users = $this->Session->read('Auth.User');
+				$aro = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$users['id'])));
+				$acos_aros = $this->ArosAcos->find('all',array('conditions'=>array('ArosAcos.aro_id'=>$aro['Aro']['parent_id'])));
+				$i=0;
+				foreach($acos_aros as $k=>$v){
+					if(($v['ArosAcos']['_create'])||($v['ArosAcos']['_read'])||($v['ArosAcos']['_update'])||($v['ArosAcos']['_delete'])){
+						$this->loadModel('Aco');
+						$acos = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$v['ArosAcos']['aco_id'],'Aco.parent_id'=>$this->Session->read('Auth.User.thirdmenuid'),'Aco.ismenu'=>'Y'),'order'=>array('Aco.order ASC')));
+						if($acos){
+							$submenus[$i]['id']= $acos['Aco']['id'];
+							$submenus[$i]['menuname']= $acos['Aco']['alias'];
+							$submenus[$i]['url']= $acos['Aco']['url'];
+							$submenus[$i]['order']= $acos['Aco']['order'];
+							$i++;
+						}
+					}
+				}
+				$thirdmenus = Set::sort($submenus, '{n}.order', 'asc');
+				return $thirdmenus;
+			}	
+		}
+	}
+	
+	
+	function sorting($array = null){
+		$count = count($array);
+		$j=0;
+		for($i=0; $i<=$count; $i++){
+			foreach($array as $key=>$val){
+				if($val['order']==$i){
+					$array1[$j] = $val;
+					$j++;
+				}
+			}	
+		}
+		return $array1;
+	}
+	
+	//Global search based on access control 
+	//The search drop down based on menu access
+	public function global_search()
+	{
+	//	Configure::write('debug',2);
+	//	debug($this->data);
+	//	debug($this->Session->read());
+		if($this->params['requested']){
+			$users = $this->Session->read('Auth.User.usergroup_id');
+			$this->loadModel('ArosAco');
+			$this->loadModel('Aco');
+			$acos_aros = $this->ArosAco->find('all',array('conditions'=>array('ArosAco.aro_id'=>$users)));
+			$i=0;
+			foreach($acos_aros as $k=>$v){
+				if(($v['ArosAco']['_create'] == 1)||($v['ArosAco']['_read'] == 1)||($v['ArosAco']['_update'] == 1)||($v['ArosAco']['_delete'] == 1)){
+					$this->loadModel('Aco');
+					$acos = $this->Aco->find('first',array('conditions'=>array('Aco.id'=>$v['ArosAco']['aco_id'],'Aco.parent_id IS NULL','Aco.ismenu'=>'Y'),'order'=>array('Aco.order ASC')));
+					if($acos){
+						$menus[$i]['id']= $acos['Aco']['id'];
+						$menus[$i]['menuname']= $acos['Aco']['alias'];
+						$menus[$i]['url']= $acos['Aco']['url'];
+						$menus[$i]['order']= $acos['Aco']['order'];
+						$i++;
+					}
+				}
+			}
+			$menus= Set::sort($menus, '{n}.order', 'asc');
+			foreach ($menus as $menu) {
+				switch ($menu['menuname']) {
+					case 'Accounts':
+						$list[$menu['url']] = '<div style="font-weight:bold;font-size:12px;color:#0f4661;">Accounts</div>';
+						$submenus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$menu['id']),'fields'=>array('Aco.id','Aco.alias','Aco.url'),'order'=>array('Aco.order ASC')));
+						foreach($submenus as $submenu)
+						{
+							$sub_permission = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aco_id'=>$submenu['Aco']['id'],'ArosAco.aro_id'=>$users)));
+							if(($sub_permission['ArosAco']['_create'] == 1) || ($sub_permission['ArosAco']['_read'] == 1) || ($sub_permission['ArosAco']['_update'] == 1) || ($sub_permission['ArosAco']['_delete'] == 1))
+							{
+								if ($submenu['Aco']['alias'] == 'Account Tree') {
+									
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Account tree</div>';
+									$list['accounts_accounts/view/0/view'] = '<div >|------Account name</div>';
+								}
+								
+								if($submenu['Aco']['alias'] == 'Ledgers') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Ledgers</div>';
+									$list[$submenu['Aco']['url'].'/account_name'] = '<div >|------Account Name</div>';
+								}
+								
+								if ($submenu['Aco']['alias'] == 'Vendors') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Vendors</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/0/id'] = '<div >|------Id</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/0/company_name'] = '<div >|------Company name</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/0/account_name'] = '<div >|------Account name</div>';
+								}
+
+								if ($submenu['Aco']['alias'] == 'Bills') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Bills</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/id'] = '<div >|------Id</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/accounts_regularvendor_id'] = '<div >|------Vendor</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/invoice_no'] = '<div >|------Invoice No</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/voucher_no'] = '<div >|------Voucher No</div>';
+								}
+						                   
+							}
+						}
+						
+						break;
+					
+					case 'Invoices':
+						$list[$menu['url']] = '<div style="font-weight:bold;font-size:12px;color:#0f4661;">Invoices</div>';
+						$invoice_submenus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$menu['id']),'fields'=>array('Aco.id','Aco.alias','Aco.url'),'order'=>array('Aco.order ASC')));
+						foreach ($invoice_submenus as $submenu) {
+							$sub_permission = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aco_id'=>$submenu['Aco']['id'],'ArosAco.aro_id'=>$users)));
+							if(($sub_permission['ArosAco']['_create'] == 1) || ($sub_permission['ArosAco']['_read'] == 1) || ($sub_permission['ArosAco']['_update'] == 1) || ($sub_permission['ArosAco']['_delete'] == 1)){
+									
+								if ($submenu['Aco']['alias'] == 'Invoices') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Invoices</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/0/id'] = '<div >|------Id</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/0/client'] = '<div >|------Client Company</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/0/brand'] = '<div >|------Brand</div>';
+								}
+								
+								if ($submenu['Aco']['alias'] == 'Clients') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Clients</div>';
+									$list[$submenu['Aco']['url'].'/0/client_name'] = '<div >|------Client name</div>';
+									$list[$submenu['Aco']['url'].'/0/company'] = '<div >|------Client company</div>';
+								}
+								
+								if ($submenu['Aco']['alias'] == 'Estimates') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Estimates</div>';
+									$list[$submenu['Aco']['url'].'/0/name'] = '<div >|------Estimate Name</div>';
+									$list[$submenu['Aco']['url'].'/0/client_name'] = '<div >|------Client Company</div>';
+									$list[$submenu['Aco']['url'].'/0/brand'] = '<div >|------Brand</div>';
+								}
+								
+								if ($submenu['Aco']['alias'] == 'Packages') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Packages</div>';
+									$list[$submenu['Aco']['url'].'/0/package_name'] = '<div >|------Package Name</div>';
+									$list[$submenu['Aco']['url'].'/0/brand'] = '<div >|------Brand</div>';
+								}
+								
+								if ($submenu['Aco']['alias'] == 'Services') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Services</div>';
+									$list[$submenu['Aco']['url'].'/0/service'] = '<div >|------Service Name</div>';
+									$list[$submenu['Aco']['url'].'/0/company'] = '<div>|------Company</div>';
+									$list[$submenu['Aco']['url'].'/0/brand'] = '<div >|------Brand</div>';
+								}
+
+								if ($submenu['Aco']['alias'] == 'Brands') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Brands</div>';
+									$list[$submenu['Aco']['url'].'/0/name'] = '<div >|------Brand Name</div>';
+								}
+								
+							}
+							
+						}
+						
+						break;
+					
+					case 'Payroll':
+						$list[$menu['url'].'/'] = '<div style="font-weight:bold;font-size:12px;color:#0f4661;">Payroll</div>';
+						$payroll_submenus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$menu['id']),'fields'=>array('Aco.id','Aco.alias','Aco.url'),'order'=>array('Aco.order ASC')));
+						foreach ($payroll_submenus as $submenu) {
+							$sub_permission = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aco_id'=>$submenu['Aco']['id'],'ArosAco.aro_id'=>$users)));
+							if(($sub_permission['ArosAco']['_create'] == 1) || ($sub_permission['ArosAco']['_read'] == 1) || ($sub_permission['ArosAco']['_update'] == 1) || ($sub_permission['ArosAco']['_delete'] == 1)){
+									
+								if ($submenu['Aco']['alias'] == 'Staff') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Staff</div>';
+									$list[$submenu['Aco']['url'].'/name'] = '<div >|------Staff Name</div>';
+									$list[$submenu['Aco']['url'].'/emp_code'] = '<div>|------Empcode</div>';
+								}
+								
+								if ($submenu['Aco']['alias'] == 'Staff Salaries') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Staff Salaries</div>';
+									$list[$submenu['Aco']['url'].'/staff_name'] = '<div >|------Staff Name</div>';
+									$list[$submenu['Aco']['url'].'/emp_code'] = '<div >|------Empcode</div>';
+									$list[$submenu['Aco']['url'].'/ctc'] = '<div >|------CTC</div>';
+									$list[$submenu['Aco']['url'].'/take_home'] = '<div >|------Take Home >= </div>';
+								}
+							}
+						}
+						
+						break;
+						
+					
+					case 'Settings':
+						$list[$menu['url']] = '<div style="font-weight:bold;font-size:12px;color:#0f4661;">Settings</div>';
+						$settings_submenus = $this->Aco->find('all',array('conditions'=>array('Aco.parent_id'=>$menu['id']),'fields'=>array('Aco.id','Aco.alias','Aco.url'),'order'=>array('Aco.order ASC')));
+						foreach ($settings_submenus as $submenu) {
+							$sub_permission = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aco_id'=>$submenu['Aco']['id'],'ArosAco.aro_id'=>$users)));
+							if(($sub_permission['ArosAco']['_create'] == 1) || ($sub_permission['ArosAco']['_read'] == 1) || ($sub_permission['ArosAco']['_update'] == 1) || ($sub_permission['ArosAco']['_delete'] == 1)){
+									
+								if ($submenu['Aco']['alias'] == 'Modules') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--Modules</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/alias'] = '<div >|------Module name</div>';
+								}
+								
+								if ($submenu['Aco']['alias'] == 'User Groups') {
+									$list[$submenu['Aco']['url']] = '<div style="color:#99cccc;">|--User groups</div>';
+									$list[$submenu['Aco']['url'].'/0/0/0/alias'] = '<div >|------User group name</div>';
+								}
+								
+							}
+						}
+						
+						break;
+						
+					default:
+						
+						break;
+				}
+			}
+			return $list;
+		}
+		if (!empty($this->data)) {
+			
+			$data = $this->data['GlobalSearch']['data'];
+			$url = '/'.$this->data['GlobalSearch']['search_by'].'/'.$data;
+			$url_explode = explode('/', $url);
+			if($url_explode[1] == 'accounts_ledgers'){
+				$this->loadModel('AccountsAccount');
+				$account_id = $this->AccountsAccount->find('first',array('conditions'=>array('AccountsAccount.account_name LIKE'=>$data.'%')));
+				$url = '/accounts_ledgers/ledger_home/0/0/0/'.$account_id['AccountsAccount']['id'];
+			}
+			$this->redirect($url);
+		}
+		
+	}
+	
+	
+	
+	
+	
+	public function noaccess(){
+		
+		
+	}
+
+}

@@ -1,0 +1,229 @@
+<?php
+/**
+ * Application level Controller
+ *
+ * This file is application-wide controller file. You can put all
+ * application-wide controller-related methods here.
+ *
+ * PHP 5
+ *
+ * CakePHP(tm) : Rapid Development Framework (http://cakephp.org)
+ * Copyright 2005-2011, Cake Software Foundation, Inc. (http://cakefoundation.org)
+ *
+ * Licensed under The MIT License
+ * Redistributions of files must retain the above copyright notice.
+ *
+ * @copyright     Copyright 2005-2011, Cake Software Foundation, Inc. (http://cakefoundation.org)
+ * @link          http://cakephp.org CakePHP(tm) Project
+ * @package       Cake.Controller
+ * @since         CakePHP(tm) v 0.2.9
+ * @license       MIT License (http://www.opensource.org/licenses/mit-license.php)
+ */
+
+App::uses('Controller', 'Controller');
+
+/**
+ * This is a placeholder class.
+ * Create the same file in app/Controller/AppController.php
+ *
+ * Add your application-wide methods in the class below, your controllers
+ * will inherit them.
+ *
+ * @package       Cake.Controller
+ * @link http://book.cakephp.org/view/957/The-App-Controller
+ */
+class AppController extends Controller {
+
+
+	
+	public $components = array('Acl','Auth','Session','Email','RequestHandler');
+	public $helpers = array('Js' => array('Jquery'),'Html','Session','Form');
+	public $cacheAction = true;
+	
+	
+	    
+	
+	function beforeFilter(){
+	//	
+		//ACL
+		$this->loadModel('Aro');
+		$this->loadModel('Aco');
+		$this->loadModel('ArosAco');
+	    $aroDetails = $this->Aro->find('first',array('conditions'=>array('Aro.foreign_key'=>$this->Session->read('Auth.User.id'))));
+	    $this->Session->write('Auth1.User.Aro_id',$aroDetails['Aro']['parent_id']);
+	   	//$this->Auth->authenticate = array('Form');
+	  	$this->loadModel('Currency');
+		$currency=$this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+		$symbol=$currency['Currency']['symbol'];
+		$currency_name = $currency['Currency']['name'];
+		if($currency_name == 'USD') {
+			$cn = 'en_US';
+		}
+		elseif($currency_name == 'INR') {
+			$cn = 'en_IN';
+		}
+		elseif($currency_name == 'EUR') {
+			$cn = 'en_EUR';			
+		}
+		setlocale(LC_MONETARY, $cn);
+		$this->params['currency']=$symbol;
+				
+		// checking AccountAccountsController
+		$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>'Account Tree')));
+		$arosAcosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+		$this->Session->write('Bcrumb.Accounttree',$arosAcosDetails);
+		
+		$aco = $this->Aco->find('first',array('conditions'=>array('Aco.alias'=>'Accounts')));
+		$arosAcosDetails = $this->ArosAco->find('first',array('conditions'=>array('ArosAco.aro_id'=>$this->Session->read('Auth1.User.Aro_id'),'ArosAco.aco_id'=>$aco['Aco']['id'])));
+		$this->Session->write('Bcrumb.Accountdash',$arosAcosDetails);
+		
+		//
+		$this->loadModel('Setting');  	
+	  	$acc_date_format  = $this->Setting->find('first',array('conditions'=>array('Setting.label'=>'Date Format', 'Setting.active'=>'Y'),'fields'=>array('Setting.value')));
+	    $dfStr            = $acc_date_format['Setting']['value'];
+		$this->params['accDateFormat'] = $dfStr;
+		/*
+		if(!$this->Session->read('Auth.User')){ 
+					   $this->Session->setFlash(__('Session expired. Please login again'));
+					   return $this->redirect(array('controller'=>'users','action' => 'login'));
+				  }*/
+		
+	}
+	
+	public $paginate = array(
+	     'limit' => 20,	    
+	);
+	
+	
+	
+	public function totalInvoiceConversion($currencyId,$amount){
+ 	$this->loadModel('Currency');
+ 	$accountingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_currency'=>'Y')));
+ 	$invoiceCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.id'=>$currencyId)));
+ 	if($accountingCurrency['Currency']['id'] != $currencyId){
+ 		$from=$invoiceCurrency['Currency']['name'];
+		$to=$accountingCurrency['Currency']['name'];
+		$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+		$handle = @fopen($url, 'r');
+		if ($handle) 
+			{
+		   		$result = fgets($handle, 4096);
+		   		fclose($handle);
+			}
+										
+		$allData = explode(',',$result);  //Get all the contents to an array 
+		$convertedAmount[$accountingCurrency['Currency']['symbol']]=$amount*$allData['1'];
+		$this->set(compact('symbol'));
+ 	}else{
+ 		$convertedAmount[$accountingCurrency['Currency']['symbol']] = $amount;
+ 	}
+ 	return $convertedAmount;
+ }
+ public function totalInvoiceConversionBilling($currencyId,$amount){
+ 	$this->loadModel('Currency');
+ 	$defaulBillingCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.default_billing_currency'=>'Y')));
+ 	$invoiceCurrency = $this->Currency->find('first',array('conditions'=>array('Currency.id'=>$currencyId)));
+ 	if($defaulBillingCurrency['Currency']['id'] != $currencyId){
+ 		$from=$invoiceCurrency['Currency']['name'];
+		$to=$defaulBillingCurrency['Currency']['name'];
+		$url = 'http://download.finance.yahoo.com/d/quotes.csv?e=.csv&f=sl1d1t1&s='. $from . $to .'=X';
+		$handle = @fopen($url, 'r');
+		if ($handle) 
+			{
+		   		$result = fgets($handle, 4096);
+		   		fclose($handle);
+			}
+										
+		$allData = explode(',',$result);  //Get all the contents to an array 
+		$convertedAmount[$defaulBillingCurrency['Currency']['symbol']]=$amount*$allData['1'];
+		$this->set(compact('symbol'));
+ 	}else{
+ 		$convertedAmount[$defaulBillingCurrency['Currency']['symbol']] = $amount;
+ 	}
+ 	return $convertedAmount;
+ }
+	
+	function redirect($url, $status = null, $exit = true) {
+ 
+        if ($status == 403 && $this->RequestHandler->isAjax()) {
+ 			//echo "plz redirect";
+ 			$this->Session->setFlash(__('Session expired!'), 'default', array(), 'auth');
+ 			//$this->Session->setFlash(__('Session expired!', true));
+            $this->throwAjaxError(403, __('<script type="text/javascript">
+            		
+					 window.location.reload()
+						
+            		</script>', true));
+            $this->_stop();
+            return;
+        }
+        else {
+            parent::redirect($url, $status = null, $exit = true);
+        }
+    }
+ 
+	/**
+	 * Return header codes for AJAX errors.
+	 * 
+	 * @param $errorCode
+	 * @param $message
+	 * @return unknown_type
+	 */
+	protected function throwAjaxError ($errorCode = 400, $message = null) {
+ 
+		if ($this->RequestHandler->isAjax() || (isset($this->isAjax) && $this->isAjax == true)) {
+			switch ($errorCode) {
+				case 400 :
+				case 403 :
+					//$this->Session->setFlash(__('Session expired!', true));
+					$this->Session->setFlash(__('Session expired!'), 'default', array(), 'auth');
+				    echo '<script type="text/javascript">
+            		
+					 window.location.reload()
+						
+            		</script>';
+                    break;
+				case 408 :
+				case 409 :
+					//$this->Session->setFlash(__('Session expired!', true));
+					$this->Session->setFlash(__('Session expired!'), 'default', array(), 'auth');
+					echo '<script type="text/javascript">
+            		
+					 window.location.reload()
+						
+            		</script>';
+					break;
+				case 500 : 
+					break;
+			}
+			$this->autoRender = false;
+			$this->layout = 'ajax'; 
+			Configure::write('debug', 0);
+		}
+		else {
+			throw new Exception('Ajax Error should only be thrown for ajax requests.');
+		}
+	}
+		
+	public function array2xml($array, $xml = false){
+	    if($xml === false){
+	        $xml = new SimpleXMLElement('<root/>');
+	    }
+	    foreach($array as $key => $value){
+	        if(is_array($value)){
+	            $this->array2xml($value, $xml->addChild($key));
+	        }else{
+	            $xml->addChild($key, $value);
+	        }
+	    }
+	    return $xml->asXML();
+   }
+	
+	public $userPermission = 'N';
+	
+	
+	
+	
+	
+	
+}
