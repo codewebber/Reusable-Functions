@@ -1,0 +1,38 @@
+Multiple File Upload
+Steps : 
+1. Include jquery.MultiFile.js in app/webroot/js, call this script in layout or respective view file.
+
+2. In view file, we need to use the Form helper as so:
+<?php
+echo $this->Form->create('Model', array('type' => 'file'));
+echo $this->Form->input('files.', array('type' => 'file', 'multiple'));
+echo $this->Form->end('Upload');
+?>
+
+3.From the controller inspecting the $this->data property will give us like this:
+
+Array
+(
+    [Model] => Array
+        (
+            [files] => Array
+                (
+                    [0] => Array
+                        (
+                            [name] => 20120112_153642.jpg
+                            [type] => image/jpeg
+                            [tmp_name] => E:\wamp\tmp\phpD71.tmp
+                            [error] => 0
+                            [size] => 1922765
+                        )
+                    [1] => Array
+                        (
+                            [name] => 20120112_153845.jpg
+                            [type] => image/jpeg
+                            [tmp_name] => E:\wamp\tmp\phpD81.tmp
+                            [error] => 0
+                            [size] => 1122957
+                        )
+        )
+)
+

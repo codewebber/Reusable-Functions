@@ -1,0 +1,11 @@
+<div>
+<?php echo $this->Form->input('filed_name', array('id' => 'clientId', 'div' => false, 'label' => false, 'options' => array('' => '', $customer),'data-live-search' => 'true',  'class'=>'form-control','data-placeholder' => "Customer List"));
+$this->Js->get('#clientId') -> event('change', $this->Js->request(array('controller' => 'acr_client_invoices', 'action' => 'customerInfo'), array('update'=>'#div1, #div2',async' => false, 'dataExpression' => true, 'method' => 'post', 'data' => $this -> Js -> serializeForm(array('isForm' => false, 'inline' => true))))); ?>
+</div>	
+
+					
+<div id="div1"></div>
+
+<div id="div2"></div>						
+						
+						
