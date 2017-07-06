@@ -3,6 +3,12 @@ Cakephp3 Role management (Acl) implementation :
 step1 : check composer.phar is running or not in your project folder using below command
         command : php composer.phar
         if it is working then below lines of code it will dispaly similar to below lines:
+	   ______
+	  / ____/___  ____ ___  ____  ____  ________  _____
+	 / /   / __ \/ __ `__ \/ __ \/ __ \/ ___/ _ \/ ___/
+	/ /___/ /_/ / / / / / / /_/ / /_/ (__  )  __/ /
+	\____/\____/_/ /_/ /_/ .___/\____/____/\___/_/
+		            /_/
 	Composer version 1.1.1 2016-05-17 12:25:44
 
 step1.1 : if composer is not installed in your project folder then need to follow below steps
