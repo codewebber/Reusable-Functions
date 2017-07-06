@@ -15,7 +15,7 @@ step1.1 : if composer is not installed in your project folder then need to follo
        commands : curl -sS https://getcomposer.org/installer | php
 		  php composer.phar install
 
-step2 : if composer installed properly then we are ready for install acl plugin using composer follow below command
+step2 : if composer installed properly then we are ready for install acl plugin using composer
         commnad : php composer.phar composer require cakephp/acl
 
 step3 : after installation of acl plugin Include the ACL plugin in app/config/bootstrap.php
