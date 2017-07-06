@@ -1,4 +1,4 @@
-#Cakephp3 Role management (Acl) implementation : 
+# Cakephp3 Role management (Acl) implementation : 
 ```php
 step1 : check composer.phar is running or not in your project folder using below command
         command : php composer.phar
@@ -20,13 +20,12 @@ step2 : if composer installed properly then we are ready for install acl plugin 
 
 step3 : after installation of acl plugin Include the ACL plugin in app/config/bootstrap.php
 ```
-
+## note : loading acl plugin is complusory with out loading plugin : error - datasource missing 
 ```php
 Plugin::load('Acl', ['bootstrap' => true]);
 ```
 
-###Example schema
-An example schema taken from the CakePHP 2 ACL tutorial:
+### Example schema
 ```sql
 CREATE TABLE users (
     id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -69,7 +68,7 @@ bin/cake bake all posts
 bin/cake bake all widgets
 ```
 
-### Preparing to Add Auth
+### Login page code
 Add `UsersController::login` function
 ```php
 public function login() {
@@ -226,18 +225,22 @@ Remove the temporary auth overrides by removing the `beforeFilter` function or t
 ### Configuring Permissions
 #### Configuring permissions using the ACL shell
 First, find the IDs of each group you want to grant permissions on.  There are several ways of doing this.  Since we will be at the console anyway, the quickest way is probably to run `bin/cake acl view aro` to view the ARO tree.  In this example, we will assume the `Administrator`, `Manager`, and `User` groups have IDs 1, 2, and 3 respectively.
+
 - Grant members of the `Administrator` group permission to everything
   - Run `bin/cake acl grant Groups.1 controllers`
+  
 - Grant members of the `Manager` group permission to all actions in `Posts` and `Widgets`
   - Run `bin/cake acl deny Groups.2 controllers`
   - Run `bin/cake acl grant Groups.2 controllers/Posts`
   - Run `bin/cake acl grant Groups.2 controllers/Widgets`
+  
 - Grant members of the `User` group permission to view `Posts` and `Widgets`
   - Run `bin/cake acl deny Groups.3 controllers`
   - Run `bin/cake acl grant Groups.3 controllers/Posts/index`
   - Run `bin/cake acl grant Groups.3 controllers/Posts/view`
   - Run `bin/cake acl grant Groups.3 controllers/Widgets/index`
   - Run `bin/cake acl grant Groups.3 controllers/Widgets/view`
+  
 - Allow all groups to logout
   - Run `bin/cake acl grant Groups.2 controllers/Users/logout`
   - Run `bin/cake acl grant Groups.3 controllers/Users/logout`logout
