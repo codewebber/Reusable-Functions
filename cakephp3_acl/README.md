@@ -1,6 +1,6 @@
 #Cakephp3 Role management (Acl) implementation : 
-
-##step1 : check composer.phar is running or not in your project folder using below command
+```php
+step1 : check composer.phar is running or not in your project folder using below command
         command : php composer.phar
         if it is working then below lines of code it will dispaly similar to below lines:
 	   ______
@@ -11,16 +11,15 @@
 		            /_/
 	Composer version 1.1.1 2016-05-17 12:25:44
 
-##step1.1 : if composer is not installed in your project folder then need to follow below steps
+step1.1 : if composer is not installed in your project folder then need to follow below steps
        commands : curl -sS https://getcomposer.org/installer | php
 		  php composer.phar install
 
-##step2 : if composer installed properly then we are ready for install acl plugin using composer follow below command
+step2 : if composer installed properly then we are ready for install acl plugin using composer follow below command
         commnad : php composer.phar composer require cakephp/acl
 
-##step3 : after installation of acl plugin Include the ACL plugin in app/config/bootstrap.php
-        code : Plugin::load('Acl', ['bootstrap' => true]);
-
+step3 : after installation of acl plugin Include the ACL plugin in app/config/bootstrap.php
+```
 
 ```php
 Plugin::load('Acl', ['bootstrap' => true]);
