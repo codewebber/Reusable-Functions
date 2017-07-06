@@ -1,0 +1,85 @@
+Steps followed for generating po file :
+
+1. Go upto project root folder  type command 
+   bin/cake i18n extract
+
+
+########################################################
+
+Welcome to CakePHP v3.2.9 Console
+---------------------------------------------------------------
+App : src
+Path: /var/www/html/project name/src/
+PHP : 5.6.21-1+donate.sury.org~trusty+4
+---------------------------------------------------------------
+Current paths: None
+What is the path you would like to extract?
+[Q]uit [D]one
+[/var/www/html/project name/src/] > 
+
+Current paths: /var/www/html/project name/src/
+What is the path you would like to extract?
+[Q]uit [D]one
+[D] > 
+
+Would you like to extract the messages from the CakePHP core? (y/n) 
+[n] > y
+What is the path you would like to output?
+[Q]uit
+[/var/www/html/project_name/src/Locale] > 
+
+Would you like to merge all domain strings into the default.pot file? (y/n) 
+[n] > y
+
+################################################
+
+2. aftrer these commands  default.pot file  will create src/Locale .according to language we need to create one folder in "Locale".
+
+for example if we want arabic language translation we need to create  Locale/ar 
+
+3. copy default.pot file into Locale/ar folder and rename  it as default.po
+
+4. in default.po   will have msgid and msgstr  change as below
+
+   example : msgid "Home"
+             msgstr "الصفحة الرئيسية" 
+
+5. after modifications  need to clear tmp/cache/models and tmp/cache/persistent  every time.
+
+Steps followed in  controller 
+
+ 1. paste below lines in in AppController.php
+
+use Cake\I18n\I18n; 
+
+ public function beforeFilter(Event $event)
+  {
+        $session = $this->request->session();
+       	if ($session->read('language') == 'ar'  && ($this->request->params['controller'] == 'particular controller name')) 
+        {
+               I18n::locale('ar');
+        } else {
+               I18n::locale('en_US');
+        }
+   }
+
+note : if  total website need to translate then no need to give controller condition.
+
+2. where we want translation in that particular controller 
+  
+ $session->write('language','your page language');
+
+Steps followed in  view pages
+
+Labels shoud be echo __('Label'); format
+
+problem : some time session language won't change immediately  
+solution: if this problem arises then need to reload page only once 
+
+<script type="text/javascript">
+$( window ).load(function() {
+    if (window.location.href.indexOf('reload')==-1) {
+         window.location.replace(window.location.href+'?reload');
+    }
+});
+</script>
