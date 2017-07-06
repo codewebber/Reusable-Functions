@@ -203,7 +203,7 @@ public function parentNode()
 ```
 
 ### Creating ACOs
-The [ACL Extras](https://github.com/markstory/acl_extras/) plugin referred to in the CakePHP 2 ACL tutorial is now integrated into the [CakePHP ACL plugin](https://github.com/cakephp/acl) for CakePHP 3.
+
 - Run `bin/cake acl_extras aco_sync` to automatically create ACOs.
 - ACOs and AROs can be managed manually using the ACL shell.  Run `bin/cake acl` for more information.
 
