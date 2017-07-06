@@ -114,6 +114,8 @@ public function beforeSave(\Cake\Event\Event $event, \Cake\ORM\Entity $entity,
 ```
 Include and configure the `AuthComponent` and the `AclComponent` in the `AppController`
 ```php
+## with out loading acl component if we try  acl functionality error : count{0} will display
+   below snippet of code is required in Appcontroller
 public $components = [
 	'Acl' => [
 		'className' => 'Acl.Acl'
