@@ -85,7 +85,7 @@ go upto project folder in command prompt  and type below command
 ```php
 
 bin/cake bake
-ex : /var/www/html/cakephp3_session$ bin/cake bake
+ex : /var/www/html/projectName$ bin/cake bake
 
 it will show  list  what we can bake :
 Available bake commands:
@@ -117,7 +117,7 @@ ex: bin/cake bake model (before baking model database should have tables  all ta
  Welcome to CakePHP v3.4.5 Console
 ---------------------------------------------------------------
 App : src
-Path: /var/www/html/cakephp3_session/src/
+Path: /var/www/html/projectName/src/
 PHP : 5.6.21-1+donate.sury.org~precise+4
 ---------------------------------------------------------------
 Choose a model to bake from the following:
@@ -127,9 +127,9 @@ Choose a model to bake from the following:
 
 from that we can  select particular table.
 
-/var/www/html/cakephp3_session/src/Model/Table/PostsTable.php
-/var/www/html/cakephp3_session/src/Model/Entity/Post.php
-/var/www/html/cakephp3_session/tests/Fixture/PostsFixture.php
+/var/www/html/projectName/src/Model/Table/PostsTable.php
+/var/www/html/projectName/src/Model/Entity/Post.php
+/var/www/html/projectName/tests/Fixture/PostsFixture.php
 
 ```
 
@@ -162,7 +162,7 @@ controller :
 
  	$this->set('_serialize', ['posts']);
  
- url : http://localhost/cakephp3_session/posts/index.json
+ url : http://localhost/projectName/posts/index.json
 
 ```
 ## How to create components :
