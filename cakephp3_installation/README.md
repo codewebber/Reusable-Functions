@@ -11,7 +11,8 @@ PHP 5.6.0 or greater (including PHP 7.1).
 Mbstring PHP extension
 intl PHP extension
 ```
-##Mbstring PHP extension : 
+## Mbstring PHP extension : 
+
 Mbstring is an extension of php used to manage non-ASCII strings,
 Mbstring extension needs to be installed on the server
 when configuring a website to work with different languages on a 
