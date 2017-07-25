@@ -101,7 +101,7 @@ public function view($id = null)
 ```
 
 ## Explanation :
-```php
+
 $this->autoRender = false; this line is required otherwise 2 view pages will render (one is for download and one is for upload) 
 $this->loadComponent('RequestHandler'); this comoponet is required
 in this example we need to create some template file for upload 
@@ -110,7 +110,6 @@ Layout Path : src/Template/Layout/pdf/default.ctp
 in above code we render like this $CakePdf->template('samplepost', 'default');
 we can write our html code in samplepost.ctp it will convert as pdf file and automatically upload to defined folder
 
-```
 
 
 
