@@ -27,7 +27,7 @@ Current Engines supported by cakepdf are
 3.Tcpdf
 4.WkHtmlToPdf
 
-``
+```
 ## installation of pdf engines we can pick any one for explaining purpose using tcpdf engine
 composer require dompdf/dompdf
 composer require tecnickcom/tcpdf
@@ -38,7 +38,7 @@ http://wkhtmltopdf.org/ (direcly we can download)
 In config/bootstrap.php add:
 ```php
 Plugin::load('CakePdf', ['bootstrap' => true]);
-``
+```
 
 ## App Controller
 ```php
